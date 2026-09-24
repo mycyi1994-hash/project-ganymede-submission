@@ -57,7 +57,8 @@ function allocateWeights(
     const nextActive: typeof active = [];
     let assignedThisPass = 0;
     for (const item of active) {
-      const proposed = Math.round(remaining * (item.score / totalScore));
+      // Round down so a pass never assigns more than remains; the loop below places the leftover bps.
+      const proposed = Math.floor(remaining * (item.score / totalScore));
       const existing = weights.get(item.symbol) ?? 0;
       const capacity = maximumBps - existing;
       const allocation = Math.max(0, Math.min(proposed, capacity));
@@ -196,7 +197,9 @@ export function calculateStrategy(product: ProductDefinition, allInputs: Strateg
 
 export function shouldRebalance(product: ProductDefinition, lastCompletedAt: string | null, now = new Date()): boolean {
   if (!lastCompletedAt) return true;
-  const elapsedDays = (now.getTime() - new Date(lastCompletedAt).getTime()) / 86_400_000;
+  // SQLite's CURRENT_TIMESTAMP has no zone marker; it is UTC.
+  const completedAt = new Date(/[zZ]|[+-]\d\d:\d\d$/.test(lastCompletedAt) ? lastCompletedAt : `${lastCompletedAt.replace(" ", "T")}Z`);
+  const elapsedDays = (now.getTime() - completedAt.getTime()) / 86_400_000;
   const threshold = product.rebalanceCadence === "daily" ? 1 : product.rebalanceCadence === "weekly" ? 7 : product.rebalanceCadence === "monthly" ? 28 : 84;
   return elapsedDays >= threshold;
 }

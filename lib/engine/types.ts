@@ -125,7 +125,8 @@ export type StrategyResult = {
 export type OrderIntent = {
   id: string;
   productId: string;
-  rebalanceRunId: string;
+  /** Null for sales that raise cash for a redemption; they are not part of a rebalance. */
+  rebalanceRunId: string | null;
   symbol: string;
   market: string;
   side: "buy" | "sell";

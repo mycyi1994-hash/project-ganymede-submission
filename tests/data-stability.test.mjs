@@ -60,6 +60,22 @@ test("public market, portfolio and health GETs work with database writes disable
   } finally { delete env.DB; delete env.TRADING_MODE; sql.close(); }
 });
 
+test("the public health check reports an RPC failure without its error text", async (t) => {
+  const { db, sql } = database();
+  try {
+    await new EngineRepository(db).seed();
+    env.DB = db;
+    env.SETTLEMENT_RPC_URL = "https://rpc.example.test/v1/secret-provider-key";
+    t.mock.method(console, "error", () => {});
+    t.mock.method(globalThis, "fetch", async () => { throw new TypeError("request to https://rpc.example.test/v1/secret-provider-key failed"); });
+    const response = await healthGET();
+    const body = await response.text();
+    assert.equal(response.status, 503);
+    assert.doesNotMatch(body, /secret-provider-key|rpc\.example/);
+    assert.equal(JSON.parse(body).settlement.connected, false);
+  } finally { delete env.DB; delete env.SETTLEMENT_RPC_URL; sql.close(); }
+});
+
 test("a cycle that is not due performs no writes or outbound requests", async (t) => {
   const { db, sql, changes } = database();
   try {
@@ -139,7 +155,7 @@ test("price timeouts and transient retries are bounded", async () => {
 
 test("repeated failed publications retain the last confirmed composition", async (t) => {
   const rows = new Map();
-  const repo = { async getState(key) { return rows.has(key) ? { value: rows.get(key) } : null; }, async setState(key, value) { rows.set(key, value); }, async saveSettlement() {} };
+  const repo = { async getState(key) { return rows.has(key) ? { value: rows.get(key) } : null; }, async setState(key, value) { rows.set(key, value); }, async saveSettlement() {}, async deleteStatesWithPrefix(prefix, keep) { for (const key of [...rows.keys()]) if (key.startsWith(prefix) && !keep.includes(key)) rows.delete(key); } };
   const addresses = XSTOCKS_CONSTITUENTS.map((item, i) => ({ ...item, address: "0x" + String(i + 1).repeat(40) }));
   const configured = { OKX_API_KEY: "test", OKX_API_SECRET: "test", OKX_API_PASSPHRASE: "test", XSTOCKS_ADDRESSES: addresses.map((item) => item.symbol + "=" + item.address).join(",") };
   const now = new Date().toISOString();

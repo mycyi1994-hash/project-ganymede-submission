@@ -10,6 +10,7 @@ import DataNotice from "./DataNotice";
 import type { PortfolioData, PortfolioPosition } from "@/lib/portfolio-display";
 import { Arrow, SiteFooter, StrategyGlyph } from "./DesignElements";
 import SiteHeader from "./SiteHeader";
+import { currentWalletAddress } from "./WalletConnect";
 import { etfs, type Etf, type Filter } from "./data/etfs";
 
 type View = "select" | "portfolio" | "operations";
@@ -92,13 +93,23 @@ function displayTime(value: unknown): string {
   return Number.isNaN(parsed.getTime()) ? value : parsed.toLocaleString("en-GB", { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit", timeZone: "UTC", timeZoneName: "short" });
 }
 
-async function currentWalletAddress(): Promise<string | null> {
-  if (!window.ethereum) return null;
+const FILTER_KEY = "ganymede-etf-filter";
+
+// Browsers can block storage for a site; remembering the filter is a convenience, never a requirement.
+function savedFilter(): Filter | null {
   try {
-    const accounts = await window.ethereum.request({ method: "eth_accounts" }) as string[];
-    return accounts[0] ?? null;
+    const saved = window.sessionStorage.getItem(FILTER_KEY);
+    return filters.find((filter) => filter.id === saved)?.id ?? null;
   } catch {
     return null;
+  }
+}
+
+function rememberFilter(filter: Filter) {
+  try {
+    window.sessionStorage.setItem(FILTER_KEY, filter);
+  } catch {
+    // Storage is unavailable; the filter simply resets on the next visit.
   }
 }
 
@@ -126,7 +137,7 @@ function EtfCard({ etf, liveProduct, dataState, onOpen, onNavigate }: {
   const targetHoldings = allTargetHoldings.slice(0, 3);
   return (
     <article className={`etf-card etf-product-card product-${etf.id}`}>
-      <a id={`etf-card-${etf.id}`} className="etf-card-hit" href={`/etfs/${etf.slug}`} aria-label={`View ${etf.name}, ${etf.roleName}, ${etf.risk.toLowerCase()} risk, product details`} onClick={(event) => { if (event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return; event.preventDefault(); onOpen(etf.id); }} onKeyDown={handleKeyDown} />
+      <a id={`etf-card-${etf.id}`} className="etf-card-hit" href={`/lab/strategies/${etf.slug}`} aria-label={`View ${etf.name}, ${etf.roleName}, ${etf.risk.toLowerCase()} risk, product details`} onClick={(event) => { if (event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return; event.preventDefault(); onOpen(etf.id); }} onKeyDown={handleKeyDown} />
       <div className="product-card-index" aria-hidden="true"><span>{String(etfs.findIndex((candidate) => candidate.id === etf.id) + 1).padStart(2, "0")}</span><i /></div>
       <div className="etf-card-hero">
         <div className="etf-card-copy">
@@ -200,6 +211,9 @@ function OperationsView({ data, loading, error, onRun }: { data: OperationsData 
 
 function useDialogFocus(onClose: () => void) {
   const dialogRef = useRef<HTMLElement>(null);
+  // Parents pass a new closure each render; reading it through a ref keeps focus where the user put it.
+  const closeRef = useRef(onClose);
+  useEffect(() => { closeRef.current = onClose; }, [onClose]);
 
   useEffect(() => {
     const previousFocus = document.activeElement as HTMLElement | null;
@@ -212,7 +226,7 @@ function useDialogFocus(onClose: () => void) {
     const handleKeyDown = (event: KeyboardEvent) => {
       if (event.key === "Escape") {
         event.preventDefault();
-        onClose();
+        closeRef.current();
         return;
       }
       if (event.key !== "Tab") return;
@@ -229,7 +243,7 @@ function useDialogFocus(onClose: () => void) {
       document.removeEventListener("keydown", handleKeyDown);
       previousFocus?.focus();
     };
-  }, [onClose]);
+  }, []);
 
   return dialogRef;
 }
@@ -247,12 +261,12 @@ function ChoiceGuide({ onClose, onOpen }: { onClose: () => void; onOpen: (id: st
   return (
     <div className="confirm-backdrop choice-guide-backdrop" role="presentation" onMouseDown={(event) => { if (event.currentTarget === event.target) onClose(); }}>
       <section ref={dialogRef} className="choice-guide-dialog" role="dialog" aria-modal="true" aria-labelledby={titleId} aria-describedby={copyId}>
-        <header><div><span>20-SECOND STRATEGY FINDER</span><h2 id={titleId}>What should this strategy do in your portfolio?</h2><p id={copyId}>Choose one goal. You can still compare all four strategies at any time.</p></div><button type="button" className="choice-guide-close" onClick={onClose} aria-label="Close strategy finder">×</button></header>
+        <header role="none"><div><span>20-SECOND STRATEGY FINDER</span><h2 id={titleId}>What should this strategy do in your portfolio?</h2><p id={copyId}>Choose one goal. You can still compare all four strategies at any time.</p></div><button type="button" className="choice-guide-close" onClick={onClose} aria-label="Close strategy finder">×</button></header>
         <div className="choice-guide-options">
           {options.map(([id, goal, title, copy], index) => <button key={id} type="button" className={`product-${id}`} onClick={() => onOpen(id)}><i>{String(index + 1).padStart(2, "0")}</i><span>{goal}</span><b>{title}</b><small>{copy}</small><em>View strategy ↗</em></button>)}
         </div>
         <div className="plain-language-guide"><span>TERMS, MADE SIMPLE</span><dl><div><dt>PASSIVE</dt><dd>Follows published rules and changes holdings at scheduled reviews.</dd></div><div><dt>ACTIVE</dt><dd>Uses systematic signals to adjust holdings within fixed limits.</dd></div><div><dt>INDICATIVE NAV</dt><dd>An estimate of one fund share’s value, not an independently verified price.</dd></div><div><dt>MODEL RETURN</dt><dd>A simulated result, not money earned by investors.</dd></div></dl></div>
-        <footer><button type="button" onClick={onClose}>COMPARE ALL FOUR</button><p>PAPER MODE means no real order is placed and no money moves.</p></footer>
+        <footer role="none"><button type="button" onClick={onClose}>COMPARE ALL FOUR</button><p>PAPER MODE means no real order is placed and no money moves.</p></footer>
       </section>
     </div>
   );
@@ -294,6 +308,7 @@ export default function HomeClient({ initialView }: { initialView: View | "overv
   const [marketLoading, setMarketLoading] = useState(false);
   const [removing, setRemoving] = useState(false);
   const [removeError, setRemoveError] = useState("");
+  const [removeRejected, setRemoveRejected] = useState("");
   const [marketError, setMarketError] = useState("");
   const [portfolioError, setPortfolioError] = useState("");
   const [operationsError, setOperationsError] = useState("");
@@ -302,12 +317,24 @@ export default function HomeClient({ initialView }: { initialView: View | "overv
   const [guideOpen, setGuideOpen] = useState(false);
   const [actionNotice, setActionNotice] = useState("");
 
-  const openView = useCallback((nextView: View) => {
+  const openView = useCallback((nextView: View, anchor?: string) => {
+    if (nextView === "select") { window.location.assign("/products/ustx"); return; }
     setAppOpen(true);
     setView(nextView);
-    if (window.location.search !== `?app=${nextView}`) window.history.pushState({ ganymedeView: nextView }, "", `/?app=${nextView}`);
-    requestAnimationFrame(() => window.scrollTo({ top: 0, behavior: "instant" }));
+    const url = `${nextView === "portfolio" ? "/lab" : `/?app=${nextView}`}${anchor ? `#${anchor}` : ""}`;
+    if (`${window.location.pathname}${window.location.search}${window.location.hash}` !== url) window.history.pushState({ ganymedeView: nextView }, "", url);
+    requestAnimationFrame(() => {
+      const section = anchor ? document.getElementById(anchor) : null;
+      if (section) section.scrollIntoView({ block: "start" });
+      else window.scrollTo({ top: 0, behavior: "instant" });
+    });
   }, []);
+
+  // Links between these views are handled here: a client navigation to the same page would keep the current view.
+  const viewLink = (nextView: View, anchor?: string) => ({
+    href: `${nextView === "portfolio" ? "/lab" : nextView === "select" ? "/products/ustx" : `/?app=${nextView}`}${anchor ? `#${anchor}` : ""}`,
+    onNavigate: (event: { preventDefault: () => void }) => { event.preventDefault(); openView(nextView, anchor); },
+  });
 
   const openOverview = useCallback(() => {
     setAppOpen(false);
@@ -343,6 +370,7 @@ export default function HomeClient({ initialView }: { initialView: View | "overv
       setPortfolio(payload);
       setPortfolioError("");
       setRemoveError("");
+      setRemoveRejected("");
     } catch (error) {
       setPortfolioError(error instanceof Error ? error.message : "Portfolio ledger is unavailable");
     } finally {
@@ -367,15 +395,19 @@ export default function HomeClient({ initialView }: { initialView: View | "overv
 
   useEffect(() => {
     const initialize = window.setTimeout(() => {
-      const savedFilter = sessionStorage.getItem("ganymede-etf-filter") as Filter | null;
-      if (savedFilter && filters.some((filter) => filter.id === savedFilter)) setActiveFilter(savedFilter);
+      const saved = savedFilter();
+      if (saved) setActiveFilter(saved);
     }, 0);
     return () => window.clearTimeout(initialize);
   }, []);
 
   useEffect(() => {
     const restoreFromUrl = () => {
-      const appView = new URLSearchParams(window.location.search).get("app");
+      // A dialog belongs to the view it was opened from; going back or forward closes it.
+      setPendingRedeem(null);
+      setConfirmCycle(false);
+      setGuideOpen(false);
+      const appView = window.location.pathname === "/lab" ? "portfolio" : new URLSearchParams(window.location.search).get("app");
       if (appView === "select" || appView === "portfolio" || appView === "operations") {
         setAppOpen(true);
         setView(appView);
@@ -388,7 +420,7 @@ export default function HomeClient({ initialView }: { initialView: View | "overv
   }, []);
 
   useEffect(() => {
-    if (!appOpen || view !== "select") return;
+    if (!appOpen || view !== "portfolio") return;
     const initial = window.setTimeout(() => void refreshMarket(), 0);
     const timer = window.setInterval(refreshMarket, 60_000);
     return () => { window.clearTimeout(initial); window.clearInterval(timer); };
@@ -412,8 +444,8 @@ export default function HomeClient({ initialView }: { initialView: View | "overv
   const openEtfDetail = (id: string) => {
     const etf = etfs.find((candidate) => candidate.id === id);
     if (!etf) return;
-    sessionStorage.setItem("ganymede-etf-filter", activeFilter);
-    window.location.assign(`/etfs/${etf.slug}`);
+    rememberFilter(activeFilter);
+    window.location.assign(`/lab/strategies/${etf.slug}`);
   };
 
   const navigateCards = (id: string, direction: number) => {
@@ -425,6 +457,7 @@ export default function HomeClient({ initialView }: { initialView: View | "overv
   const redeemPosition = async (position: PortfolioPosition) => {
     setRemoving(true);
     setRemoveError("");
+    setRemoveRejected("");
     try {
       const walletAddress = await currentWalletAddress();
       const response = await fetch("/api/portfolio", {
@@ -432,7 +465,12 @@ export default function HomeClient({ initialView }: { initialView: View | "overv
         headers: { "Content-Type": "application/json", ...(walletAddress ? { "x-ganymede-wallet": walletAddress } : {}) },
         body: JSON.stringify({ productId: position.productId, sharesMicros: position.sharesMicros, walletAddress, clientReference: crypto.randomUUID() }),
       });
-      const payload = await response.json() as { error?: string };
+      const payload = await response.json() as { error?: string; code?: string };
+      if (response.status === 400 && payload.code === "INVALID_REQUEST") {
+        // A refusal is certain, unlike a failed request: show why instead of asking to check.
+        setRemoveRejected(payload.error ?? "The request was not accepted");
+        return;
+      }
       if (!response.ok) throw new Error(payload.error || "Redemption request failed");
       await refreshPortfolio();
       setActionNotice("Removal request saved. Your allocation will update after processing.");
@@ -467,12 +505,12 @@ export default function HomeClient({ initialView }: { initialView: View | "overv
               <div><p className="section-kicker">The USTX basket</p><h1>Start with what’s inside.</h1><p>Six tokenized US stocks. Inspect their composition, then follow the published NAV to its evidence.</p></div>
               <span className="catalog-environment"><i /> Testnet models</span>
             </header>
-            <BasketOverview /><aside className="journey-lab-link"><span>Looking for crypto simulations?</span><Link href="/?app=portfolio#paper-strategy-lab" prefetch={false}>Explore Paper lab</Link></aside>
+            <BasketOverview /><aside className="journey-lab-link"><span>Looking for crypto simulations?</span><Link {...viewLink("portfolio", "paper-strategy-lab")} prefetch={false}>Explore Paper lab</Link></aside>
           </main>
         ) : view === "portfolio" ? (
-          <><PortfolioView data={portfolio} loading={portfolioLoading} error={portfolioError} actionError={removeError} removing={removing} onRetry={() => void refreshPortfolio()} onBrowse={() => document.getElementById("paper-strategy-lab")?.scrollIntoView()} onOpen={(position) => window.location.assign(`/etfs/${position.slug}`)} onRedeem={(position) => setPendingRedeem(position)} /><div className="lab-catalog"><section className="paper-strategy-lab" id="paper-strategy-lab" aria-labelledby="paper-lab-title"><div className="collection-heading"><div><h2 id="paper-lab-title">Paper strategy lab</h2><p>Four digital-asset simulations, separate from the USTX basket and its NAV evidence. Compare strategies and save sample allocations.</p></div><span>Simulation only</span></div>
+          <><PortfolioView data={portfolio} loading={portfolioLoading} error={portfolioError} actionError={removeError} actionRejection={removeRejected} removing={removing} onRetry={() => void refreshPortfolio()} onBrowse={() => document.getElementById("paper-strategy-lab")?.scrollIntoView()} onOpen={(position) => window.location.assign(`/lab/strategies/${position.slug}`)} onRedeem={(position) => setPendingRedeem(position)} basketLink={viewLink("select", "ustx-basket")} /><div className="lab-catalog"><section className="paper-strategy-lab" id="paper-strategy-lab" aria-labelledby="paper-lab-title"><div className="collection-heading"><div><h2 id="paper-lab-title">Paper strategy lab</h2><p>Four digital-asset simulations, separate from the USTX basket and its NAV evidence. Compare strategies and save sample allocations.</p></div><span>Simulation only</span></div>
             <div className="product-market-toolbar">
-              <div className="etf-filters strategy-filters" role="group" aria-label="Filter ETF strategies">{filters.map((filter) => <button key={filter.id} type="button" className={activeFilter === filter.id ? "is-active" : ""} aria-pressed={activeFilter === filter.id} onClick={() => { setActiveFilter(filter.id); sessionStorage.setItem("ganymede-etf-filter", filter.id); }}>{filter.label}</button>)}</div>
+              <div className="etf-filters strategy-filters" role="group" aria-label="Filter ETF strategies">{filters.map((filter) => <button key={filter.id} type="button" className={activeFilter === filter.id ? "is-active" : ""} aria-pressed={activeFilter === filter.id} onClick={() => { setActiveFilter(filter.id); rememberFilter(filter.id); }}>{filter.label}</button>)}</div>
               <div className="market-toolbar-status"><button type="button" className="choice-guide-trigger" onClick={() => setGuideOpen(true)}>Help me choose <span>?</span></button><p aria-live="polite" aria-atomic="true">{marketError ? market ? "Showing last loaded NAV" : "NAV unavailable" : market?.updatedAt ? `NAV updated ${displayTime(market.updatedAt)}` : "Loading indicative NAV…"}</p></div>
             </div>
             <>{marketError && <DataNotice title={market ? "NAV refresh is unavailable." : "Prices are temporarily unavailable."} onRetry={() => void refreshMarket()} loading={marketLoading}>{market ? "The values below are from the last successful load. You can still compare strategy details." : "You can still compare each strategy’s role, risk and fee. Share estimates will return when pricing is available."}</DataNotice>}</>
@@ -497,13 +535,13 @@ export default function HomeClient({ initialView }: { initialView: View | "overv
       <section className="launch-copy etf-launch-copy">
         <h1 id="hero-title">An index you<br />can inspect.</h1>
         <p className="launch-description">A reported NAV should come with the numbers behind it. Recalculate a six-stock basket and compare its report with the record on X Layer.</p>
-        <div className="launch-actions"><a className="button is-primary" href="#try-verification">Try verification <Arrow /></a><Link className="button" href="/?app=select" prefetch={false}>View basket details</Link></div>
+        <div className="launch-actions"><a className="button is-primary" href="#try-verification">Try verification <Arrow /></a><Link className="button" {...viewLink("select")} prefetch={false}>View basket details</Link></div>
         <div className="launch-status-line"><span className="badge badge-blue">X Layer Testnet</span><span className="badge badge-sand">Model basket</span></div>
       </section>
       <div className="launch-observatory"><div className="hero-sculpture"><img src="/images/clearform-stack.webp" width="1024" height="1024" fetchPriority="high" alt="Six translucent layers representing the Apple, Microsoft, NVIDIA, Amazon, Meta and Tesla xStocks in the basket" /></div><NavPreview /></div>
       </div>
-      <EvidencePreview />
-      <aside className="journey-lab-link"><span>Also explore digital-asset simulations.</span><Link href="/?app=portfolio" prefetch={false}>Explore Paper lab</Link></aside>
+      <EvidencePreview basketLink={viewLink("select")} />
+      <aside className="journey-lab-link"><span>Also explore digital-asset simulations.</span><Link {...viewLink("portfolio")} prefetch={false}>Explore Paper lab</Link></aside>
       </main><SiteFooter />
       {guideOpen && <ChoiceGuide onClose={() => setGuideOpen(false)} onOpen={(id) => { setGuideOpen(false); openEtfDetail(id); }} />}
     </div>

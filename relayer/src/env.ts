@@ -12,6 +12,8 @@ export interface Env {
   /** Overrides the chain's public RPC. */
   SETTLEMENT_RPC_URL?: string;
   FUND_SHARE_ADDRESS?: string;
+  /** Product whose shares FUND_SHARE_ADDRESS holds (default core-20); other products are refused. */
+  FUND_SHARE_PRODUCT_ID?: string;
   NAV_REGISTRY_ADDRESS?: string;
 
   /**

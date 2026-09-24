@@ -47,12 +47,24 @@ async function main() {
 
   const hash = await share.write.setInvestorPermissions([normalized, true], { account: admin.account });
   const receipt = await publicClient.waitForTransactionReceipt({ hash });
-  console.log(`allowlisted ${normalized.length} wallet(s) in block ${receipt.blockNumber}`);
   console.log(`${deployment.explorer}/tx/${hash}`);
+  if (receipt.status !== "success") throw new Error(`setInvestorPermissions reverted in block ${receipt.blockNumber}`);
+  console.log(`allowlisted ${normalized.length} wallet(s) in block ${receipt.blockNumber}`);
 
+  // The public RPC is load-balanced, so a node may lag the block that just landed. Retry the reads.
+  let failed = 0;
   for (const wallet of normalized) {
-    const allowed = await share.read.isAllowed([wallet]);
+    let allowed = false;
+    for (let attempt = 0; attempt < 10 && !allowed; attempt += 1) {
+      allowed = await share.read.isAllowed([wallet]);
+      if (!allowed) await new Promise((resolve) => setTimeout(resolve, 1_000));
+    }
+    if (!allowed) failed += 1;
     console.log(`  ${allowed ? "ok " : "FAIL"} ${wallet}`);
+  }
+  if (failed > 0) {
+    console.error(`${failed} wallet(s) are still not allowlisted`);
+    process.exitCode = 1;
   }
 }
 

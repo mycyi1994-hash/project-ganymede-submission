@@ -23,5 +23,6 @@ test("missing recorded NAV does not present a partial total or a fabricated retu
 
 test("historical completed or rejected requests do not imply an allocation is still being prepared", () => {
   for (const status of ["settled", "rejected", "cancelled"]) assert.equal(isPendingRequest({ status }), false);
-  for (const status of ["requested", "approved", "locked", "executing"]) assert.equal(isPendingRequest({ status }), true);
+  // Subscriptions wait in kyc_review, funding or executing; redemptions in requested, locked or executing.
+  for (const status of ["kyc_review", "funding", "requested", "approved", "locked", "executing"]) assert.equal(isPendingRequest({ status }), true);
 });

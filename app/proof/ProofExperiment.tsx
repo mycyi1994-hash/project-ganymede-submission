@@ -14,7 +14,10 @@ export default function ProofExperiment({ canonical, record }: { canonical: stri
   const [busy, setBusy] = useState(true);
   const [error, setError] = useState("");
   const changed = changedPriceCopy(canonical);
-  // Establish the displayed baseline with the same real checks as an edit.
+  // Establish the displayed baseline with the same real checks as an edit. It runs once per
+  // record: a background refresh hands over an equal record as a new object, and re-running on
+  // that would overwrite the visitor's edited-copy result with the original's.
+  const recordKey = `${record.holdingsHash}:${record.effectiveAt}:${record.navPerShareMicros}`;
   useEffect(() => {
     let cancelled = false;
     void verifyComposition(canonical, record).then(checks => {
@@ -23,7 +26,8 @@ export default function ProofExperiment({ canonical, record }: { canonical: stri
       if (!cancelled) setError("This browser could not run the checks. Try again; no record was changed.");
     }).finally(() => { if (!cancelled) setBusy(false); });
     return () => { cancelled = true; };
-  }, [canonical, record]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- keyed on the record's identity, not the object
+  }, [canonical, recordKey]);
   const run = async (mode: "original" | "changed") => {
     setBusy(true); setError("");
     try {

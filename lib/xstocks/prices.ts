@@ -68,6 +68,10 @@ export function normalizeQuoteTime(value: unknown): string {
   return new Date(0).toISOString();
 }
 
+/** Bounds on how long a rate limit or refused access pauses pricing. */
+export const MIN_COOLDOWN_MS = 10 * 60_000;
+export const MAX_COOLDOWN_MS = 60 * 60_000;
+
 type PriceRow = { chainIndex?: string; tokenContractAddress?: string; price?: string; time?: string | number };
 
 export async function fetchXStockQuotes(
@@ -97,11 +101,18 @@ export async function fetchXStockQuotes(
       await new Promise((resolve) => setTimeout(resolve, 500));
     }
     if (!response.ok) {
-      const limited = response.status === 429 || response.status === 403;
-      const retryAfter = response.headers.get("Retry-After");
-      const retryMs = retryAfter && /^\d+$/.test(retryAfter) ? Number(retryAfter) * 1000 : retryAfter ? Date.parse(retryAfter) - Date.now() : 0;
-      const retryAt = limited ? new Date(Date.now() + Math.max(10 * 60_000, Number.isFinite(retryMs) ? retryMs : 0)).toISOString() : undefined;
-      return { quotes, retryAt, warnings: [`OnchainOS price API HTTP ${response.status}${limited ? ": provider access or rate limit; waiting before retry" : ": service unavailable"}`] };
+      if (response.status === 429) {
+        const retryAfter = response.headers.get("Retry-After");
+        const retryMs = retryAfter && /^\d+$/.test(retryAfter) ? Number(retryAfter) * 1000 : retryAfter ? Date.parse(retryAfter) - Date.now() : 0;
+        // Honour the provider's wait, but only within bounds: a missing, huge or far-future
+        // Retry-After must not stop publication for longer than an hour.
+        const waitMs = Math.min(Math.max(MIN_COOLDOWN_MS, Number.isFinite(retryMs) ? retryMs : 0), MAX_COOLDOWN_MS);
+        return { quotes, retryAt: new Date(Date.now() + waitMs).toISOString(), warnings: [`OnchainOS price API HTTP 429: rate limited; waiting ${Math.round(waitMs / 60_000)} minutes before retry`] };
+      }
+      if (response.status === 401 || response.status === 403) {
+        return { quotes, retryAt: new Date(Date.now() + MIN_COOLDOWN_MS).toISOString(), warnings: [`OnchainOS price API HTTP ${response.status}: access refused; check the API key, passphrase and IP allowlist`] };
+      }
+      return { quotes, warnings: [`OnchainOS price API HTTP ${response.status}: service unavailable`] };
     }
     const payload = await response.json() as { code?: string | number; msg?: string; data?: PriceRow[] };
     if (String(payload.code) !== "0") {

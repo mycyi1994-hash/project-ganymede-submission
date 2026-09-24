@@ -203,6 +203,13 @@ export async function evaluateBasket(input: EvaluateInput): Promise<Evaluation> 
   }
 
   const constituents = input.constituents as Array<ConstituentDefinition & { address: string }>;
+  // Two symbols on one token would publish a document the browser verifier rejects.
+  const owners = new Map<string, string>();
+  for (const constituent of constituents) {
+    const owner = owners.get(constituent.address.toLowerCase());
+    if (owner) blockers.push(`${owner} and ${constituent.symbol} are configured with the same address`);
+    owners.set(constituent.address.toLowerCase(), constituent.symbol);
+  }
   for (const constituent of constituents) {
     const quote = input.quotes.get(constituent.symbol);
     if (!quote) blockers.push(`No live price for ${constituent.symbol}`);
@@ -225,9 +232,13 @@ export async function evaluateBasket(input: EvaluateInput): Promise<Evaluation> 
 
   let basket = input.previous;
   let rebalanced = false;
-  if (!basket || addressesChanged || basket.holdings.length !== constituents.length) {
+  const sameConstituents = basket !== null && basket.holdings.length === constituents.length
+    && basket.holdings.every((holding) => constituents.some((constituent) => constituent.symbol === holding.symbol));
+  if (!basket || !sameConstituents) {
     basket = fixBasket(constituents, prices, XSTOCKS_PRODUCT.inceptionNavMicros, input.now);
-  } else if (rebalanceDue(basket, input.now)) {
+  } else if (addressesChanged || rebalanceDue(basket, input.now)) {
+    // A corrected or migrated token address re-fixes at the prevailing value, like the
+    // quarterly re-fix, so the published NAV stays continuous and the change is evidenced.
     basket = fixBasket(constituents, prices, basketNavMicros(basket, prices), input.now);
     rebalanced = true;
   }
@@ -264,6 +275,19 @@ export async function evaluateBasket(input: EvaluateInput): Promise<Evaluation> 
     publishable: true,
     blockers,
   };
+}
+
+/**
+ * The re-fixing record whose sha256 is published as rebalance evidence: canonical JSON
+ * with lowercase addresses, served by /api/xstocks so anyone can recompute the hash.
+ */
+export function basketDocument(basket: Basket): string {
+  return stableJson({
+    productId: basket.productId,
+    fixedAt: basket.fixedAt,
+    navAtFixingMicros: basket.navAtFixingMicros.toString(),
+    holdings: basket.holdings.map((holding) => ({ symbol: holding.symbol, address: holding.address.toLowerCase(), weightBps: holding.weightBps, unitsWad: holding.unitsWad.toString() })),
+  });
 }
 
 export function serializeBasket(basket: Basket): string {

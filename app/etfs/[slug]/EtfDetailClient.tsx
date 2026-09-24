@@ -5,7 +5,9 @@ import Link from "next/link";
 import { SiteFooter, StrategyGlyph } from "../../DesignElements";
 import SiteHeader from "../../SiteHeader";
 import DataNotice from "../../DataNotice";
+import { currentWalletAddress } from "../../WalletConnect";
 import { DEFAULT_SETTLEMENT_CHAIN } from "@/lib/chains";
+import { isPendingRequest } from "@/lib/portfolio-display";
 import { estimatePaperAllocation } from "@/lib/simulation";
 import type { BasketAsset, Etf } from "../../data/etfs";
 
@@ -46,16 +48,6 @@ function formatNav(value: string | undefined, fallback: string) {
 
 function formatWeight(value: number) {
   return Number(value.toFixed(2)).toString();
-}
-
-async function currentWalletAddress() {
-  if (!window.ethereum) return null;
-  try {
-    const accounts = await window.ethereum.request({ method: "eth_accounts" }) as string[];
-    return accounts[0] ?? null;
-  } catch {
-    return null;
-  }
 }
 
 const tabs: Array<{ id: ProductTab; label: string }> = [
@@ -123,6 +115,9 @@ function ProductTabs({ active, onChange }: { active: ProductTab; onChange: (tab:
 
 function useLocalDialogFocus(onClose: () => void) {
   const dialogRef = useRef<HTMLElement>(null);
+  // A new closure arrives with every render (e.g. while saving); focus is set up only once.
+  const closeRef = useRef(onClose);
+  useEffect(() => { closeRef.current = onClose; }, [onClose]);
   useEffect(() => {
     const previousFocus = document.activeElement as HTMLElement | null;
     const dialog = dialogRef.current;
@@ -133,7 +128,7 @@ function useLocalDialogFocus(onClose: () => void) {
     dialog.tabIndex = -1;
     dialog.focus({ preventScroll: true });
     const handleKeyDown = (event: KeyboardEvent) => {
-      if (event.key === "Escape") { event.preventDefault(); onClose(); return; }
+      if (event.key === "Escape") { event.preventDefault(); closeRef.current(); return; }
       if (event.key !== "Tab") return;
       const focusable = getFocusable();
       if (!focusable.length) return;
@@ -148,7 +143,7 @@ function useLocalDialogFocus(onClose: () => void) {
       document.removeEventListener("keydown", handleKeyDown);
       previousFocus?.focus();
     };
-  }, [onClose]);
+  }, []);
   return dialogRef;
 }
 
@@ -176,7 +171,7 @@ function SimulationReviewDialog({ etf, amountKrw, nav, submitting, error, onCanc
         <p className="fee-assumption">Fee illustration assumes the sample value stays unchanged for one year. It is not deducted upfront; taxes, spreads and other costs are excluded.</p>
         <div className="simulation-review-warning"><i /> TEST ENVIRONMENT · NO ECONOMIC ASSET IS ISSUED ON {DEFAULT_SETTLEMENT_CHAIN.label}</div>
         {error && <div className="simulation-review-error" role="alert"><p>{error}</p><Link href="/?app=portfolio">CHECK PAPER PORTFOLIO ↗</Link></div>}
-        <footer><button type="button" disabled={submitting} onClick={onCancel}>Edit amount</button><button type="button" className="is-primary" disabled={submitting || estimate.shares === null} aria-busy={submitting} onClick={onConfirm}>{submitting ? "Saving simulation…" : "Save to paper portfolio"}</button></footer>
+        <footer role="none"><button type="button" disabled={submitting} onClick={onCancel}>Edit amount</button><button type="button" className="is-primary" disabled={submitting || estimate.shares === null} aria-busy={submitting} onClick={onConfirm}>{submitting ? "Saving simulation…" : "Save to paper portfolio"}</button></footer>
       </section>
     </div>
   );
@@ -233,8 +228,8 @@ function OverviewPanel({ etf, liveProduct, engineMode, amountKrw, subscriptionSt
         <p>See what a sample allocation could look like. No real order is placed and no money moves.</p>
         <ol className="subscription-steps" aria-label="Simulation steps"><li className={!hasRequest ? "is-active" : ""} aria-current={!hasRequest ? "step" : undefined}><b>01</b><span>AMOUNT</span></li><li><b>02</b><span>REVIEW</span></li><li className={hasRequest ? "is-active" : ""} aria-current={hasRequest ? "step" : undefined}><b>03</b><span>SAVE</span></li></ol>
         {hasRequest ? <div className="subscription-success" role="status"><b>Simulation saved.</b><p>{subscriptionStatus === "settled" ? "Your paper allocation is ready in your portfolio." : "Your request is saved. Follow its progress in your portfolio."}</p></div> : <>
-          <label className="subscription-amount"><span>SAMPLE AMOUNT / KRW</span><input type="number" min="100000" step="1" inputMode="numeric" value={amountKrw} onChange={(event) => onAmountChange(event.target.value)} aria-invalid={Boolean(estimate.amountError)} aria-describedby={`${amountHelpId}${estimate.amountError ? ` ${amountErrorId}` : ""}`} /></label>
-          <p className="amount-help" id={amountHelpId}>Minimum ₩100,000 · whole KRW amounts.</p>
+          <label className="subscription-amount"><span>SAMPLE AMOUNT / KRW</span><input type="number" min="100000" max="1000000000" step="1" inputMode="numeric" value={amountKrw} onChange={(event) => onAmountChange(event.target.value)} aria-invalid={Boolean(estimate.amountError)} aria-describedby={`${amountHelpId}${estimate.amountError ? ` ${amountErrorId}` : ""}`} /></label>
+          <p className="amount-help" id={amountHelpId}>₩100,000 to ₩1,000,000,000 · whole KRW amounts.</p>
           {estimate.amountError && <p className="amount-error" id={amountErrorId}>{estimate.amountError}</p>}
           <div className="amount-presets" aria-label="Quick amount selection">{["500000", "1000000", "5000000"].map((value) => <button key={value} type="button" aria-pressed={amountKrw === value} onClick={() => onAmountChange(value)}>{formatKrw(value)}</button>)}</div>
           <div className="simulation-estimate" aria-live="polite" aria-atomic="true"><span>ESTIMATED PAPER SHARES</span><strong>{estimate.shares?.toLocaleString("en-US", { minimumFractionDigits: 3, maximumFractionDigits: 3 }) ?? "—"}</strong><small>At {formatNav(liveProduct?.nav?.navPerShareMicros, "—")} per share</small></div>
@@ -309,15 +304,15 @@ function HoldingsPanel({ etf, liveProduct }: { etf: Etf; liveProduct: LiveProduc
         <div><span>BASKET COMPOSITION</span><h3>{basket.length} positions, 100% allocated</h3><p>{liveBasket.length ? "Latest engine-approved target allocation, including the mandate cash buffer." : `Holdings are reviewed at each ${etf.rebalanceFrequency.toLowerCase()} rebalance and may change without notice.`}</p></div>
       </div>
       <div className="holdings-table-v2" role="table" aria-label="ETF basket holdings">
-        <div className="holding-row-v2 holding-head-v2" role="row"><span>#</span><span>ASSET</span><span>CLASS</span><span>ROLE</span><span>ALLOCATION</span><span>WEIGHT</span></div>
+        <div className="holding-row-v2 holding-head-v2" role="row"><span role="columnheader">#</span><span role="columnheader">ASSET</span><span role="columnheader">CLASS</span><span role="columnheader">ROLE</span><span role="columnheader">ALLOCATION</span><span role="columnheader">WEIGHT</span></div>
         {basket.map((asset) => (
           <div className="holding-row-v2" role="row" key={asset.ticker}>
-            <span>{String(asset.rank).padStart(2, "0")}</span>
-            <span className="holding-asset-v2"><AssetMark asset={asset} /><b>{asset.ticker}</b><small>{asset.name}</small></span>
-            <span>{asset.assetClass}</span>
-            <span>{asset.description}</span>
-            <span className="holding-progress"><i><b style={{ width: `${asset.weight}%` }} /></i></span>
-            <span><b>{formatWeight(asset.weight)}%</b></span>
+            <span role="cell">{String(asset.rank).padStart(2, "0")}</span>
+            <span role="cell" className="holding-asset-v2"><AssetMark asset={asset} /><b>{asset.ticker}</b><small>{asset.name}</small></span>
+            <span role="cell">{asset.assetClass}</span>
+            <span role="cell">{asset.description}</span>
+            <span role="cell" className="holding-progress"><i><b style={{ width: `${asset.weight}%` }} /></i></span>
+            <span role="cell"><b>{formatWeight(asset.weight)}%</b></span>
           </div>
         ))}
       </div>
@@ -398,8 +393,9 @@ export default function EtfDetailClient({ etf }: { etf: Etf }) {
     let cancelled = false;
     const load = async () => {
       setMarketLoading(true);
+      const wallet = currentWalletAddress();
       try {
-        const [marketResponse, walletAddress] = await Promise.all([fetch("/api/market", { cache: "no-store" }), currentWalletAddress()]);
+        const marketResponse = await fetch("/api/market", { cache: "no-store" });
         const market = await marketResponse.json() as MarketPayload & { error?: string };
         if (!marketResponse.ok) throw new Error(market.error || "Fund engine is unavailable");
         if (!cancelled) {
@@ -407,16 +403,22 @@ export default function EtfDetailClient({ etf }: { etf: Etf }) {
           setEngineMode(market.lastCycle?.mode ?? "paper");
           setMarketError(false);
         }
-        const portfolioResponse = await fetch("/api/portfolio", { cache: "no-store", headers: walletAddress ? { "x-ganymede-wallet": walletAddress } : undefined });
-        if (!portfolioResponse.ok) return;
-        const portfolio = await portfolioResponse.json() as { positions?: Array<{ productId: string }>; subscriptions?: Array<{ product_id?: string; productId?: string; status?: string }> };
-        const latest = portfolio.subscriptions?.find((subscription) => (subscription.product_id ?? subscription.productId) === etf.id && ["requested", "approved", "locked", "executing"].includes(subscription.status ?? ""));
-        const held = portfolio.positions?.some((position) => position.productId === etf.id);
-        if (!cancelled) setSubscriptionStatus(held ? "settled" : latest?.status ?? "");
       } catch {
         if (!cancelled) setMarketError(true);
       } finally {
         if (!cancelled) setMarketLoading(false);
+      }
+      // The saved-allocation status is optional context; failing to read it says nothing about pricing.
+      try {
+        const walletAddress = await wallet;
+        const portfolioResponse = await fetch("/api/portfolio", { cache: "no-store", headers: walletAddress ? { "x-ganymede-wallet": walletAddress } : undefined });
+        if (!portfolioResponse.ok) return;
+        const portfolio = await portfolioResponse.json() as { positions?: Array<{ productId: string }>; subscriptions?: Array<{ product_id?: string; productId?: string; status?: string }> };
+        const latest = portfolio.subscriptions?.find((subscription) => (subscription.product_id ?? subscription.productId) === etf.id && isPendingRequest(subscription));
+        const held = portfolio.positions?.some((position) => position.productId === etf.id);
+        if (!cancelled) setSubscriptionStatus(held ? "settled" : latest?.status ?? "");
+      } catch {
+        // Leave the simulator as it is; the portfolio page shows the saved state.
       }
     };
     void load();
@@ -450,7 +452,12 @@ export default function EtfDetailClient({ etf }: { etf: Etf }) {
         headers: { "Content-Type": "application/json", ...(walletAddress ? { "x-ganymede-wallet": walletAddress } : {}) },
         body: JSON.stringify({ productId: etf.id, amountKrw, walletAddress, clientReference: crypto.randomUUID() }),
       });
-      const payload = await response.json() as { subscription?: { status?: string }; error?: string };
+      const payload = await response.json() as { subscription?: { status?: string }; error?: string; code?: string };
+      if (response.status === 400 && payload.code === "INVALID_REQUEST") {
+        // The ledger refused the request, so nothing was saved and its reason is safe to show.
+        setOrderError(`${payload.error ?? "The request was not accepted"}. Nothing was saved.`);
+        return false;
+      }
       if (!response.ok) throw new Error(payload.error || "Subscription request failed");
       setSubscriptionStatus(payload.subscription?.status ?? "submitted");
       return true;
@@ -465,13 +472,13 @@ export default function EtfDetailClient({ etf }: { etf: Etf }) {
   return (
     <main className={`product-detail-page ganymede-v4 product-${etf.id}`}>
       <SiteHeader current="portfolio" />
-      <aside className="strategy-context"><Link href="/?app=portfolio#paper-strategy-lab" prefetch={false}>← Paper strategy lab</Link><span>Crypto simulation · Separate from the USTX stock basket</span><a href="/proof">Inspect USTX NAV ↗</a></aside>
+      <aside className="strategy-context"><Link href="/lab#paper-strategy-lab" prefetch={false}>← Paper strategy lab</Link><span>Crypto simulation · Separate from the USTX stock basket</span><a href="/proof">Inspect USTX NAV ↗</a></aside>
 
       <div className="chain-testnet-notice"><span><i /> PRE-LAUNCH TEST ENVIRONMENT</span><p>{DEFAULT_SETTLEMENT_CHAIN.name} · Chain ID {DEFAULT_SETTLEMENT_CHAIN.chainId} · Simulated fund-share registry</p><a href={DEFAULT_SETTLEMENT_CHAIN.explorerUrl} target="_blank" rel="noreferrer">OPEN EXPLORER ↗</a></div>
 
       <section className="product-detail-hero" aria-labelledby="detail-product-name">
         <div className="product-detail-copy">
-          <Link href="/?app=portfolio#paper-strategy-lab" className="detail-back">← All strategies</Link>
+          <Link href="/lab#paper-strategy-lab" className="detail-back">← All strategies</Link>
           <div className="product-detail-labels"><span>{etf.roleName} / {etf.ticker}</span><b className={`strategy-style-badge strategy-${etf.strategyStyle}`}>{etf.strategyStyle.toUpperCase()}</b></div>
           <h1 id="detail-product-name">{etf.name}</h1>
           <h2>{etf.tagline}</h2>
@@ -480,13 +487,13 @@ export default function EtfDetailClient({ etf }: { etf: Etf }) {
           <dl className="product-hero-facts"><div><dt>ANNUAL FEE</dt><dd>{etf.fee}</dd></div><div><dt>RISK</dt><dd>{etf.risk}</dd></div><div><dt>REBALANCE</dt><dd>{etf.rebalanceFrequency}</dd></div></dl>
         </div>
 
-        <aside className="product-market-data">
+        <div className="product-market-data">
           <div className="detail-nav-planet" aria-hidden="true"><StrategyGlyph variant={etf.visual} compact /></div>
           <span>INDICATIVE FUND DATA / {marketError && liveProduct?.nav ? "LAST LOADED" : liveProduct?.nav?.quality?.toUpperCase() ?? (marketLoading ? "LOADING" : "UNAVAILABLE")}</span>
           <div className="product-nav"><small>INDICATIVE NAV / KRW</small><b>{formatNav(liveProduct?.nav?.navPerShareMicros, "—")}</b><em>{liveProduct?.status?.toUpperCase() ?? (marketLoading ? "LOADING DATA" : "DATA UNAVAILABLE")}</em></div>
           <p className="product-nav-time">AS OF {liveProduct?.nav?.asOf ? new Date(liveProduct.nav.asOf).toLocaleString("en-GB", { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit", timeZone: "UTC", timeZoneName: "short" }) : "AWAITING DATA"}</p>
           <dl><div><dt>MODEL AUM</dt><dd>{liveProduct?.nav ? formatKrw(liveProduct.nav.netAssetValueKrw) : "—"}</dd></div><div><dt>TARGET POSITIONS</dt><dd>{liveProduct?.targets?.length ? livePositionCount : etf.assetCount}</dd></div></dl>
-        </aside>
+        </div>
       </section>
 
       {marketError && <div className="detail-data-notice"><DataNotice title={liveProduct?.nav ? "NAV refresh is unavailable." : "Pricing is temporarily unavailable."} onRetry={() => setReloadKey((key) => key + 1)} loading={marketLoading}>{liveProduct?.nav ? "Showing the last loaded values. Estimates may change when pricing returns." : "You can still explore this strategy and enter a sample amount. Share estimates and saving will be available when pricing returns."}</DataNotice></div>}

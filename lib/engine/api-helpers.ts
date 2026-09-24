@@ -84,7 +84,10 @@ export function jsonError(error: unknown, status = 500): Response {
   const detail = missingTable ? "The database schema is unavailable. Please contact the operator."
     : quota ? "Database capacity has been reached. Please try again later."
     : database ? "The database is temporarily unavailable. Please try again."
+    // Server faults keep their details in the log, not in a public response.
+    : status >= 500 ? "The request could not be completed. Please try again."
     : message;
+  if (status >= 500 || missingTable || quota || database) console.error("Ganymede API error", error);
   return noStoreJson({ error: detail, code }, { status: quota || database ? 503 : status });
 }
 

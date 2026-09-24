@@ -27,7 +27,8 @@ export function hasValuation(position: PortfolioPosition): boolean {
 }
 
 export function isPendingRequest(request: Record<string, unknown>): boolean {
-  return ["requested", "approved", "locked", "executing"].includes(String(request.status));
+  // Every state before settlement or rejection, including KYC review and funding.
+  return ["kyc_review", "funding", "requested", "approved", "locked", "executing"].includes(String(request.status));
 }
 
 export function portfolioSummary(positions: PortfolioPosition[]) {

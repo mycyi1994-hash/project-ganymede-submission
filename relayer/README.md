@@ -57,6 +57,11 @@ retry of a published NAV also lands here, so the submitter reads
 `publishedPayload(keccak256(abi.encode(...)))` for the exact payload: present
 means `confirmed`, absent means `409 stale_publication`.
 
+The share ledger checks its allowlist and pause before its replay guard, so a
+retried mint or burn that already landed can revert with another error. On any
+share-ledger revert the submitter reads `processedSettlement(settlementId)` and
+confirms the request if the ledger has already processed it.
+
 Other reverts map to actionable responses: `TransferRestricted` →
 `409 investor_not_allowlisted`, `ContractPaused` → `503`, `Unauthorized` →
 `500 role_misconfigured` (the relayer key lost its issuer/publisher role).
@@ -78,6 +83,8 @@ npx wrangler secret put RELAYER_API_TOKEN         # shared with the app
 npx wrangler secret put RELAYER_PRIVATE_KEY       # hot key, issuer + publisher
 npx wrangler secret put FUND_SHARE_ADDRESS        # from onchain deploy
 npx wrangler secret put NAV_REGISTRY_ADDRESS
+# FUND_SHARE_PRODUCT_ID (optional, default core-20) names the one product that
+# ledger holds; mint/burn requests for any other product get 409 product_not_tokenized.
 
 npm run deploy
 curl https://<worker>.workers.dev/v1/health
@@ -119,6 +126,19 @@ curl -X POST -H "Authorization: Bearer $OPERATOR_TOKEN" \
 Each chain gets its own submitter Durable Object (`submitter-<chainId>`), since a
 nonce belongs to a signer on one chain.
 
+## Responses the app relies on
+
+- Malformed amounts, hashes or times are `400 invalid_request`; the app treats
+  every 4xx except 408/429 as final.
+- `502 submission_failed` and other 5xx are retryable: the send may have reached
+  the chain, so the app asks again with the same `Idempotency-Key`.
+- The submitter waits up to 12 s for a receipt, well inside the app's 45 s
+  budget; an unconfirmed hash is returned as `submitted` and reconciled on the
+  next ask.
+- Error bodies never include the RPC URL (it can carry a provider key); details
+  go to the Worker log. `/v1/health` reports `ready: false` if the RPC answers
+  for a different chain id.
+
 ## Operational notes
 
 - Keep the relayer key funded with gas (OKB on X Layer, ETH on GIWA) — an unfunded signer fails
@@ -127,3 +147,11 @@ nonce belongs to a signer on one chain.
   admin key, then update the Worker secret.
 - The relayer cannot allowlist an investor. That is the transfer agent's job,
   held by the cold key (`cd onchain && WALLETS=0x... npm run allowlist`).
+- Contract limits that code here cannot change (the contracts are deployed and
+  source-verified):
+  - Handing administration to a new key leaves the old key as transfer agent and
+    allowlisted. Rotate with `setTransferAgent(new)` and
+    `setInvestorPermission(old, false)` as well.
+  - `publishRebalance` does not enforce ordering, so a late, older rebalance
+    would overwrite `latestRebalanceHash`. The app publishes in order; readers
+    that need history should use the `RebalancePublished` events.

@@ -48,6 +48,8 @@ type SubscriptionRow = {
   amount_krw: string;
   expected_shares_micros: string;
   status: string;
+  created_at: string;
+  kyc_status: string;
   wallet_address: string | null;
 };
 
@@ -57,12 +59,42 @@ type RedemptionRow = {
   product_id: string;
   requested_shares_micros: string;
   status: string;
+  created_at: string;
+  kyc_status: string;
   wallet_address: string | null;
 };
 
 const INITIAL_FUND_CASH_KRW = "100000000000";
 const INITIAL_SHARES_MICROS = "100000000000000";
 const INITIAL_NAV_PER_SHARE_MICROS = 1_000_000_000n;
+
+export const MIN_SUBSCRIPTION_KRW = 100_000n;
+export const MAX_SUBSCRIPTION_KRW = 1_000_000_000n;
+export const MAX_OPEN_REQUESTS = 10;
+/** Ledger values stay well inside SQLite's signed 64-bit INTEGER, which the CAST arithmetic uses. */
+export const LEDGER_LIMIT = 2n ** 62n;
+const PENDING_SUBSCRIPTION_SQL = "('kyc_review','funding','executing')";
+const PENDING_REDEMPTION_SQL = "('requested','locked','executing')";
+/** Investor flows are priced only from NAVs calculated on live market data. */
+const PRICING_QUALITY_SQL = "('official','indicative')";
+
+/** A request the caller can fix; routes answer it with HTTP 400 and its message. */
+export class LedgerRequestError extends Error {}
+
+function changedRows(result: unknown): number {
+  return Number((result as { meta?: { changes?: number } } | undefined)?.meta?.changes ?? 0);
+}
+
+/**
+ * Paper mode, and any flow with no on-chain step (null) or no configured relayer
+ * ("simulated"), settles on the ledger. Otherwise only a confirmed transaction
+ * settles, only a definitive rejection rejects, and anything else is retried.
+ */
+function settlementDecision(settlement: SettlementResult | null, paperMode: boolean): "settle" | "reject" | "wait" {
+  if (paperMode || !settlement || settlement.status === "confirmed" || settlement.status === "simulated") return "settle";
+  if (settlement.status === "failed") return "reject";
+  return "wait";
+}
 
 function normalizeEmail(email: string | null | undefined): string | null {
   const value = email?.trim().toLowerCase();
@@ -235,10 +267,12 @@ export class EngineRepository {
     return (await this.db.prepare("SELECT * FROM fund_positions WHERE product_id = ? ORDER BY symbol").bind(productId).all<PositionRow>()).results;
   }
 
+  /** Weights of the whole fund, cash included, on the same basis as the strategy's targets. */
   async currentWeights(productId: string, ticks: Map<string, MarketTick>): Promise<Map<string, number>> {
     const positions = await this.getPositions(productId);
     const values = new Map<string, bigint>();
-    let total = 0n;
+    const product = await this.getProduct(productId);
+    let total = product ? asBigInt(product.cash_balance_krw) : 0n;
     for (const position of positions) {
       const asset = ASSET_UNIVERSE.find((candidate) => candidate.symbol === position.symbol);
       const tick = ticks.get(position.symbol);
@@ -250,6 +284,12 @@ export class EngineRepository {
     const weights = new Map<string, number>();
     for (const [symbol, value] of values) weights.set(symbol, total > 0n ? Number(value * 10_000n / total) : 0);
     return weights;
+  }
+
+  /** A rebalance whose orders were sent but not all filled (live venues fill asynchronously). */
+  async hasOpenRebalance(productId: string): Promise<boolean> {
+    const row = await this.db.prepare("SELECT 1 AS open FROM rebalance_runs WHERE product_id = ? AND status IN ('approved','executing') LIMIT 1").bind(productId).first<{ open: number }>();
+    return Boolean(row);
   }
 
   async latestCompletedRebalance(productId: string): Promise<string | null> {
@@ -414,32 +454,56 @@ export class EngineRepository {
   }
 
   async ensureInvestor(subject: string, email?: string | null, walletAddress?: string | null): Promise<{ id: string; kycStatus: string; walletAddress: string | null }> {
-    const existing = await this.db.prepare("SELECT id, kyc_status, wallet_address FROM investors WHERE external_subject = ?").bind(subject).first<{ id: string; kyc_status: string; wallet_address: string | null }>();
     const wallet = validateWallet(walletAddress);
+    const existing = await this.db.prepare("SELECT id, kyc_status, wallet_address FROM investors WHERE external_subject = ?").bind(subject).first<{ id: string; kyc_status: string; wallet_address: string | null }>();
     if (existing) {
-      if (wallet && wallet !== existing.wallet_address) await this.db.prepare("UPDATE investors SET wallet_address = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?").bind(wallet, existing.id).run();
-      return { id: existing.id, kycStatus: existing.kyc_status, walletAddress: wallet ?? existing.wallet_address };
+      // A request-supplied wallet is metadata, not proof of ownership. It is recorded
+      // once and never replaced by a later request, so it cannot redirect a mint or burn.
+      if (wallet && !existing.wallet_address) {
+        await this.db.prepare("UPDATE investors SET wallet_address = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ? AND wallet_address IS NULL").bind(wallet, existing.id).run();
+      }
+      return { id: existing.id, kycStatus: existing.kyc_status, walletAddress: existing.wallet_address ?? wallet };
     }
-    const id = newId("investor");
     await this.db.prepare(`
       INSERT INTO investors (id, external_subject, email, wallet_address, kyc_status)
       VALUES (?, ?, ?, ?, 'unverified')
-    `).bind(id, subject, normalizeEmail(email), wallet).run();
-    return { id, kycStatus: "unverified", walletAddress: wallet };
+      ON CONFLICT(external_subject) DO NOTHING
+    `).bind(newId("investor"), subject, normalizeEmail(email), wallet).run();
+    // Two first requests from one session can race; both read back the single row.
+    const created = await this.db.prepare("SELECT id, kyc_status, wallet_address FROM investors WHERE external_subject = ?").bind(subject).first<{ id: string; kyc_status: string; wallet_address: string | null }>();
+    if (!created) throw new Error("Investor record could not be created");
+    return { id: created.id, kycStatus: created.kyc_status, walletAddress: created.wallet_address };
   }
 
-  async setInvestorKyc(investorId: string, status: "unverified" | "pending" | "verified" | "expired" | "blocked", actor: string): Promise<void> {
-    await this.db.prepare("UPDATE investors SET kyc_status = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?").bind(status, investorId).run();
+  async setInvestorKyc(investorId: string, status: "unverified" | "pending" | "verified" | "expired" | "blocked", actor: string): Promise<boolean> {
+    const result = await this.db.prepare("UPDATE investors SET kyc_status = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?").bind(status, investorId).run();
+    if (!changedRows(result)) return false;
     await this.audit("investor.kyc_changed", "investor", investorId, actor, { status });
+    return true;
+  }
+
+  private async openRequestCount(investorId: string): Promise<number> {
+    const row = await this.db.prepare(`
+      SELECT (SELECT COUNT(*) FROM subscriptions WHERE investor_id = ? AND status IN ${PENDING_SUBSCRIPTION_SQL})
+           + (SELECT COUNT(*) FROM redemptions WHERE investor_id = ? AND status IN ${PENDING_REDEMPTION_SQL}) AS n
+    `).bind(investorId, investorId).first<{ n: number }>();
+    return Number(row?.n ?? 0);
   }
 
   async createSubscription(input: { subject: string; email?: string | null; walletAddress?: string | null; productId: string; amountKrw: bigint; clientReference: string }): Promise<{ id: string; status: string; expectedSharesMicros: string }> {
-    if (input.amountKrw < 100_000n) throw new Error("Minimum subscription is KRW 100,000");
+    if (input.amountKrw < MIN_SUBSCRIPTION_KRW) throw new LedgerRequestError("Minimum subscription is KRW 100,000");
+    if (input.amountKrw > MAX_SUBSCRIPTION_KRW) throw new LedgerRequestError("Maximum paper subscription is KRW 1,000,000,000");
     const product = await this.getProduct(input.productId);
-    if (!product || product.status !== "operational") throw new Error("Product is not open for subscriptions");
+    if (!product || product.status !== "operational") throw new LedgerRequestError("Product is not open for subscriptions");
     const investor = await this.ensureInvestor(input.subject, input.email, input.walletAddress);
+    // References are unique per investor, and repeating one returns the original request.
+    const clientReference = `${investor.id}:${input.clientReference}`;
+    const existing = await this.db.prepare("SELECT id, status, expected_shares_micros FROM subscriptions WHERE client_reference = ?").bind(clientReference).first<{ id: string; status: string; expected_shares_micros: string }>();
+    if (existing) return { id: existing.id, status: existing.status, expectedSharesMicros: existing.expected_shares_micros };
+    if (await this.openRequestCount(investor.id) >= MAX_OPEN_REQUESTS) throw new LedgerRequestError(`At most ${MAX_OPEN_REQUESTS} requests can be pending at once`);
     const nav = await this.latestNav(input.productId);
     const navPerShareMicros = nav ? asBigInt(nav.nav_per_share_micros) : INITIAL_NAV_PER_SHARE_MICROS;
+    // An estimate only: shares are issued at the first NAV calculated after the request.
     const expectedShares = sharesForSubscription(input.amountKrw, navPerShareMicros);
     const id = newId("subscription");
     const status = investor.kycStatus === "verified" ? "funding" : "kyc_review";
@@ -448,35 +512,64 @@ export class EngineRepository {
         id, investor_id, product_id, amount_krw, expected_shares_micros,
         issued_shares_micros, status, client_reference
       ) VALUES (?, ?, ?, ?, ?, '0', ?, ?)
-    `).bind(id, investor.id, input.productId, input.amountKrw.toString(), expectedShares.toString(), status, input.clientReference).run();
+    `).bind(id, investor.id, input.productId, input.amountKrw.toString(), expectedShares.toString(), status, clientReference).run();
     await this.audit("subscription.requested", "subscription", id, input.subject, { productId: input.productId, amountKrw: input.amountKrw.toString(), status });
     return { id, status, expectedSharesMicros: expectedShares.toString() };
   }
 
   async listSubscriptionsForProcessing(paperMode: boolean): Promise<SubscriptionRow[]> {
-    const statuses = paperMode ? "('kyc_review','funding','executing')" : "('executing')";
+    const statuses = paperMode ? PENDING_SUBSCRIPTION_SQL : "('executing')";
+    // Forward pricing: a request waits until a NAV has been calculated after it.
     return (await this.db.prepare(`
-      SELECT s.*, i.wallet_address FROM subscriptions s
+      SELECT s.*, i.wallet_address, i.kyc_status FROM subscriptions s
       JOIN investors i ON i.id = s.investor_id
       WHERE s.status IN ${statuses}
+        AND EXISTS (SELECT 1 FROM nav_snapshots n WHERE n.product_id = s.product_id AND n.quality IN ${PRICING_QUALITY_SQL} AND n.as_of >= strftime('%Y-%m-%dT%H:%M:%fZ', s.created_at, '+1 second'))
       ORDER BY s.created_at LIMIT 25
     `).all<SubscriptionRow>()).results;
   }
 
-  async settleSubscription(row: SubscriptionRow, settlement: SettlementResult | null, paperMode: boolean): Promise<{ sharesMicros: bigint; navPerShareMicros: bigint }> {
-    const nav = await this.latestNav(row.product_id);
-    const navPerShareMicros = nav ? asBigInt(nav.nav_per_share_micros) : INITIAL_NAV_PER_SHARE_MICROS;
-    const shares = sharesForSubscription(asBigInt(row.amount_krw), navPerShareMicros);
-    const status = paperMode || settlement?.status === "confirmed" ? "settled" : settlement?.status === "failed" ? "rejected" : "executing";
-    if (status !== "settled") {
-      await this.db.prepare("UPDATE subscriptions SET status = ?, giwa_tx_hash = COALESCE(?, giwa_tx_hash) WHERE id = ?").bind(status, settlement?.txHash ?? null, row.id).run();
-      return { sharesMicros: shares, navPerShareMicros };
+  /**
+   * The first NAV calculated after a request: deterministic, so a retried settlement prices
+   * identically. created_at is stored to the second, so the NAV must be at least one second
+   * later to be certain it follows the request.
+   */
+  async navForSettlement(productId: string, createdAt: string): Promise<NavRow | null> {
+    return await this.db.prepare(`
+      SELECT * FROM nav_snapshots
+      WHERE product_id = ? AND quality IN ${PRICING_QUALITY_SQL} AND as_of >= strftime('%Y-%m-%dT%H:%M:%fZ', ?, '+1 second')
+      ORDER BY as_of ASC LIMIT 1
+    `).bind(productId, createdAt).first<NavRow>();
+  }
+
+  async settleSubscription(row: SubscriptionRow, settlement: SettlementResult | null, paperMode: boolean, shares: bigint, navPerShareMicros: bigint): Promise<{ status: "settled" | "rejected" | "pending"; reason: string | null }> {
+    const decision = settlementDecision(settlement, paperMode);
+    if (decision === "wait") {
+      await this.db.prepare(`UPDATE subscriptions SET status = 'executing', expected_shares_micros = ?, giwa_tx_hash = COALESCE(?, giwa_tx_hash) WHERE id = ? AND status IN ${PENDING_SUBSCRIPTION_SQL}`)
+        .bind(shares.toString(), settlement?.txHash ?? null, row.id).run();
+      return { status: "pending", reason: settlement?.error ?? null };
     }
-    await this.db.batch([
-      this.db.prepare("UPDATE subscriptions SET status = 'settled', issued_shares_micros = ?, giwa_tx_hash = ?, settled_at = CURRENT_TIMESTAMP WHERE id = ?").bind(shares.toString(), settlement?.txHash ?? null, row.id),
+    const product = await this.getProduct(row.product_id);
+    const amount = asBigInt(row.amount_krw);
+    const overflow = !product || asBigInt(product.shares_outstanding_micros) + shares >= LEDGER_LIMIT || asBigInt(product.cash_balance_krw) + amount >= LEDGER_LIMIT;
+    if (decision === "reject" || overflow) {
+      const reason = overflow ? "The subscription would exceed the ledger's numeric range" : settlement?.error ?? "Settlement was rejected";
+      const result = await this.db.prepare(`UPDATE subscriptions SET status = 'rejected', giwa_tx_hash = COALESCE(?, giwa_tx_hash) WHERE id = ? AND status IN ${PENDING_SUBSCRIPTION_SQL}`)
+        .bind(settlement?.txHash ?? null, row.id).run();
+      if (changedRows(result)) await this.audit("subscription.rejected", "subscription", row.id, "ENGINE", { reason });
+      return { status: "rejected", reason };
+    }
+    const results = await this.db.batch([
+      this.db.prepare(`
+        UPDATE subscriptions SET status = 'settled', expected_shares_micros = ?, issued_shares_micros = ?,
+          giwa_tx_hash = COALESCE(?, giwa_tx_hash), settled_at = CURRENT_TIMESTAMP
+        WHERE id = ? AND status IN ${PENDING_SUBSCRIPTION_SQL}
+      `).bind(shares.toString(), shares.toString(), settlement?.txHash ?? null, row.id),
+      // The next two statements apply only if the status change above happened (changes() = 1),
+      // so a second worker settling the same row cannot credit the position or the fund twice.
       this.db.prepare(`
         INSERT INTO investor_positions (investor_id, product_id, shares_micros, cost_basis_krw)
-        VALUES (?, ?, ?, ?)
+        SELECT ?, ?, ?, ? WHERE changes() = 1
         ON CONFLICT(investor_id, product_id) DO UPDATE SET
           shares_micros = CAST(CAST(investor_positions.shares_micros AS INTEGER) + CAST(excluded.shares_micros AS INTEGER) AS TEXT),
           cost_basis_krw = CAST(CAST(investor_positions.cost_basis_krw AS INTEGER) + CAST(excluded.cost_basis_krw AS INTEGER) AS TEXT),
@@ -486,66 +579,102 @@ export class EngineRepository {
         UPDATE products SET
           shares_outstanding_micros = CAST(CAST(shares_outstanding_micros AS INTEGER) + CAST(? AS INTEGER) AS TEXT),
           cash_balance_krw = CAST(CAST(cash_balance_krw AS INTEGER) + CAST(? AS INTEGER) AS TEXT),
-          updated_at = CURRENT_TIMESTAMP WHERE id = ?
+          updated_at = CURRENT_TIMESTAMP
+        WHERE id = ? AND changes() = 1
       `).bind(shares.toString(), row.amount_krw, row.product_id),
     ]);
+    if (!changedRows(results[0])) return { status: "pending", reason: "Already settled by another worker" };
     await this.audit("subscription.settled", "subscription", row.id, "ENGINE", { sharesMicros: shares.toString(), navPerShareMicros: navPerShareMicros.toString(), paperMode });
-    return { sharesMicros: shares, navPerShareMicros };
+    return { status: "settled", reason: null };
   }
 
   async createRedemption(input: { subject: string; email?: string | null; walletAddress?: string | null; productId: string; sharesMicros: bigint; clientReference: string }): Promise<{ id: string; status: string }> {
-    if (input.sharesMicros <= 0n) throw new Error("Redemption shares must be positive");
+    if (input.sharesMicros <= 0n) throw new LedgerRequestError("Redemption shares must be positive");
     const investor = await this.ensureInvestor(input.subject, input.email, input.walletAddress);
-    const position = await this.db.prepare("SELECT shares_micros FROM investor_positions WHERE investor_id = ? AND product_id = ?").bind(investor.id, input.productId).first<{ shares_micros: string }>();
-    if (!position || asBigInt(position.shares_micros) < input.sharesMicros) throw new Error("Insufficient ETF shares");
+    const clientReference = `${investor.id}:${input.clientReference}`;
+    const existing = await this.db.prepare("SELECT id, status FROM redemptions WHERE client_reference = ?").bind(clientReference).first<{ id: string; status: string }>();
+    if (existing) return { id: existing.id, status: existing.status };
+    if (await this.openRequestCount(investor.id) >= MAX_OPEN_REQUESTS) throw new LedgerRequestError(`At most ${MAX_OPEN_REQUESTS} requests can be pending at once`);
     const id = newId("redemption");
     const status = investor.kycStatus === "verified" ? "locked" : "requested";
-    await this.db.prepare(`
+    // Reserve the shares atomically: the row is inserted only while the holding, less every
+    // pending redemption, still covers it. Repeated requests cannot redeem the same shares twice.
+    const result = await this.db.prepare(`
       INSERT INTO redemptions (id, investor_id, product_id, requested_shares_micros, proceeds_krw, status, client_reference)
-      VALUES (?, ?, ?, ?, '0', ?, ?)
-    `).bind(id, investor.id, input.productId, input.sharesMicros.toString(), status, input.clientReference).run();
+      SELECT ?, ?, ?, ?, '0', ?, ?
+      WHERE (SELECT CAST(shares_micros AS INTEGER) FROM investor_positions WHERE investor_id = ? AND product_id = ?)
+          - (SELECT COALESCE(SUM(CAST(requested_shares_micros AS INTEGER)), 0) FROM redemptions WHERE investor_id = ? AND product_id = ? AND status IN ${PENDING_REDEMPTION_SQL})
+          >= CAST(? AS INTEGER)
+    `).bind(
+      id, investor.id, input.productId, input.sharesMicros.toString(), status, clientReference,
+      investor.id, input.productId, investor.id, input.productId, input.sharesMicros.toString(),
+    ).run();
+    if (!changedRows(result)) throw new LedgerRequestError("Insufficient ETF shares");
     await this.audit("redemption.requested", "redemption", id, input.subject, { productId: input.productId, sharesMicros: input.sharesMicros.toString(), status });
     return { id, status };
   }
 
   async listRedemptionsForProcessing(paperMode: boolean): Promise<RedemptionRow[]> {
-    const statuses = paperMode ? "('requested','locked','executing')" : "('executing')";
+    const statuses = paperMode ? PENDING_REDEMPTION_SQL : "('executing')";
     return (await this.db.prepare(`
-      SELECT r.*, i.wallet_address FROM redemptions r
+      SELECT r.*, i.wallet_address, i.kyc_status FROM redemptions r
       JOIN investors i ON i.id = r.investor_id
       WHERE r.status IN ${statuses}
+        AND EXISTS (SELECT 1 FROM nav_snapshots n WHERE n.product_id = r.product_id AND n.quality IN ${PRICING_QUALITY_SQL} AND n.as_of >= strftime('%Y-%m-%dT%H:%M:%fZ', r.created_at, '+1 second'))
       ORDER BY r.created_at LIMIT 25
     `).all<RedemptionRow>()).results;
   }
 
-  async settleRedemption(row: RedemptionRow, settlement: SettlementResult | null, paperMode: boolean): Promise<{ proceedsKrw: bigint }> {
-    const nav = await this.latestNav(row.product_id);
-    const navPerShareMicros = nav ? asBigInt(nav.nav_per_share_micros) : INITIAL_NAV_PER_SHARE_MICROS;
-    const shares = asBigInt(row.requested_shares_micros);
-    const proceeds = krwForShares(shares, navPerShareMicros);
-    const status = paperMode || settlement?.status === "confirmed" ? "settled" : settlement?.status === "failed" ? "rejected" : "executing";
-    if (status !== "settled") {
-      await this.db.prepare("UPDATE redemptions SET status = ?, giwa_tx_hash = COALESCE(?, giwa_tx_hash) WHERE id = ?").bind(status, settlement?.txHash ?? null, row.id).run();
-      return { proceedsKrw: proceeds };
+  async settleRedemption(row: RedemptionRow, settlement: SettlementResult | null, paperMode: boolean, proceeds: bigint): Promise<{ status: "settled" | "rejected" | "pending"; reason: string | null }> {
+    const decision = settlementDecision(settlement, paperMode);
+    if (decision === "wait") {
+      await this.db.prepare(`UPDATE redemptions SET status = 'executing', giwa_tx_hash = COALESCE(?, giwa_tx_hash) WHERE id = ? AND status IN ${PENDING_REDEMPTION_SQL}`)
+        .bind(settlement?.txHash ?? null, row.id).run();
+      return { status: "pending", reason: settlement?.error ?? null };
     }
-    await this.db.batch([
-      this.db.prepare("UPDATE redemptions SET status = 'settled', proceeds_krw = ?, giwa_tx_hash = ?, settled_at = CURRENT_TIMESTAMP WHERE id = ?").bind(proceeds.toString(), settlement?.txHash ?? null, row.id),
+    const shares = asBigInt(row.requested_shares_micros);
+    const position = await this.db.prepare("SELECT shares_micros, cost_basis_krw, realized_pnl_krw FROM investor_positions WHERE investor_id = ? AND product_id = ?")
+      .bind(row.investor_id, row.product_id).first<{ shares_micros: string; cost_basis_krw: string; realized_pnl_krw: string }>();
+    if (decision === "reject" || !position || asBigInt(position.shares_micros) < shares) {
+      const reason = decision === "reject" ? settlement?.error ?? "Settlement was rejected" : "Insufficient ETF shares at settlement";
+      const result = await this.db.prepare(`UPDATE redemptions SET status = 'rejected', giwa_tx_hash = COALESCE(?, giwa_tx_hash) WHERE id = ? AND status IN ${PENDING_REDEMPTION_SQL}`)
+        .bind(settlement?.txHash ?? null, row.id).run();
+      if (changedRows(result)) await this.audit("redemption.rejected", "redemption", row.id, "ENGINE", { reason });
+      return { status: "rejected", reason };
+    }
+    const held = asBigInt(position.shares_micros);
+    const cost = asBigInt(position.cost_basis_krw);
+    // Cost basis leaves in proportion to the shares redeemed; the rest is realized gain or loss.
+    const costRemoved = shares === held ? cost : cost * shares / held;
+    const realized = asBigInt(position.realized_pnl_krw) + proceeds - costRemoved;
+    const results = await this.db.batch([
+      // Compare-and-set on the position read above, and only while the fund holds the cash.
       this.db.prepare(`
-        UPDATE investor_positions SET
-          shares_micros = CAST(MAX(0, CAST(shares_micros AS INTEGER) - CAST(? AS INTEGER)) AS TEXT),
-          cost_basis_krw = CAST(MAX(0, CAST(cost_basis_krw AS INTEGER) - CAST(? AS INTEGER)) AS TEXT),
-          updated_at = CURRENT_TIMESTAMP
-        WHERE investor_id = ? AND product_id = ?
-      `).bind(shares.toString(), proceeds.toString(), row.investor_id, row.product_id),
+        UPDATE investor_positions SET shares_micros = ?, cost_basis_krw = ?, realized_pnl_krw = ?, updated_at = CURRENT_TIMESTAMP
+        WHERE investor_id = ? AND product_id = ? AND shares_micros = ? AND cost_basis_krw = ? AND realized_pnl_krw = ?
+          AND EXISTS (SELECT 1 FROM redemptions WHERE id = ? AND status IN ${PENDING_REDEMPTION_SQL})
+          AND (SELECT CAST(cash_balance_krw AS INTEGER) FROM products WHERE id = ?) >= CAST(? AS INTEGER)
+          AND (SELECT CAST(shares_outstanding_micros AS INTEGER) FROM products WHERE id = ?) >= CAST(? AS INTEGER)
+      `).bind(
+        (held - shares).toString(), (cost - costRemoved).toString(), realized.toString(),
+        row.investor_id, row.product_id, position.shares_micros, position.cost_basis_krw, position.realized_pnl_krw,
+        row.id, row.product_id, proceeds.toString(), row.product_id, shares.toString(),
+      ),
+      this.db.prepare(`
+        UPDATE redemptions SET status = 'settled', proceeds_krw = ?, giwa_tx_hash = COALESCE(?, giwa_tx_hash), settled_at = CURRENT_TIMESTAMP
+        WHERE id = ? AND status IN ${PENDING_REDEMPTION_SQL} AND changes() = 1
+      `).bind(proceeds.toString(), settlement?.txHash ?? null, row.id),
       this.db.prepare(`
         UPDATE products SET
-          shares_outstanding_micros = CAST(MAX(0, CAST(shares_outstanding_micros AS INTEGER) - CAST(? AS INTEGER)) AS TEXT),
-          cash_balance_krw = CAST(MAX(0, CAST(cash_balance_krw AS INTEGER) - CAST(? AS INTEGER)) AS TEXT),
-          updated_at = CURRENT_TIMESTAMP WHERE id = ?
+          shares_outstanding_micros = CAST(CAST(shares_outstanding_micros AS INTEGER) - CAST(? AS INTEGER) AS TEXT),
+          cash_balance_krw = CAST(CAST(cash_balance_krw AS INTEGER) - CAST(? AS INTEGER) AS TEXT),
+          updated_at = CURRENT_TIMESTAMP
+        WHERE id = ? AND changes() = 1
       `).bind(shares.toString(), proceeds.toString(), row.product_id),
     ]);
+    if (!changedRows(results[1])) return { status: "pending", reason: "Awaiting fund cash or a concurrent update" };
     await this.audit("redemption.settled", "redemption", row.id, "ENGINE", { sharesMicros: shares.toString(), proceedsKrw: proceeds.toString(), paperMode });
-    return { proceedsKrw: proceeds };
+    return { status: "settled", reason: null };
   }
 
   async portfolio(subject: string): Promise<{ investor: { id: string; kycStatus: string; walletAddress: string | null } | null; positions: Array<Record<string, unknown>>; subscriptions: Array<Record<string, unknown>>; redemptions: Array<Record<string, unknown>> }> {
@@ -657,6 +786,13 @@ export class EngineRepository {
   async getState(key: string): Promise<{ value: string; updatedAt: string } | null> {
     const row = await this.db.prepare("SELECT value, updated_at FROM engine_state WHERE key = ?").bind(key).first<{ value: string; updated_at: string }>();
     return row ? { value: row.value, updatedAt: row.updated_at } : null;
+  }
+
+  /** Delete every state row whose key starts with `prefix`, except the keys listed. */
+  async deleteStatesWithPrefix(prefix: string, keep: string[]): Promise<void> {
+    const pattern = `${prefix.replace(/[\\%_]/g, (character) => `\\${character}`)}%`;
+    const exclusions = keep.length ? ` AND key NOT IN (${keep.map(() => "?").join(", ")})` : "";
+    await this.db.prepare(`DELETE FROM engine_state WHERE key LIKE ? ESCAPE '\\'${exclusions}`).bind(pattern, ...keep).run();
   }
 
   async setState(key: string, value: string): Promise<void> {

@@ -4,6 +4,24 @@ import { DatabaseSync } from 'node:sqlite';
 import { readFileSync } from 'node:fs';
 import { env } from 'cloudflare:workers';
 import { EngineRepository } from '../lib/engine/repository.ts';
+import { krwForShares, sharesForSubscription } from '../lib/engine/fixed.ts';
+
+// Stand-in for the engine's NAV step: a NAV calculated after every pending request,
+// which is what forward pricing waits for before a flow can settle.
+function publishNavAfterRequests(sql, productId) {
+  const asOf = new Date(Date.now() + 3000).toISOString();
+  sql.prepare("INSERT INTO nav_snapshots (product_id, nav_per_share_micros, net_asset_value_krw, gross_asset_value_krw, liabilities_krw, shares_outstanding_micros, daily_return_bps, tracking_error_bps, quality, holdings_hash, as_of) VALUES (?, '1000000000', '0', '0', '0', '0', 0, 0, 'indicative', '0x', ?)").run(productId, asOf);
+}
+async function settleSubscriptionOf(repo, investorId) {
+  const row = (await repo.listSubscriptionsForProcessing(true)).find((r) => r.investor_id === investorId);
+  const nav = await repo.navForSettlement(row.product_id, row.created_at);
+  return repo.settleSubscription(row, null, true, sharesForSubscription(BigInt(row.amount_krw), BigInt(nav.nav_per_share_micros)), BigInt(nav.nav_per_share_micros));
+}
+async function settleRedemptionOf(repo, investorId) {
+  const row = (await repo.listRedemptionsForProcessing(true)).find((r) => r.investor_id === investorId);
+  const nav = await repo.navForSettlement(row.product_id, row.created_at);
+  return repo.settleRedemption(row, null, true, krwForShares(BigInt(row.requested_shares_micros), BigInt(nav.nav_per_share_micros)));
+}
 import { GET, POST, DELETE } from '../app/api/portfolio/route.ts';
 function database() {
   const sql = new DatabaseSync(":memory:");
@@ -51,14 +69,16 @@ test('separate visitors isolate real ledger reads, saves and removals despite id
     assert.equal(va.subscriptions.length,1); assert.equal(vb.subscriptions.length,1);
     assert.equal(va.subscriptions[0].amount_krw,'100000');
     // Only settle in this isolated SQLite ledger, never the production engine.
-    await repo.settleSubscription((await repo.listSubscriptionsForProcessing(true)).find(r=>r.investor_id===va.investor.id),null,true);
+    publishNavAfterRequests(sql, productId);
+    assert.equal((await settleSubscriptionOf(repo, va.investor.id)).status, 'settled');
     const sharesMicros=(await view(ca)).positions[0].sharesMicros;
     const denied=await DELETE(request(cb,'DELETE',{productId,sharesMicros,walletAddress:wallet}));
     assert.equal(denied.status,400); assert.match((await denied.json()).error,/Insufficient/);
     assert.equal((await view(ca)).positions[0].sharesMicros,sharesMicros);
     const removed=await DELETE(request(ca,'DELETE',{productId,sharesMicros}));
     assert.equal(removed.status,201,await removed.text());
-    await repo.settleRedemption((await repo.listRedemptionsForProcessing(true)).find(r=>r.investor_id===va.investor.id),null,true);
+    publishNavAfterRequests(sql, productId);
+    assert.equal((await settleRedemptionOf(repo, va.investor.id)).status, 'settled');
     assert.equal((await view(ca)).positions.length,0);
     assert.equal((await view(cb)).redemptions.length,0);
     assert.equal((await GET(request(ca))).headers.get('set-cookie'),null);

@@ -171,10 +171,8 @@ async function handleEligibility(address: Address, env: Env): Promise<Response> 
       reason: verified ? null : "not allowlisted on the fund share ledger",
     });
   } catch (error) {
-    return Response.json(
-      { error: error instanceof Error ? error.message : "RPC unreachable", code: "rpc_unavailable" },
-      { status: 503 },
-    );
+    console.error("Eligibility read failed", error);
+    return Response.json({ error: "RPC unreachable", code: "rpc_unavailable" }, { status: 503 });
   }
 }
 
@@ -188,8 +186,11 @@ async function handleHealth(env: Env): Promise<Response> {
   const client = publicClient(env);
   try {
     const [blockNumber, chainId] = await Promise.all([client.getBlockNumber(), client.getChainId()]);
+    // An RPC for another network would sign nothing useful; report it rather than ready.
+    const expected = settlementChain(env.SETTLEMENT_CHAIN).chain.id;
     return Response.json({
-      ready: true,
+      ready: chainId === expected,
+      ...(chainId === expected ? {} : { error: `RPC reports chain ${chainId}, expected ${expected}` }),
       chain: key,
       chainId,
       blockNumber: blockNumber.toString(),
@@ -200,10 +201,9 @@ async function handleHealth(env: Env): Promise<Response> {
       signerConfigured: /^0x[0-9a-fA-F]{64}$/.test(env.RELAYER_PRIVATE_KEY ?? ""),
     });
   } catch (error) {
-    return Response.json(
-      { ready: false, chain: key, error: error instanceof Error ? error.message : "RPC unreachable" },
-      { status: 503 },
-    );
+    // The error can quote the RPC URL and any key in it; this route is unauthenticated.
+    console.error("Health RPC read failed", error);
+    return Response.json({ ready: false, chain: key, error: "RPC unreachable" }, { status: 503 });
   }
 }
 

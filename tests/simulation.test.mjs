@@ -24,7 +24,14 @@ test("invalid amounts cannot produce a reviewable estimate", () => {
   }
 });
 
-test("whole KRW amounts at and above the minimum are supported", () => {
+test("whole KRW amounts from the minimum to the maximum are supported", () => {
   assert.equal(estimatePaperAllocation("100000", "1000000000", "0.65%").shares, 100);
   assert.equal(estimatePaperAllocation("100001", "1000000000", "0.65%").amountError, "");
+  assert.equal(estimatePaperAllocation("1000000000", "1000000000", "0.65%").amountError, "");
+});
+
+test("amounts above the ledger's maximum are caught before review, as the server would reject them", () => {
+  const result = estimatePaperAllocation("1000000001", "1000000000", "0.65%");
+  assert.match(result.amountError, /at most ₩1,000,000,000/);
+  assert.equal(result.shares, null);
 });

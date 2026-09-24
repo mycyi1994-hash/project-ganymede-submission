@@ -1,6 +1,6 @@
 # Build provenance
 
-Production source revision: `41de09df73150a0177d8a209abdd1926d0fc9977`.
+Production source revision: `f0ae49ce3f410af6cfcab9d3e2ff4e3a85aa4d68`.
 
 This is a source snapshot, not a claim that the entire project was newly built for this event. The original repository remains private. The entries below were exported from its Git history; reviewers can inspect current implementations and tests, and request original history access from the team if needed. No old secrets, local environment files or full private Git history are published.
 
@@ -56,3 +56,16 @@ Relayer deployment: a9cf2c42-f4d8-48f2-8a3c-d167a03437f5.
 ## Five-stage journey release
 
 Production source: e8631c26ca9f6b384c32604c96bd0e3b92955111. Worker version: 19417a86-37cf-4f6f-9d51-2c6c71426ac5. The private main now integrates the journey and Claude review changes. This export includes the same implementation, with review-only deployment identifiers preserved. See JOURNEY_RELEASE.md for checks and limitations.
+
+
+## Review, product and accessibility releases
+
+Production source: f0ae49ce3f410af6cfcab9d3e2ff4e3a85aa4d68. Worker version: 6e8ba126-42e0-4114-b355-77275a4bcd98, deployed 2026-09-24 10:37 UTC. Relayer Worker version: cb38524c-cb75-4350-a9ee-a363f49a5c93. This snapshot is exported from 7a138e5c327d3b338674721fd5b416338fe85531, which adds only release documentation to the production source.
+
+Releases since the previous snapshot:
+
+- df6c41e97f0668c9066f0b77d8e9d88fc9f0fca2 → b287ab71-66f9-45d0-8854-3ee28626f2c0: a review of the whole codebase fixed defects in the paper ledger (input bounds, share reservation, conditional settlement, forward pricing, cash shortfalls, on-chain eligibility), USTX publication (request budget, retry classification, reconciliation of unresolved publications, bounded storage and provider cooldowns, composition checks), the relayer (status codes, product scope, retried mints, nonce resync, error bodies) and the interface. Each defect was reproduced before it was fixed; the new tests fail on the previous source.
+- ff0492005341b62bb0c6acddc28a6ecd4a781cbb → bb33af8d-0c01-4c7e-ac20-0853854bfb74, then 1bfed8ec5f65b5b731e3f3b14814786aa3a740ae → 379aa941-a9db-4c61-8169-723bf0553c7a: the product is organized as Markets, the USTX product page, Transparency, and read-only Portfolio and Activity views of the GMDCORE test share ledger; the price-edit experiment and paper strategies moved to Lab, and old routes redirect. Investing and redemption are not implemented: there is no deposit address, settlement token or custody contract.
+- f0ae49ce3f410af6cfcab9d3e2ff4e3a85aa4d68 → 6e8ba126-42e0-4114-b355-77275a4bcd98: NAV unit label contrast and landmark structure on the verification page, plus a test-fixture time fix.
+
+Validation of the snapshot source: typecheck, build, lint (0 errors) and 89 tests; relayer typecheck and 16 tests. After the last deployment, public routes returned 200, legacy routes redirected, axe reported no violations on nine pages, 200% and 400% zoom and 320 and 390 px widths showed no horizontal overflow, and NAV publications continued to confirm on X Layer Testnet. These are point-in-time observations, not continuous availability or a security audit.

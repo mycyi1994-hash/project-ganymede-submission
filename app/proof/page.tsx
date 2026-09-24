@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import ProofClient from "./ProofClient";
+import { redirect } from "next/navigation";
 
 export const metadata: Metadata = {
   title: "Proof of NAV · Ganymede Index",
@@ -7,5 +7,5 @@ export const metadata: Metadata = {
 };
 
 export default function ProofPage() {
-  return <ProofClient />;
+  redirect("/products/ustx/transparency");
 }

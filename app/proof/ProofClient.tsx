@@ -201,12 +201,12 @@ export default function ProofClient() {
           <p className="proof-lede">Follow one published model share from its six holding values to the X Layer Testnet record. Your browser checks whether the calculation, document and record agree.</p>
           <div className="proof-jump-links"><a href="#proof-verify">Results</a><a href="#proof-experiment">Try a change</a><a href="#proof-holdings">Calculation</a><a href="#proof-record">Chain record</a></div>
         </div>
-        <aside className="proof-record" aria-label="Last on-chain NAV">
+        <div className="proof-record" role="group" aria-label="Last on-chain NAV">
           <span>Last published NAV / USD</span>
           <strong>{record ? usd(record.navPerShareMicros, 4) : "—"}</strong>
           <dl><div><dt>RECORD EFFECTIVE</dt><dd><RecordTime value={record?.effectiveAt} /></dd></div><div><dt>NETWORK</dt><dd>{data?.registry.chainName ?? "X Layer Testnet"}</dd></div></dl>
           <p>{checks?.record ? "Read directly from X Layer · one model share" : record ? "Server snapshot · direct verification pending" : error ? "Record unavailable · retry below" : "Waiting for an on-chain record"}</p>
-        </aside>
+        </div>
       </section>
 
       <section className={`proof-section proof-result proof-result-${summaryState}`} aria-label="Evidence checks">
@@ -233,7 +233,7 @@ export default function ProofClient() {
       <section className="proof-section proof-basket-section" aria-labelledby="proof-holdings">
         <header><div><span className="proof-result-eyebrow">{publishedComposition ? "PUBLISHED COMPOSITION" : "PUBLISHED COMPOSITION UNAVAILABLE"}</span><h2 id="proof-holdings">Calculate one model share.</h2></div><p>{composition ? `Priced ${time(composition.asOf)}` : error ? "Composition unavailable" : data ? "No document matched to this record" : "Waiting for composition data"}</p></header>
         {composition && !publishedComposition && <p className="proof-footnote">This composition has not been matched to the on-chain record shown above.</p>}
-        <div className="proof-basket-layout"><aside className="proof-basket-method"><span>THE BASKET AT A GLANCE</span><strong>{composition ? String(composition.holdings.length).padStart(2, "0") : "—"}</strong><p>US tech xStocks</p><dl><div><dt>Allocation</dt><dd>Equal weight at fixing</dd></div><div><dt>Review</dt><dd>Quarterly</dd></div><div><dt>Pricing source</dt><dd>OKX OnchainOS · X Layer</dd></div></dl><p className="basket-method-note">Fixed token units per model share. Their value changes with market prices.</p></aside>
+        <div className="proof-basket-layout"><div className="proof-basket-method"><span>THE BASKET AT A GLANCE</span><strong>{composition ? String(composition.holdings.length).padStart(2, "0") : "—"}</strong><p>US tech xStocks</p><dl><div><dt>Allocation</dt><dd>Equal weight at fixing</dd></div><div><dt>Review</dt><dd>Quarterly</dd></div><div><dt>Pricing source</dt><dd>OKX OnchainOS · X Layer</dd></div></dl><p className="basket-method-note">Fixed token units per model share. Their value changes with market prices.</p></div>
         <div className="proof-table-wrap proof-simple-wrap"><table className="proof-table proof-simple-table"><thead><tr><th scope="col">Token</th><th scope="col">Weight at fixing</th><th scope="col">Value / share</th></tr></thead><tbody>
           {(composition?.holdings ?? []).map((holding) => <tr key={holding.symbol}><th scope="row"><div className="proof-stock"><StockMark symbol={holding.symbol} /><span><b>{holding.symbol}</b><small>{data?.pricing.constituents.find((item) => item.symbol === holding.symbol)?.name}</small></span></div></th><td><span>{(holding.weightBps / 100).toFixed(2)}%</span><span className="proof-weight-track" aria-hidden="true"><i style={{ width: `${Math.max(0, Math.min(100, holding.weightBps / 100))}%` }} /></span></td><td>{usd(holding.valueMicros, 4)}</td></tr>)}
         </tbody></table>{!composition && <p className="proof-empty">{data ? "No published composition matched this chain record. Check again or inspect the source records below." : error ? "Composition unavailable." : "Loading composition…"}</p>}</div>
@@ -245,9 +245,12 @@ export default function ProofClient() {
 
       <section className="proof-section proof-chain-summary" aria-labelledby="proof-record"><header><h2 id="proof-record">Read the chain record.</h2><p>{checks?.record ? "Fetched directly by your browser from X Layer Testnet." : "Server snapshot only until the direct browser read succeeds."}</p></header><dl><div><dt>Recorded NAV / USD</dt><dd>{record ? usd(record.navPerShareMicros, 4) : "—"}</dd></div><div><dt>Composition fingerprint</dt><dd><code>{record?.holdingsHash ?? "Awaiting a record"}</code></dd></div><div><dt>Effective at</dt><dd><RecordTime value={record?.effectiveAt} /></dd></div></dl><p>The fingerprint identifies the exact published document. A matching fingerprint does not establish custody or backing.</p></section>
 
+      <div className="proof-status-pair" aria-label="Data availability">
       <section className="proof-pricing-status" aria-label="Latest pricing status"><div><span>LATEST PRICING</span><strong className={"pricing-label pricing-" + pricing.tone}>{data || error ? pricing.label : "Loading pricing status…"}</strong><p>{data || error ? pricing.detail : "Retrieving the latest pricing attempt."}</p></div><div className="pricing-last-attempt"><span>LAST PRICING ATTEMPT</span><RecordTime value={data?.latest?.evaluatedAt} /></div></section>
 
       <section className="proof-pricing-status" aria-label="Publication status"><div><span>Publication</span><strong className={"pricing-label pricing-" + publication.tone}>{data || error ? publication.label : "Loading publication status…"}</strong><p>{publication.detail}</p></div><div className="pricing-last-attempt"><span>Quote eligibility policy</span><p>{data?.pricing.maxQuoteAgeMinutes ? `Quotes up to ${data.pricing.maxQuoteAgeMinutes} minutes old may be accepted at evaluation. This is not a guarantee of live market prices.` : "Quote-age policy unavailable in this response."}</p></div></section>
+
+      </div>
 
       <details className="proof-section detail-disclosure journey-examples"><summary>Explore synthetic report examples <span aria-hidden="true">+</span></summary><p>Optional offline examples. These are not the published USTX record.</p><ReportExamples /></details>
 
@@ -256,6 +259,7 @@ export default function ProofClient() {
           {data && data.history.length > 0 ? <div className="proof-table-wrap"><table className="proof-table"><thead><tr><th scope="col">Effective</th><th scope="col">NAV / share</th><th scope="col">Holdings hash</th><th scope="col">Status</th><th scope="col">Transaction</th></tr></thead><tbody>{data.history.map((entry) => <tr key={entry.asOf}><th scope="row">{time(entry.asOf)}</th><td>{usd(entry.navPerShareMicros, 4)}</td><td><code>{shortHash(entry.holdingsHash)}</code></td><td>{entry.status.toUpperCase()}</td><td>{entry.txHash ? <a href={`${data.registry.explorerUrl}/tx/${entry.txHash}`} target="_blank" rel="noreferrer">{shortHash(entry.txHash)} ↗</a> : entry.error ?? "—"}</td></tr>)}</tbody></table></div> : <p className="proof-empty">{data ? "No publications yet." : error ? "Publications unavailable." : "Loading publications…"}</p>}
         </div></details>
         <details className="detail-disclosure"><summary><span>The original document<small>Canonical JSON & independent hash check</small></span><span aria-hidden="true">+</span></summary><div className="disclosure-content">
+          {canonical && !verifiedCanonical && <p className="proof-footnote" role="note">This is the latest priced composition. It is not the document behind the on-chain record shown above, so its hash will not match the registry.</p>}
           <div className="proof-document-toolbar"><p>Copy the exact bytes used for the hash. The preview below is formatted for reading.</p><button type="button" className="proof-copy" onClick={copy} disabled={!canonical}>{copied ? "COPIED" : "COPY JSON"}</button></div>
           <p className="proof-copy-status" role="status">{copyError || (copied ? "Canonical JSON copied." : "")}</p>
           <pre className="proof-json">{prettyDocument}</pre>

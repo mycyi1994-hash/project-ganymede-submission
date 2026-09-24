@@ -7,8 +7,8 @@ export async function generateMetadata(): Promise<Metadata> {
   const host = requestHeaders.get("x-forwarded-host") ?? requestHeaders.get("host") ?? "ganymede-xlayer.gana003.workers.dev";
   const protocol = requestHeaders.get("x-forwarded-proto") ?? "https";
   const imageUrl = `${protocol}://${host}/images/clearform-stack.webp`;
-  const title = "Ganymede — An index you can inspect.";
-  const description = "Six US tech xStocks in one model basket. Inspect its composition and compare the published NAV with the record on X Layer Testnet.";
+  const title = "Ganymede — US Tech Basket";
+  const description = "Explore the US Tech Basket: six xStocks, a defined allocation and transparent NAV records on X Layer Testnet. Subscriptions are not open.";
 
   return {
     title,

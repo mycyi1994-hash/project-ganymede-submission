@@ -19,14 +19,17 @@ import {
   type Hex,
 } from "viem";
 import { privateKeyToAccount } from "viem/accounts";
-import { classifyRevert, planCall, RequestError, NAV_REGISTRY_ABI, type SettlementRequest } from "./contracts";
+import { classifyRevert, planCall, RequestError, FUND_SHARE_ABI, NAV_REGISTRY_ABI, type SettlementRequest } from "./contracts";
 import { navPayloadHash, SubmissionQueue } from "./publication-evidence";
 import { idempotencyKey } from "./ids";
 import { readSettlement, writeSettlement, type StoredSettlement } from "./store";
 import type { Env } from "./env";
 import { settlementChain } from "./chain";
 
-const RECEIPT_TIMEOUT_MS = 20_000;
+/** Well inside the app's 45 s request budget; an unconfirmed hash is reconciled on the next ask. */
+const RECEIPT_TIMEOUT_MS = 12_000;
+/** The one product whose shares live on the configured FundShare ledger. */
+const DEFAULT_TOKENIZED_PRODUCT = "core-20";
 
 export class Submitter implements DurableObject {
   private nextNonce: number | null = null;
@@ -43,8 +46,9 @@ export class Submitter implements DurableObject {
       if (error instanceof RequestError) {
         return Response.json({ error: error.message, code: error.code }, { status: error.status });
       }
-      const message = error instanceof Error ? error.message : "settlement failed";
-      return Response.json({ error: message, code: "submission_failed" }, { status: 502 });
+      // RPC errors can quote the provider URL (and any key in it); keep them in the log only.
+      console.error("Settlement submission failed", error);
+      return Response.json({ error: "Submission failed; retry with the same Idempotency-Key", code: "submission_failed" }, { status: 502 });
     }
   }
 
@@ -92,7 +96,18 @@ export class Submitter implements DurableObject {
     const existing = await readSettlement(this.env.DB, key);
     if (existing?.status === "confirmed") return existing;
 
-    const plan = planCall(request);
+    let plan: ReturnType<typeof planCall>;
+    try {
+      plan = planCall(request);
+    } catch (error) {
+      // Malformed amounts, hashes or times are the caller's to fix, never worth a retry.
+      if (error instanceof RequestError) throw error;
+      throw new RequestError(error instanceof Error ? error.message : "invalid settlement request", 400, "invalid_request");
+    }
+    if (plan.target === "fundShare" && request.productId !== (this.env.FUND_SHARE_PRODUCT_ID || DEFAULT_TOKENIZED_PRODUCT)) {
+      // One FundShare ledger holds one product; minting another product there would mix cap tables.
+      throw new RequestError(`${request.productId} has no share ledger on chain`, 409, "product_not_tokenized");
+    }
     const address = this.contractAddress(plan.target);
     const { account, publicClient, walletClient } = this.clients();
 
@@ -124,6 +139,12 @@ export class Submitter implements DurableObject {
       if (name === "StalePublication" && plan.functionName === "publishNav") {
         const published = await publicClient.readContract({ address, abi: NAV_REGISTRY_ABI, functionName: "publishedPayload", args: [navPayloadHash(plan.args)] });
         if (published) disposition = { kind: "settled", reason: "exact NAV payload independently confirmed in registry history" };
+      }
+      // The share ledger checks the allowlist and pause before its replay guard, so a retry of
+      // a mint that already landed can revert with another error. Ask the ledger directly.
+      if (disposition?.kind !== "settled" && plan.target === "fundShare") {
+        const processed = await publicClient.readContract({ address, abi: FUND_SHARE_ABI, functionName: "processedSettlement", args: [plan.args[0] as Hex] }).catch(() => false);
+        if (processed) disposition = { kind: "settled", reason: "settlement id already processed on the share ledger" };
       }
       if (disposition?.kind === "settled") {
         const record: StoredSettlement = {
@@ -160,9 +181,11 @@ export class Submitter implements DurableObject {
         nonce: await this.takeNonce(publicClient, account.address),
       });
     } catch (error) {
-      // A nonce that drifted (restart, external send) is recoverable: resync and
-      // let the engine's next retry through rather than poisoning the queue.
-      await this.resyncNonce(publicClient, account.address);
+      // A nonce that drifted (restart, external send) is recoverable. Forget the local
+      // counter first, so that if the resync read also fails the next submission reads
+      // the chain again instead of skipping a nonce and stalling behind the gap.
+      this.nextNonce = null;
+      await this.resyncNonce(publicClient, account.address).catch(() => undefined);
       throw error;
     }
 

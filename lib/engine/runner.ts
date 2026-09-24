@@ -1,6 +1,6 @@
 import { ASSET_UNIVERSE, PRODUCT_DEFINITIONS } from "./seed";
-import { asBigInt, newId, notionalToUnitsAtomic, unitsToMarketValueKrw } from "./fixed";
-import { SettlementClient, type SettlementRequest } from "./settlement";
+import { asBigInt, krwForShares, newId, notionalToUnitsAtomic, sharesForSubscription, unitsToMarketValueKrw } from "./fixed";
+import { SettlementClient, type SettlementRequest, type SettlementResult } from "./settlement";
 import { EngineRepository } from "./repository";
 import { calculateStrategy, shouldRebalance } from "./strategy";
 import { fetchDailyCandles, fetchMarketSnapshot, UpbitExecutionClient } from "./upbit";
@@ -51,47 +51,127 @@ function marketDataQuality(ticks: MarketTick[]): "live" | "reference" | "mixed" 
   return "mixed";
 }
 
+/**
+ * Sell holdings pro rata until the fund's cash covers a redemption. Paper execution
+ * fills immediately; a live venue does not, so live redemptions wait for cash instead.
+ */
+async function raiseCash(
+  repo: EngineRepository,
+  execution: UpbitExecutionClient,
+  productId: string,
+  neededKrw: bigint,
+  ticks: Map<string, MarketTick>,
+  reference: string,
+): Promise<boolean> {
+  const product = await repo.getProduct(productId);
+  if (!product) return false;
+  const cash = asBigInt(product.cash_balance_krw);
+  if (cash >= neededKrw) return true;
+  if (execution.mode !== "paper") return false;
+  const holdings = (await repo.getPositions(productId)).flatMap((position) => {
+    const asset = ASSET_UNIVERSE.find((candidate) => candidate.symbol === position.symbol);
+    const tick = ticks.get(position.symbol);
+    const units = asBigInt(position.units_atomic);
+    if (!asset || !tick || units <= 0n) return [];
+    return [{ asset, tick, units, value: unitsToMarketValueKrw(units, BigInt(Math.round(tick.priceKrw)), asset.decimals) }];
+  });
+  const invested = holdings.reduce((sum, holding) => sum + holding.value, 0n);
+  // A 2% cushion covers the paper venue's slippage and fee.
+  const shortfall = (neededKrw - cash) * 102n / 100n + 1n;
+  if (invested < shortfall) return false;
+  for (const holding of holdings) {
+    const notional = holding.value * shortfall / invested + 1n;
+    const bid = BigInt(Math.max(1, Math.round(holding.tick.bidKrw)));
+    const wanted = notionalToUnitsAtomic(notional, bid, holding.asset.decimals) + 1n;
+    const units = wanted > holding.units ? holding.units : wanted;
+    const intent: OrderIntent = {
+      id: newId("order"),
+      productId,
+      rebalanceRunId: null,
+      symbol: holding.asset.symbol,
+      market: holding.asset.market,
+      side: "sell",
+      orderType: "market",
+      requestedNotionalKrw: notional,
+      requestedUnitsAtomic: units,
+      idempotencyKey: `liquidity:${reference}:${holding.asset.symbol}:${newId("attempt")}`,
+    };
+    const result = await execution.execute(intent, holding.tick, holding.asset.decimals);
+    await repo.saveExecution(intent, result, holding.tick, holding.asset.decimals);
+  }
+  const after = await repo.getProduct(productId);
+  return Boolean(after) && asBigInt(after!.cash_balance_krw) >= neededKrw;
+}
+
+/**
+ * Settle subscriptions and redemptions at the first NAV calculated after each request.
+ * Only KYC-verified investors with a recorded wallet are minted or burned on chain;
+ * a paper session's wallet is unverified metadata and never becomes a settlement target.
+ */
 async function processFundFlows(
   repo: EngineRepository,
   settlementClient: SettlementClient,
+  execution: UpbitExecutionClient,
+  ticks: Map<string, MarketTick>,
   paperMode: boolean,
-): Promise<number> {
+  keepLease: () => Promise<void>,
+): Promise<{ settlements: number; warnings: string[] }> {
   let settlements = 0;
-  const subscriptions = await repo.listSubscriptionsForProcessing(paperMode);
-  for (const subscription of subscriptions) {
-    const request: SettlementRequest = {
-      entityType: "subscription",
-      entityId: subscription.id,
-      action: "mint_subscription",
-      walletAddress: subscription.wallet_address,
-      productId: subscription.product_id,
-      amount: subscription.amount_krw,
-      sharesMicros: subscription.expected_shares_micros,
-      effectiveAt: new Date().toISOString(),
-    };
-    const settlement = await settlementClient.settle(request);
-    await repo.saveSettlement(request, settlement);
-    await repo.settleSubscription(subscription, settlement, paperMode);
-    settlements += 1;
+  const warnings: string[] = [];
+  for (const subscription of await repo.listSubscriptionsForProcessing(paperMode)) {
+    await keepLease();
+    const nav = await repo.navForSettlement(subscription.product_id, subscription.created_at);
+    if (!nav) continue;
+    const navPerShareMicros = asBigInt(nav.nav_per_share_micros);
+    const shares = sharesForSubscription(asBigInt(subscription.amount_krw), navPerShareMicros);
+    let settlement: SettlementResult | null = null;
+    if (subscription.kyc_status === "verified" && subscription.wallet_address) {
+      const request: SettlementRequest = {
+        entityType: "subscription",
+        entityId: subscription.id,
+        action: "mint_subscription",
+        walletAddress: subscription.wallet_address,
+        productId: subscription.product_id,
+        amount: subscription.amount_krw,
+        sharesMicros: shares.toString(),
+        effectiveAt: nav.as_of,
+      };
+      settlement = await settlementClient.settle(request);
+      await repo.saveSettlement(request, settlement);
+      settlements += 1;
+    }
+    const outcome = await repo.settleSubscription(subscription, settlement, paperMode, shares, navPerShareMicros);
+    if (outcome.status !== "settled" && outcome.reason) warnings.push(`Subscription ${subscription.id} ${outcome.status}: ${outcome.reason}`);
   }
 
-  const redemptions = await repo.listRedemptionsForProcessing(paperMode);
-  for (const redemption of redemptions) {
-    const request: SettlementRequest = {
-      entityType: "redemption",
-      entityId: redemption.id,
-      action: "burn_redemption",
-      walletAddress: redemption.wallet_address,
-      productId: redemption.product_id,
-      sharesMicros: redemption.requested_shares_micros,
-      effectiveAt: new Date().toISOString(),
-    };
-    const settlement = await settlementClient.settle(request);
-    await repo.saveSettlement(request, settlement);
-    await repo.settleRedemption(redemption, settlement, paperMode);
-    settlements += 1;
+  for (const redemption of await repo.listRedemptionsForProcessing(paperMode)) {
+    await keepLease();
+    const nav = await repo.navForSettlement(redemption.product_id, redemption.created_at);
+    if (!nav) continue;
+    const proceeds = krwForShares(asBigInt(redemption.requested_shares_micros), asBigInt(nav.nav_per_share_micros));
+    if (!(await raiseCash(repo, execution, redemption.product_id, proceeds, ticks, redemption.id))) {
+      warnings.push(`Redemption ${redemption.id} is waiting for fund cash`);
+      continue;
+    }
+    let settlement: SettlementResult | null = null;
+    if (redemption.kyc_status === "verified" && redemption.wallet_address) {
+      const request: SettlementRequest = {
+        entityType: "redemption",
+        entityId: redemption.id,
+        action: "burn_redemption",
+        walletAddress: redemption.wallet_address,
+        productId: redemption.product_id,
+        sharesMicros: redemption.requested_shares_micros,
+        effectiveAt: nav.as_of,
+      };
+      settlement = await settlementClient.settle(request);
+      await repo.saveSettlement(request, settlement);
+      settlements += 1;
+    }
+    const outcome = await repo.settleRedemption(redemption, settlement, paperMode, proceeds);
+    if (outcome.status !== "settled" && outcome.reason) warnings.push(`Redemption ${redemption.id} ${outcome.status}: ${outcome.reason}`);
   }
-  return settlements;
+  return { settlements, warnings };
 }
 
 function buildStrategyInputs(
@@ -171,8 +251,15 @@ async function evaluateAndRebalance(
   trigger: string,
   force: boolean,
   liveDataReady: boolean,
+  dataQuality: "live" | "reference" | "mixed",
 ): Promise<{ rebalances: number; orders: number; settlements: number; warnings: string[] }> {
   const warnings: string[] = [];
+  // A live venue fills asynchronously and nothing here polls fills, so a new rebalance
+  // must not start while an earlier one still has orders out.
+  if (execution.mode === "live" && await repo.hasOpenRebalance(product.id)) {
+    warnings.push(`${product.ticker} rebalance skipped: an earlier live rebalance is still executing`);
+    return { rebalances: 0, orders: 0, settlements: 0, warnings };
+  }
   const currentWeights = await repo.currentWeights(product.id, ticks);
   const strategy = calculateStrategy(product, buildStrategyInputs(ticks, candles, currentWeights));
   const lastCompleted = await repo.latestCompletedRebalance(product.id);
@@ -209,7 +296,7 @@ async function evaluateAndRebalance(
     action: "publish_rebalance",
     productId: product.id,
     holdingsHash: await (async () => {
-      const nav = await repo.calculateAndSaveNav(product.id, ticks, allCompleted ? "indicative" : "blocked");
+      const nav = await repo.calculateAndSaveNav(product.id, ticks, dataQuality !== "live" ? "stale" : allCompleted ? "indicative" : "blocked");
       return nav.holdingsHash;
     })(),
     effectiveAt: new Date().toISOString(),
@@ -268,11 +355,19 @@ export async function runEngineCycle(
     const executionHealth = await execution.health();
     if (mode === "live" && !executionHealth.configured) warnings.push("Live Upbit execution is disabled because credentials or the explicit live-trading confirmation are missing");
 
-    let settlementsQueued = xstocks.settlementsQueued + await processFundFlows(repo, settlementClient, mode === "paper");
+    // Renewing the lease before each write keeps an overrunning cycle from overlapping the next one.
+    const keepLease = async () => {
+      if (!(await repo.acquireLease("portfolio-engine", owner, LEASE_TTL_SECONDS))) throw new Error("Engine lease lost; stopping before further writes");
+    };
+    await keepLease();
+    const fundFlows = await processFundFlows(repo, settlementClient, execution, ticks, mode === "paper", keepLease);
+    warnings.push(...fundFlows.warnings);
+    let settlementsQueued = xstocks.settlementsQueued + fundFlows.settlements;
     let rebalancesCreated = 0;
     let ordersCreated = 0;
     for (const product of PRODUCT_DEFINITIONS) {
-      const outcome = await evaluateAndRebalance(repo, execution, settlementClient, product, ticks, market.candles, trigger, trigger === "operator" && options.force === true, quality === "live" && executionHealth.configured);
+      await keepLease();
+      const outcome = await evaluateAndRebalance(repo, execution, settlementClient, product, ticks, market.candles, trigger, trigger === "operator" && options.force === true, quality === "live" && executionHealth.configured, quality);
       rebalancesCreated += outcome.rebalances;
       ordersCreated += outcome.orders;
       settlementsQueued += outcome.settlements;
@@ -281,7 +376,11 @@ export async function runEngineCycle(
 
     let navsPublished = xstocks.navsPublished;
     for (const product of PRODUCT_DEFINITIONS) {
+      await keepLease();
       const nav = await repo.calculateAndSaveNav(product.id, ticks, quality === "live" ? "indicative" : "stale");
+      // A NAV built from reference or partly stale prices stays in the ledger, labelled
+      // stale, but is not published on chain as if it were a market valuation.
+      if (quality !== "live") continue;
       const request: SettlementRequest = {
         entityType: "nav", entityId: `${product.id}:${nav.asOf}`, action: "publish_nav", productId: product.id,
         navPerShareMicros: nav.navPerShareMicros.toString(), sharesOutstandingMicros: nav.sharesOutstandingMicros.toString(),

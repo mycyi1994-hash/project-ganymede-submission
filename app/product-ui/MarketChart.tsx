@@ -4,7 +4,7 @@ import { useId, useState } from "react";
 import { formatUsdMicros } from "@/lib/nav-display";
 import { shortTime, type HistoryPoint } from "@/lib/product-market";
 
-export default function MarketChart({ points, loading }: { points: HistoryPoint[]; loading: boolean }) {
+export default function MarketChart({ points, total = points.length, loading }: { points: HistoryPoint[]; total?: number; loading: boolean }) {
   const gradient = useId().replaceAll(":", "");
   const [view, setView] = useState<"chart" | "records">("chart");
   const [index, setIndex] = useState<number | null>(null);
@@ -32,6 +32,6 @@ export default function MarketChart({ points, loading }: { points: HistoryPoint[
       <label className="gmd-history-scrubber gmd-sr-only"><span>Inspect a published record</span><input type="range" min="0" max={points.length - 1} value={index === null ? points.length - 1 : Math.min(index, points.length - 1)} onFocus={() => setIndex(points.length - 1)} onBlur={() => setIndex(null)} onChange={event => setIndex(Number(event.target.value))} aria-valuetext={active ? `${shortTime(active.at)}, ${formatUsdMicros(active.micros, 4)}` : "Latest record"} /></label>
       <div className="gmd-chart-axis"><span>{shortTime(points[0].at)}</span><span>{shortTime(points[points.length - 1].at)}</span></div>
     </>}
-    <p className="gmd-chart-note">{points.length > 1 ? `${points.length} published records since ${shortTime(points[0].at)}` : "Values per model share"}. Not an executable price.</p>
+    <p className="gmd-chart-note">{points.length > 1 ? `${total} published records since ${shortTime(points[0].at)}${total > points.length ? ` (${points.length} shown)` : ""}` : "Values per model share"}. Not an executable price.</p>
   </div>;
 }

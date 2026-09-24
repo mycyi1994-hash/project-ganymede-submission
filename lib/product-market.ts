@@ -13,6 +13,8 @@ export type MarketSnapshot = {
   onchainError: string | null;
   /** Confirmed publications as [seconds, NAV micros], possibly thinned; older responses omit it. */
   series?: [number, string][];
+  /** Confirmed publications in the stored series before thinning. */
+  seriesCount?: number;
 };
 const integer = (s: unknown): s is string => typeof s === "string" && /^(0|[1-9]\d{0,77})$/.test(s);
 const timestamp = (s: unknown): s is string => typeof s === "string" && Number.isFinite(Date.parse(s));
@@ -29,6 +31,7 @@ export function decodeMarketSnapshot(value: unknown): MarketSnapshot {
   if (data.latest && (!timestamp(data.latest.evaluatedAt) || typeof data.latest.status !== "string" || !Array.isArray(data.latest.warnings) || !data.latest.warnings.every(item => typeof item === "string") || !Array.isArray(data.latest.blockers) || !data.latest.blockers.every(item => typeof item === "string"))) throw new Error("The latest market evaluation is invalid.");
   if (data.pricing.maxQuoteAgeMinutes !== undefined && (!Number.isFinite(data.pricing.maxQuoteAgeMinutes) || data.pricing.maxQuoteAgeMinutes < 0)) throw new Error("The pricing policy is invalid.");
   if (data.series !== undefined && (!Array.isArray(data.series) || !data.series.every(point => Array.isArray(point) && point.length === 2 && Number.isSafeInteger(point[0]) && point[0] > 0 && integer(point[1])))) throw new Error("The NAV series is invalid.");
+  if (data.seriesCount !== undefined && (!Number.isSafeInteger(data.seriesCount) || data.seriesCount < 0)) throw new Error("The NAV series is invalid.");
   return data;
 }
 
@@ -59,6 +62,14 @@ export function publicationHistory(data: MarketSnapshot): HistoryPoint[] {
     unique.set(String(Math.floor(Date.parse(record.effectiveAt) / 1000)), { at: record.effectiveAt, micros: record.navPerShareMicros, hash: record.holdingsHash });
   }
   return [...unique.values()].sort((a, b) => Date.parse(a.at) - Date.parse(b.at));
+}
+
+/** Records the chart covers, counting series points that thinning left out of the response. */
+export function publishedRecordCount(data: MarketSnapshot, points: HistoryPoint[]): number {
+  const last = data.series?.at(-1)?.[0];
+  if (data.seriesCount === undefined || last === undefined) return points.length;
+  const newer = points.filter(point => Math.floor(Date.parse(point.at) / 1000) > last).length;
+  return Math.max(points.length, data.seriesCount + newer);
 }
 
 export function currentWeights(composition: Composition | null): Map<string, number> {

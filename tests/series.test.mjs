@@ -5,7 +5,7 @@ import { DatabaseSync } from "node:sqlite";
 import { EngineRepository } from "../lib/engine/repository.ts";
 import { NAV_PUBLISHED_TOPIC } from "../lib/xstocks/evidence.ts";
 import { XSTOCKS_PRODUCT_KEY } from "../lib/xstocks/onchain.ts";
-import { decodeMarketSnapshot, publicationHistory } from "../lib/product-market.ts";
+import { decodeMarketSnapshot, publicationHistory, publishedRecordCount } from "../lib/product-market.ts";
 import { downsampleSeries, mergeSeries, parseSeries, SERIES_LIMIT, STATE_SERIES, STATE_SERIES_CURSOR, updateNavSeries } from "../lib/xstocks/series.ts";
 import { runXStocksCycle, STATE_HISTORY } from "../lib/xstocks/cycle.ts";
 import { XSTOCKS_CONSTITUENTS } from "../lib/xstocks/basket.ts";
@@ -126,4 +126,19 @@ test("the chart merges the long series with exact recent records", () => {
   const snapshot = decodeMarketSnapshot({ product: { id: "us-tech-x" }, pricing: { constituents: [] }, registry: {}, latest: null, history: [], onchain: null, onchainError: null, series: [[base, "100000000"], [base + 300, "100100000"]] });
   assert.deepEqual(publicationHistory(snapshot).map((point) => point.micros), ["100000000", "100100000"]);
   assert.throws(() => decodeMarketSnapshot({ ...snapshot, series: [["x", "1"]] }), /series is invalid/);
+});
+
+test("the chart counts every stored record, not only the thinned points it draws", () => {
+  const full = Array.from({ length: 400 }, (_, i) => [base + i * 300, String(100_000_000 + i)]);
+  const thin = downsampleSeries(full, 300);
+  assert.ok(thin.length < full.length);
+  const entry = (seconds) => ({ asOf: iso(seconds), navPerShareMicros: "123", holdingsHash: "0x" + "a".repeat(64), canonical: "{}", status: "confirmed", txHash: "0x" + "b".repeat(64) });
+  // One exact record inside the thinned range and one newer than the stored series.
+  const snapshot = decodeMarketSnapshot({ product: { id: "us-tech-x" }, pricing: { constituents: [] }, registry: {}, latest: null, history: [entry(base + 400 * 300), entry(base + 300)], onchain: null, onchainError: null, series: thin, seriesCount: full.length });
+  const points = publicationHistory(snapshot);
+  assert.equal(points.length, thin.length + 2);
+  assert.equal(publishedRecordCount(snapshot, points), full.length + 1);
+  assert.equal(publishedRecordCount({ ...snapshot, seriesCount: undefined }, points), points.length, "older responses without a count use the points shown");
+  assert.throws(() => decodeMarketSnapshot({ ...snapshot, seriesCount: -1 }), /series is invalid/);
+  assert.throws(() => decodeMarketSnapshot({ ...snapshot, seriesCount: 1.5 }), /series is invalid/);
 });

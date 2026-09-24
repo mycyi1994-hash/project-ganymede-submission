@@ -1,6 +1,6 @@
 # Build provenance
 
-Production source revision: `d05524681bc0f29fb7f196cd6a465728050f83b6`.
+Production source revision: `a65d6d79951eebd8a48ce97b489bdb40e28134b8`.
 
 This is a source snapshot, not a claim that the entire project was newly built for this event. The original repository remains private. The entries below were exported from its Git history; reviewers can inspect current implementations and tests, and request original history access from the team if needed. No old secrets, local environment files or full private Git history are published.
 
@@ -97,5 +97,27 @@ Validation of the snapshot source:
   - the three experiment edits gave the intended results;
   - an evidence file for the 13:50:17 UTC record passed `verify:evidence` against its X Layer Testnet transaction;
   - axe reported no violations.
+
+These are point-in-time observations, not continuous availability or a security audit.
+
+
+## Chart record count release
+
+Production source: a65d6d79951eebd8a48ce97b489bdb40e28134b8. Worker version: cabd72ed-5134-4df3-aa21-534d16a74449, deployed 2026-09-24 14:16 UTC. Relayer Worker version: cb38524c-cb75-4350-a9ee-a363f49a5c93, unchanged. This snapshot is exported from 6f8e5705722c239fced3f5b902b0b3101c921b07, which adds only documentation to the production source.
+
+- a65d6d79951eebd8a48ce97b489bdb40e28134b8 → cabd72ed-5134-4df3-aa21-534d16a74449: the public API thins the stored NAV series to about 300 points for the chart. The chart note counted the points it drew, so after 300 publications it would have understated the number of records. The API now also returns the stored count. The note states that count and, when fewer points are drawn, how many are shown.
+
+Validation of the snapshot source:
+
+- In the development repository, the typecheck, clean build and 111 tests pass, and lint reports 0 errors.
+- The same tests pass in this public checkout after `npm ci`, and so do the relayer typecheck and 16 tests.
+- After the deployment:
+  - nine public routes returned 200 and the legacy routes redirected;
+  - the browser check matched and all six xStock contracts matched;
+  - the chart note equalled the API count;
+  - the three experiment edits gave the intended results;
+  - an evidence file for the 14:15:17 UTC record passed `verify:evidence` against its X Layer Testnet transaction;
+  - axe reported no violations;
+  - there was no horizontal overflow at 200% or 400% zoom, or at 320 or 390 px.
 
 These are point-in-time observations, not continuous availability or a security audit.

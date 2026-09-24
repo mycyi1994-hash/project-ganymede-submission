@@ -132,6 +132,7 @@ test("the public proof API returns the stored NAV series without writing", async
     t.mock.method(console, "error", () => {});
     const body = await (await xstocksGET()).json();
     assert.deepEqual(body.series, [[1790000000, "98000000"], [1790000300, "98100000"]]);
+    assert.equal(body.seriesCount, 2);
   } finally { delete env.DB; sql.close(); }
 });
 

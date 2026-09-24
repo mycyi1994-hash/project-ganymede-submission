@@ -18,6 +18,7 @@ export async function GET() {
     const latest = latestRow ? JSON.parse(latestRow.value) as LatestState : null;
     const history = historyRow ? JSON.parse(historyRow.value) as Publication[] : [];
     const confirmed = confirmedRow ? JSON.parse(confirmedRow.value) as Publication : null;
+    const series = parseSeries(seriesRow?.value);
     if (confirmed && !history.some((entry) => entry.holdingsHash === confirmed.holdingsHash)) history.push(confirmed);
 
     let onchain: OnchainNav | null = null;
@@ -59,7 +60,9 @@ export async function GET() {
       latest,
       history,
       // [seconds, NAV micros] of confirmed publications for the chart; no documents.
-      series: downsampleSeries(parseSeries(seriesRow?.value)),
+      series: downsampleSeries(series),
+      // Points before thinning, so the chart can state how many records it covers.
+      seriesCount: series.length,
       // The latest re-fixing: sha256(canonical) is the hash published as rebalance evidence.
       rebalance,
       onchain,

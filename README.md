@@ -104,7 +104,7 @@ See `.env.example` for setting names and [the engine reference](docs/ENGINE_REFE
 
 ## Source and release
 
-This public review snapshot corresponds to production source commit `d05524681bc0f29fb7f196cd6a465728050f83b6`. Application code matches the recorded source; documentation may be newer. The original development history remains private, and public-hosting identifiers are adjusted. See [snapshot provenance](docs/BUILD_EVIDENCE.md). Cloudflare deployment messages identify the production source commit. The current release, its checks and its limits are in [the product release notes](docs/PRODUCT_RELEASE.md). [Release rules and identity model](docs/release-identity.md).
+This public review snapshot corresponds to production source commit `a65d6d79951eebd8a48ce97b489bdb40e28134b8`. Application code matches the recorded source; documentation may be newer. The original development history remains private, and public-hosting identifiers are adjusted. See [snapshot provenance](docs/BUILD_EVIDENCE.md). Cloudflare deployment messages identify the production source commit. The current release, its checks and its limits are in [the product release notes](docs/PRODUCT_RELEASE.md). [Release rules and identity model](docs/release-identity.md).
 
 - [Dev Day submission notes](docs/OKX_DEV_DAY.md) and [build-period work](docs/BUILD_PERIOD.md)
 - [Asset credits](public/ASSET-CREDITS.md)

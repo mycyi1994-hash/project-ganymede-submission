@@ -47,7 +47,7 @@ Ganymede began in July 2026 as a Korean-won crypto strategy engine with Upbit ma
 | Full-code review fixes: paper-ledger integrity, publication retries, relayer hardening, interface defects | `7b18cf9`, `dc66eee`, `8cd427f`, `1e0a6bf`, `df6c41e` |
 | Product redesign: Markets, USTX, Transparency | `f4d67c1`, `ff04920`, `1bfed8e` |
 | Verification-led screens, three-way tamper experiment, evidence file and command, sanitized public errors | `c0ce112`, `80a0316`, `11829e8`, `124bebe` |
-| Read-only xStocks Portfolio at verified prices, mainnet token-contract check, NAV series from receipts | `ebef0fa`, `d055246` |
+| Read-only xStocks Portfolio at verified prices, mainnet token-contract check, NAV series from receipts | `ebef0fa`, `d055246`, `a65d6d7` |
 
 ## Evidence aligned with judging
 
@@ -56,7 +56,7 @@ The official criteria are holistic and unweighted. The evidence behind each one:
 - **Innovation.** On-chain NAV exists elsewhere, for example in the DTCC Smart NAV pilot and in Centrifuge. The contribution here is narrower: any visitor reproduces a basket NAV row by row against an X Layer record. The experiment isolates what the chain fingerprint adds, and the result travels as a verifiable file.
 - **Product completeness.** Markets → USTX → automatic browser verification → tamper experiment → evidence download → command-line re-check, plus a Portfolio that values real xStocks holdings. Every visible action works. Investing and redemption are not offered and not claimed.
 - **User value.** A reviewer can confirm in seconds that a published NAV matches its document and chain record. They can also pass that confirmation on as a file instead of a screenshot.
-- **Technical execution.** Integer arithmetic, canonical document bytes, a pinned registry and network, direct RPC reads, receipt-event matching, failure tests (110 application tests, 16 relayer tests) and isolated visitor records.
+- **Technical execution.** Integer arithmetic, canonical document bytes, a pinned registry and network, direct RPC reads, receipt-event matching, failure tests (111 application tests, 16 relayer tests) and isolated visitor records.
 - **Integration.** Real OnchainOS prices for real xStock tokens on X Layer mainnet, published to and verified against an X Layer registry. The six token contracts and any wallet's balances are read from X Layer mainnet in the browser.
 - **Growth and ecosystem.** The registry format, verifier and evidence command are reusable by other basket operators on X Layer. This is a proposed direction; no adoption is claimed.
 
@@ -64,7 +64,7 @@ The official criteria are holistic and unweighted. The evidence behind each one:
 
 This separate submission snapshot is published for reviewer access. The original development repository remains private. Source commit identifiers in the evidence table are provenance references, not public history links; see BUILD_EVIDENCE.md.
 
-The official builder kit requires a 2–4 minute public demo video, team, track and route details, accessible source and product links, and a final declaration. No video or submission receipt exists in this work. Confirm the roster, attendance route and eligibility before submitting. No submission or acceptance of terms has been performed here.
+The official builder kit requires a 2–4 minute demo video, team, track and route details, accessible source and product links, and a final declaration. No video or submission receipt exists in this work. Confirm the roster, attendance route and eligibility before submitting. No submission or acceptance of terms has been performed here.
 
 Deadline in the kit: 25 September 2026, 23:59 UTC (26 September, 08:59 KST). The kit lists an October 7 finale while the terms list October 6; obtain written organizer clarification before travel planning.
 

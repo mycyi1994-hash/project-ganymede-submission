@@ -1,6 +1,6 @@
 # Build provenance
 
-Production source revision: `a65d6d79951eebd8a48ce97b489bdb40e28134b8`.
+Production source revision: `23d35d25a115befab184ccc68e96f6e54f311f0d`.
 
 This is a source snapshot, not a claim that the entire project was newly built for this event. The original repository remains private. The entries below were exported from its Git history; reviewers can inspect current implementations and tests, and request original history access from the team if needed. No old secrets, local environment files or full private Git history are published.
 
@@ -119,5 +119,27 @@ Validation of the snapshot source:
   - an evidence file for the 14:15:17 UTC record passed `verify:evidence` against its X Layer Testnet transaction;
   - axe reported no violations;
   - there was no horizontal overflow at 200% or 400% zoom, or at 320 or 390 px.
+
+These are point-in-time observations, not continuous availability or a security audit.
+
+
+## Demo investing and fund product releases
+
+Production source: 23d35d25a115befab184ccc68e96f6e54f311f0d. Worker version: bebf23c3-427f-4bdf-b521-6ead2b86b7d6, deployed 2026-09-24 18:38 UTC. Relayer Worker version: cb38524c-cb75-4350-a9ee-a363f49a5c93, unchanged. This snapshot is exported from 38cbdc18b598a61b6ad5dd65b5856b986f42b6d7, which adds only documentation to the production source.
+
+- 1327a6af74602a74867c21ff50c7d5e769a7ccd4 → 7be4c726-55a8-4685-badc-57f94587849e, 18:07 UTC: visitors invest in USTX with demo dollars. Each browser has a private demo account with $10,000, orders fill instantly at the NAV recorded on X Layer in one database transaction with idempotent retries and a daily cap, and Portfolio shows the account. The D1 migration `drizzle/0001_demo_ledger.sql` adds three tables and changes none. No real money moves and no shares are issued on chain.
+- 0c3803769033b4e0532b12532683409245711562 → 8fa91c44-04f8-40d5-9bc0-b564dd4e7be3, 18:32 UTC: order confirmations and Portfolio look each holding through to the six xStocks; the USTX page has a fund overview; every NAV record carries the demo shares outstanding; a public NAV API (`/api/v1/ustx`), an embeddable self-verifying badge (`/embed/ustx`) and issuer and developer pages were added.
+- 23d35d25a115befab184ccc68e96f6e54f311f0d → bebf23c3-427f-4bdf-b521-6ead2b86b7d6, 18:38 UTC: keyboard focus for the developer page's code samples and a heading for the badge.
+
+Validation of the snapshot source:
+
+- In the development repository, the typecheck, clean build and 125 tests pass, and lint reports 0 errors.
+- The same tests pass in this public checkout after `npm ci`, and so do the relayer typecheck and 16 tests.
+- After the deployments:
+  - eleven public routes and three public APIs returned 200 and the legacy routes redirected;
+  - the first record after the fund release (18:35:17 UTC) carried the demo shares outstanding on X Layer;
+  - a $250 demo order in a production browser showed the tokens it added to the basket, and Portfolio showed the holding looked through to each xStock;
+  - the badge verified the NAV in the browser;
+  - axe reported no violations on eleven screens, and there was no horizontal overflow at 200% or 400% zoom, or at 320 or 390 px.
 
 These are point-in-time observations, not continuous availability or a security audit.

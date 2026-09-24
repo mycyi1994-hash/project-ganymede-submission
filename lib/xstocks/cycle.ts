@@ -21,6 +21,7 @@ import {
 import { fetchXStockQuotes, MAX_COOLDOWN_MS, onchainOsCredentials } from "./prices";
 import { parseComposition } from "./proof";
 import { updateNavSeries } from "./series";
+import { demoSharesOutstanding } from "../demo/ledger";
 
 export const STATE_BASKET = "xstocks:basket";
 export const STATE_LATEST = "xstocks:latest";
@@ -33,10 +34,13 @@ const HISTORY_LIMIT = 12;
 const RECONCILE_LIMIT = 3;
 /** OnchainOS stamps each quote with the response time, so this bounds the quote's age, not the last trade's. */
 const DEFAULT_MAX_QUOTE_AGE_MINUTES = 360;
+const COOLDOWN_TOLERANCE_MS = 60_000;
 
 export type Publication = {
   asOf: string;
   navPerShareMicros: string;
+  /** Demo shares held across all accounts when the NAV was taken; recorded beside it on X Layer. */
+  sharesOutstandingMicros?: string;
   holdingsHash: string;
   canonical: string;
   status: SettlementResult["status"];
@@ -76,13 +80,15 @@ export function maxQuoteAgeMinutes(env: EngineEnv): number {
 
 const unresolved = (status: SettlementResult["status"]) => status === "queued" || status === "submitted";
 
-function navRequest(entry: Pick<Publication, "asOf" | "navPerShareMicros" | "holdingsHash">): SettlementRequest {
+function navRequest(entry: Pick<Publication, "asOf" | "navPerShareMicros" | "holdingsHash" | "sharesOutstandingMicros">): SettlementRequest {
   return {
     entityType: "nav",
     entityId: `${XSTOCKS_PRODUCT.id}:${entry.asOf}`,
     action: "publish_nav",
     productId: XSTOCKS_PRODUCT.id,
     navPerShareMicros: entry.navPerShareMicros,
+    // A retry sends the count stored with the publication, never a newer one.
+    ...(entry.sharesOutstandingMicros && entry.sharesOutstandingMicros !== "0" ? { sharesOutstandingMicros: entry.sharesOutstandingMicros } : {}),
     holdingsHash: entry.holdingsHash,
     effectiveAt: entry.asOf,
   };
@@ -144,7 +150,9 @@ export async function runXStocksCycle(env: EngineEnv, repo: EngineRepository, se
   const previousLatest = JSON.parse((await repo.getState(STATE_LATEST))?.value ?? "null") as LatestState | null;
   const cooldownMs = previousLatest?.retryAt ? Date.parse(previousLatest.retryAt) - Date.parse(now) : 0;
   // A stored wait longer than the maximum can only come from an older, unbounded record; ignore it.
-  if (cooldownMs > 0 && cooldownMs <= MAX_COOLDOWN_MS) {
+  // Cycles start a few seconds either side of each five-minute mark, so a wait that ends within the
+  // next minute counts as over: a ten-minute cooldown then skips one cycle, not two.
+  if (cooldownMs > COOLDOWN_TOLERANCE_MS && cooldownMs <= MAX_COOLDOWN_MS) {
     return { navsPublished: 0, settlementsQueued, warnings: [`GMD USTX price provider cooldown until ${previousLatest!.retryAt}`] };
   }
   const constituents = constituentsWithAddresses(env.XSTOCKS_ADDRESSES);
@@ -179,13 +187,16 @@ export async function runXStocksCycle(env: EngineEnv, repo: EngineRepository, se
       settlementsQueued += 1;
     }
 
-    const request = navRequest({ asOf: now, navPerShareMicros: evaluation.composition.navPerShareMicros, holdingsHash: evaluation.holdingsHash });
+    const shares = await demoSharesOutstanding((repo as Partial<EngineRepository>).db);
+    if (shares === null) warnings.push(`${XSTOCKS_PRODUCT.ticker} shares outstanding could not be read; this record carries 0.`);
+    const sharesOutstandingMicros = shares ?? "0";
+    const request = navRequest({ asOf: now, navPerShareMicros: evaluation.composition.navPerShareMicros, holdingsHash: evaluation.holdingsHash, sharesOutstandingMicros });
     // Save the exact document before sending the transaction. Even if storage
     // fails after broadcast, the on-chain hash still has a recoverable document.
     const history = JSON.parse((await repo.getState(STATE_HISTORY))?.value ?? "[]") as Publication[];
     const confirmed = history.find((entry) => entry.status === "confirmed");
     if (confirmed && !(await repo.getState(STATE_CONFIRMED))) await repo.setState(STATE_CONFIRMED, JSON.stringify(confirmed));
-    const pending: Publication = { asOf: now, navPerShareMicros: evaluation.composition.navPerShareMicros, holdingsHash: evaluation.holdingsHash, canonical: evaluation.canonical, status: "queued", txHash: null, error: null };
+    const pending: Publication = { asOf: now, navPerShareMicros: evaluation.composition.navPerShareMicros, sharesOutstandingMicros, holdingsHash: evaluation.holdingsHash, canonical: evaluation.canonical, status: "queued", txHash: null, error: null };
     // Content-addressed evidence survives a lost receipt. Documents are pruned with the
     // rolling history below, except for the latest confirmed one.
     await repo.setState(`${STATE_DOCUMENT_PREFIX}${pending.holdingsHash}`, JSON.stringify(pending));

@@ -216,4 +216,12 @@ test("repeated failed publications retain the last confirmed composition", async
   t.mock.method(globalThis, "fetch", () => { throw Error("Cooldown should prevent requests"); });
   const cooldown = await runXStocksCycle(configured, repo, settlement, now);
   assert.match(cooldown.warnings[0], /cooldown/);
+  const retryAt = Date.parse(JSON.parse(rows.get(STATE_LATEST)).retryAt);
+  assert.match((await runXStocksCycle(configured, repo, settlement, new Date(retryAt - 5 * 60_000).toISOString())).warnings[0], /cooldown/);
+  // A cycle that starts within a minute of the retry time asks again instead of waiting another five minutes.
+  let asked = 0;
+  t.mock.method(globalThis, "fetch", async () => { asked += 1; return Response.json({ code: "0", data: addresses.map((item) => ({ chainIndex: "196", tokenContractAddress: item.address, price: "100", time: new Date(retryAt).toISOString() })) }); });
+  const resumed = await runXStocksCycle(configured, repo, settlement, new Date(retryAt - 30_000).toISOString());
+  assert.ok(asked > 0, "the price provider is asked again");
+  assert.ok(!resumed.warnings.some((warning) => /cooldown/.test(warning)));
 });

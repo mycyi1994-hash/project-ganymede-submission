@@ -81,3 +81,29 @@ export function currentWeights(composition: Composition | null): Map<string, num
 export function shortTime(value: string | null | undefined): string {
   return value && timestamp(value) ? new Date(value).toLocaleString("en-GB", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit", timeZone: "UTC" }) + " UTC" : "Time unavailable";
 }
+
+/** Change from the first recorded NAV to the latest, as a percentage of the first. */
+export function sinceFirstRecord(points: HistoryPoint[]): { first: HistoryPoint; last: HistoryPoint; percent: number } | null {
+  if (points.length < 2) return null;
+  const first = points[0];
+  const last = points[points.length - 1];
+  const base = BigInt(first.micros);
+  if (base <= 0n) return null;
+  return { first, last, percent: Number((BigInt(last.micros) - base) * 1_000_000n / base) / 10_000 };
+}
+
+/** "+1.23%", "−0.40%" or "0.00%", with a true minus sign. */
+export function signedPercent(value: number): string {
+  const rounded = Math.round(value * 100) / 100;
+  return rounded === 0 ? "0.00%" : `${rounded > 0 ? "+" : "−"}${Math.abs(rounded).toFixed(2)}%`;
+}
+
+/** "just now", "12 min ago", "3 h ago", or the date for anything older than a day. */
+export function relativeTime(value: string, now: number): string {
+  const elapsed = now - Date.parse(value);
+  if (!now || !Number.isFinite(elapsed) || elapsed < 0) return shortTime(value);
+  if (elapsed < 60_000) return "just now";
+  if (elapsed < 3_600_000) return `${Math.floor(elapsed / 60_000)} min ago`;
+  if (elapsed < 86_400_000) return `${Math.floor(elapsed / 3_600_000)} h ago`;
+  return shortTime(value);
+}

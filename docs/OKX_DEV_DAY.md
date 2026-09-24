@@ -4,27 +4,32 @@
 
 **Primary track: Build a Market** (portfolio and market-data tools; investor or issuer tooling).
 
-Ganymede publishes the NAV of GMD USTX, a model basket of six tokenized US tech stocks (AAPLx, MSFTx, NVDAx, AMZNx, METAx, TSLAx). Anyone can verify it without trusting the publisher's server.
+Ganymede sells USTX, the US Tech Basket: one share holds six tokenized US tech stocks (AAPLx, MSFTx, NVDAx, AMZNx, METAx, TSLAx) on X Layer. Visitors invest with demo dollars, see exactly which tokens their money put in the basket, and verify every price without trusting the publisher's server.
 
+- Every browser gets a private demo account with $10,000 in demo dollars. Orders fill instantly at the NAV recorded on X Layer; the confirmation and the Portfolio look through each holding to the six xStocks.
+- The product page shows the fund like a real fund: size (shares outstanding × NAV, both recorded on X Layer), investors, return since launch, key terms, look-through holdings and recent anonymous orders.
 - Every five minutes the six xStocks are priced through OKX OnchainOS on X Layer mainnet.
-- The NAV and a SHA-256 fingerprint of the full composition document are recorded in a registry on X Layer Testnet.
+- The NAV, the shares outstanding and a SHA-256 fingerprint of the full composition document are recorded in a registry on X Layer Testnet.
 - A visitor's browser reads that record directly and recalculates the NAV row by row.
 - A tamper experiment shows which check catches which kind of change. When every number and the NAV are kept, only the fingerprint on X Layer catches the edit.
 - The result can be downloaded as an evidence file that `npm run verify:evidence` re-checks against the publishing transaction.
 - A read-only Portfolio values any wallet's real xStocks on X Layer mainnet at those verified prices, with a downloadable statement and a USTX-weighted basket calculator.
+- Partners get a public NAV API (`/api/v1/ustx`, open CORS), an embeddable badge that verifies the NAV in the visitor's browser (`/embed/ustx`), and issuer and developer pages with planned pricing and a roadmap.
 
-**Intended users.** Issuers or operators of tokenized-stock baskets who need to publish a value that others can check, and the investors, analysts and auditors who review it.
+**Intended users.** Investors who want tokenized-stock exposure they can check; issuers or operators of tokenized-stock baskets who need to publish a value that others can check; wallets and apps on X Layer that want to show a verified NAV.
 
-**Core integration.** OKX OnchainOS prices are the inputs of every NAV. The X Layer registry is the reference that the browser and the evidence command check against.
+**Core integration.** OKX OnchainOS prices are the inputs of every NAV. The X Layer registry is the reference that the browser, the badge, the API and the evidence command check against. Portfolio reads X Layer mainnet and connects OKX Wallet first.
 
-**What is not claimed.** This is a prototype. Nothing can be bought, held or redeemed as USTX, and no customers, demand or regulated fund issuance are claimed.
+**What is not claimed.** Investing uses demo dollars: no real money moves, no shares are issued on chain and nothing is held in custody. No customers, demand or regulated fund issuance are claimed; planned pricing is labelled as planned.
 
 ## Reviewer links
 
 - Markets: https://ganymede-xlayer.gana003.workers.dev/
 - USTX: https://ganymede-xlayer.gana003.workers.dev/products/ustx
 - Verify (automatic check, tamper experiment, evidence download): https://ganymede-xlayer.gana003.workers.dev/products/ustx/transparency
-- Portfolio (read-only xStocks valuation on X Layer mainnet, basket calculator): https://ganymede-xlayer.gana003.workers.dev/portfolio
+- Portfolio (demo account with look-through, read-only xStocks valuation on X Layer mainnet, basket calculator): https://ganymede-xlayer.gana003.workers.dev/portfolio
+- For issuers: https://ganymede-xlayer.gana003.workers.dev/issuers
+- Developers & API: https://ganymede-xlayer.gana003.workers.dev/developers (public API https://ganymede-xlayer.gana003.workers.dev/api/v1/ustx, badge https://ganymede-xlayer.gana003.workers.dev/embed/ustx)
 - Methodology: https://ganymede-xlayer.gana003.workers.dev/methodology
 - Limitations: https://ganymede-xlayer.gana003.workers.dev/limitations
 - Source: https://github.com/mycyi1994-hash/project-ganymede-submission
@@ -48,17 +53,19 @@ Ganymede began in July 2026 as a Korean-won crypto strategy engine with Upbit ma
 | Product redesign: Markets, USTX, Transparency | `f4d67c1`, `ff04920`, `1bfed8e` |
 | Verification-led screens, three-way tamper experiment, evidence file and command, sanitized public errors | `c0ce112`, `80a0316`, `11829e8`, `124bebe` |
 | Read-only xStocks Portfolio at verified prices, mainnet token-contract check, NAV series from receipts | `ebef0fa`, `d055246`, `a65d6d7` |
+| Demo investing in USTX with demo dollars: accounts, orders at the recorded NAV, idempotent retries, daily cap | `1327a6a` |
+| Look-through basket, fund overview, shares outstanding on X Layer, public NAV API, embeddable badge, issuer and developer pages | `0c38037`, `23d35d2` |
 
 ## Evidence aligned with judging
 
 The official criteria are holistic and unweighted. The evidence behind each one:
 
 - **Innovation.** On-chain NAV exists elsewhere, for example in the DTCC Smart NAV pilot and in Centrifuge. The contribution here is narrower: any visitor reproduces a basket NAV row by row against an X Layer record. The experiment isolates what the chain fingerprint adds, and the result travels as a verifiable file.
-- **Product completeness.** Markets → USTX → automatic browser verification → tamper experiment → evidence download → command-line re-check, plus a Portfolio that values real xStocks holdings. Every visible action works. Investing and redemption are not offered and not claimed.
-- **User value.** A reviewer can confirm in seconds that a published NAV matches its document and chain record. They can also pass that confirmation on as a file instead of a screenshot.
-- **Technical execution.** Integer arithmetic, canonical document bytes, a pinned registry and network, direct RPC reads, receipt-event matching, failure tests (111 application tests, 16 relayer tests) and isolated visitor records.
-- **Integration.** Real OnchainOS prices for real xStock tokens on X Layer mainnet, published to and verified against an X Layer registry. The six token contracts and any wallet's balances are read from X Layer mainnet in the browser.
-- **Growth and ecosystem.** The registry format, verifier and evidence command are reusable by other basket operators on X Layer. This is a proposed direction; no adoption is claimed.
+- **Product completeness.** Markets → USTX → invest with demo dollars → see what went into the basket → Portfolio look-through → automatic browser verification → tamper experiment → evidence download → command-line re-check, plus a Portfolio that values real xStocks holdings. Every visible action works.
+- **User value.** An investor buys a diversified tech basket in three taps, sees the exact tokens behind each share, and can confirm in seconds that the price they paid matches its document and chain record, then pass that confirmation on as a file instead of a screenshot.
+- **Technical execution.** Integer arithmetic, canonical document bytes, a pinned registry and network, direct RPC reads, receipt-event matching, transactional demo orders with idempotent retries, failure tests (125 application tests, 16 relayer tests) and isolated visitor records.
+- **Integration.** Real OnchainOS prices for real xStock tokens on X Layer mainnet, published with the shares outstanding to and verified against an X Layer registry. The six token contracts and any wallet's balances are read from X Layer mainnet in the browser, with OKX Wallet connected first.
+- **Growth and ecosystem.** Other X Layer apps can show the verified NAV through the public API or the self-verifying badge. The issuer page sets out the business model (free sandbox, per-basket subscription, distribution fee through licensed partners) and the roadmap to X Layer mainnet and an issuer console. No adoption is claimed.
 
 ## Submission package
 

@@ -676,3 +676,148 @@
   .gmd-wallet-bar,.gmd-wallet-holdings,.gmd-plan { padding: 18px 16px; }
   .gmd-wallet-bar > .gmd-button { width: 100%; }
 }
+
+/* Demo investing: order panel, demo account and recent orders */
+.gmd-app .gmd-order-panel .gmd-segmented { width: 100%; margin-bottom: 18px; }
+.gmd-app .gmd-order-panel .gmd-segmented button { flex: 1; font-size: 14px; min-height: 36px; }
+.gmd-app .gmd-detail-aside .gmd-order-panel + .gmd-order-panel { margin-top: 16px; }
+.gmd-app .gmd-inline-error { margin-top: 14px; padding: 10px 12px; border-radius: 6px; background: #fbeeee; color: #8a2f2f; font-size: 14px; }
+.gmd-app .gmd-demo-portfolio { margin-block: 8px 44px; }
+.gmd-app .gmd-demo-portfolio > .gmd-section-heading { align-items: flex-end; margin-bottom: 18px; }
+.gmd-app .gmd-demo-portfolio .gmd-section-heading p { margin-top: 6px; font-size: 14px; color: var(--gmd-copy); }
+.gmd-app .gmd-demo-portfolio .gmd-position-table { margin-top: 16px; }
+.gmd-app .gmd-empty-note { padding: 22px 24px; font-size: 14px; color: var(--gmd-copy); }
+.gmd-position-actions { display: flex; gap: 8px; flex-wrap: wrap; }
+.gmd-app .gmd-demo-activity { margin-top: 26px; }
+.gmd-app .gmd-demo-activity .gmd-section-heading { margin-bottom: 4px; align-items: baseline; }
+.gmd-app .gmd-demo-activity h3 { font-size: 17px; }
+.gmd-app .gmd-demo-activity .gmd-section-heading > span { font-size: 13px; color: var(--gmd-copy); }
+.gmd-activity-rows > .gmd-activity-row { display: grid; grid-template-columns: 38px 1fr auto; gap: 14px; align-items: center; padding: 16px 0; border-bottom: 1px solid var(--gmd-line); }
+.gmd-activity-rows > .gmd-activity-row > span:nth-child(3) { text-align: right; }
+.gmd-app .gmd-demo-activity .gmd-text-button { width: auto; margin-top: 12px; }
+.gmd-app .gmd-wallet-heading { margin-top: 8px; }
+.gmd-app .gmd-wallet-heading p { margin-top: 6px; font-size: 14px; color: var(--gmd-copy); }
+@media (max-width: 640px) {
+  .gmd-activity-rows > .gmd-activity-row { grid-template-columns: 32px 1fr auto; gap: 10px; }
+  .gmd-app .gmd-demo-portfolio > .gmd-section-heading { flex-wrap: wrap; align-items: flex-start; }
+}
+
+/* Fund figures, look-through basket and recent activity */
+.gmd-fund-stats { display: grid; grid-template-columns: repeat(3,minmax(0,1fr)); gap: 16px; margin-block: 0 22px; padding: 14px 0; border-block: 1px solid #e8ecee; }
+.gmd-fund-stats dt { font-size: 12px; color: var(--gmd-copy); }
+.gmd-fund-stats dd { font-size: 18px; font-weight: 600; margin-top: 2px; }
+.gmd-fund { margin-top: 30px; scroll-margin-top: 24px; background: #fff; border: 1px solid var(--gmd-line); border-radius: 10px; padding: 28px; }
+.gmd-app .gmd-fund > .gmd-section-heading { align-items: center; margin-bottom: 20px; }
+.gmd-fund-grid { display: grid; grid-template-columns: repeat(4,minmax(0,1fr)); gap: 12px; }
+.gmd-fund-grid article { background: #f6f8f9; border-radius: 8px; padding: 16px; min-width: 0; }
+.gmd-fund-grid span { display: block; font-size: 13px; color: var(--gmd-copy); }
+.gmd-fund-grid strong { display: block; font-family: "Instrument Sans",Arial,sans-serif; font-size: 24px; line-height: 1.25; margin-top: 6px; overflow-wrap: anywhere; font-variant-numeric: tabular-nums; }
+.gmd-fund-grid small { display: block; font-size: 12px; color: var(--gmd-copy); margin-top: 6px; }
+.gmd-fund-facts { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); column-gap: 32px; margin-top: 20px; }
+.gmd-fund-facts > div { display: flex; justify-content: space-between; gap: 16px; padding-block: 11px; border-bottom: 1px solid #e8ecee; }
+.gmd-fund-facts dt { font-size: 14px; color: var(--gmd-copy); }
+.gmd-fund-facts dd { font-size: 14px; text-align: end; }
+.gmd-fund-facts a { color: var(--gmd-accent); }
+.gmd-fund-holdings { margin-top: 28px; }
+.gmd-app .gmd-fund-holdings h3,.gmd-app .gmd-fund-activity h3,.gmd-app .gmd-inside h3,.gmd-app .gmd-order-basket h3 { font-size: 17px; }
+.gmd-fund-holdings > p { font-size: 14px; margin-top: 6px; max-width: 70ch; }
+.gmd-fund-activity { margin-top: 28px; }
+.gmd-app .gmd-fund-activity .gmd-section-heading { margin-bottom: 4px; align-items: baseline; }
+.gmd-app .gmd-fund-activity .gmd-empty-note { padding-inline: 0; }
+.gmd-basket-bar { display: flex; gap: 2px; height: 8px; margin-top: 14px; border-radius: 4px; overflow: hidden; }
+.gmd-basket-bar.is-large { height: 12px; margin-top: 18px; }
+.gmd-basket-bar i { display: block; min-width: 2px; flex-basis: 0; background: var(--asset-color); }
+.gmd-basket-list ul { list-style: none; margin: 10px 0 0; padding: 0; }
+.gmd-basket-list li { display: grid; grid-template-columns: 30px 1fr auto; gap: 10px; align-items: center; padding-block: 8px; border-bottom: 1px solid #edf1f2; font-size: 14px; }
+.gmd-basket-list li > span { display: flex; flex-direction: column; min-width: 0; }
+.gmd-basket-list small { font-size: 12px; color: var(--gmd-copy); overflow-wrap: anywhere; }
+.gmd-basket-list .gmd-asset-mark { width: 30px; height: 30px; border-radius: 7px; }
+.gmd-basket-list .gmd-asset-mark img { width: 19px; height: 19px; }
+.gmd-basket-asset { display: flex; align-items: center; gap: 12px; }
+.gmd-basket-asset > span { display: flex; flex-direction: column; }
+.gmd-basket-asset a { font-size: 12px; color: var(--gmd-copy); }
+.gmd-basket-table .gmd-weight-track { width: 56px; }
+.gmd-order-basket { margin-top: 20px; padding-top: 16px; border-top: 1px solid var(--gmd-line); }
+.gmd-app .gmd-order-basket .gmd-caption { margin-top: 10px; font-size: 12px; }
+.gmd-inside { margin-top: 26px; background: #fff; border: 1px solid var(--gmd-line); border-radius: 8px; padding: 24px; }
+.gmd-app .gmd-inside .gmd-section-heading { margin-bottom: 0; }
+.gmd-app .gmd-inside .gmd-section-heading p { font-size: 14px; }
+@media (max-width: 930px) {
+  .gmd-fund-grid { grid-template-columns: repeat(2,minmax(0,1fr)); }
+  .gmd-fund-facts { grid-template-columns: 1fr; }
+}
+@media (max-width: 600px) {
+  .gmd-fund { padding: 20px 16px; }
+  .gmd-inside { padding: 18px 16px; }
+  .gmd-fund-grid strong { font-size: 20px; }
+  .gmd-fund-stats dd { font-size: 16px; }
+  .gmd-fund-stats { gap: 10px; }
+}
+
+/* Embeddable verified NAV badge (/embed/ustx) */
+.gmd-app.gmd-embed { min-height: 0; background: transparent; padding: 8px; }
+.gmd-embed-card { max-width: 420px; background: #fff; border: 1px solid var(--gmd-line); border-radius: 12px; padding: 16px 18px; box-shadow: 0 1px 2px #172b3510; }
+.gmd-embed-card > header { display: flex; justify-content: space-between; align-items: center; font-size: 13px; }
+.gmd-embed-brand { display: inline-flex; align-items: center; gap: 6px; font-family: "Instrument Sans",Arial,sans-serif; font-weight: 600; color: var(--gmd-ink); }
+.gmd-embed-brand svg { width: 18px; height: 18px; }
+.gmd-embed-network { color: var(--gmd-copy); border: 1px solid var(--gmd-line); border-radius: 5px; padding: 2px 7px; font-size: 12px; }
+.gmd-embed-product { display: flex; align-items: center; gap: 12px; margin-top: 14px; }
+.gmd-embed-product .gmd-product-monogram { width: 38px; height: 40px; padding: 7px 5px; gap: 2px; }
+.gmd-embed-product .gmd-product-monogram i { width: 3px; }
+.gmd-embed-product > div:last-child { display: flex; flex-direction: column; min-width: 0; }
+.gmd-app .gmd-embed-product h1 { font-family: "Source Sans 3",Arial,sans-serif; font-size: 15px; font-weight: 600; line-height: 1.4; }
+.gmd-embed-product small { font-size: 12px; color: var(--gmd-copy); }
+.gmd-embed-nav { margin-top: 14px; }
+.gmd-embed-nav span { display: block; font-size: 12px; color: var(--gmd-copy); }
+.gmd-embed-nav strong { display: block; font-family: "Instrument Sans",Arial,sans-serif; font-size: 32px; letter-spacing: -.02em; line-height: 1.2; font-variant-numeric: tabular-nums; }
+.gmd-embed-nav small { font-size: 12px; color: var(--gmd-copy); }
+.gmd-embed-card > footer { display: flex; justify-content: space-between; align-items: center; gap: 10px; margin-top: 14px; flex-wrap: wrap; }
+.gmd-app .gmd-embed-invest { display: inline-flex; align-items: center; gap: 6px; font-size: 14px; font-weight: 600; color: var(--gmd-accent); }
+.gmd-document-menu > .gmd-document-menu-group { margin-top: 24px; }
+
+/* Ecosystem documents: code, embed preview, stack list, steps, plans and roadmap */
+.gmd-code { margin: 18px 0 0; border: 1px solid var(--gmd-line); border-radius: 8px; overflow: hidden; background: #fff; }
+.gmd-code figcaption { font-size: 12px; color: var(--gmd-copy); padding: 8px 14px; border-bottom: 1px solid var(--gmd-line); background: #f8fafa; }
+.gmd-code pre { margin: 0; padding: 14px; overflow-x: auto; font-size: 13px; line-height: 1.6; }
+.gmd-document :not(pre) > code { font-size: .92em; background: #eef2f3; padding: 1px 5px; border-radius: 4px; }
+.gmd-embed-preview { margin-top: 18px; }
+.gmd-embed-preview > span { display: block; font-size: 12px; color: var(--gmd-copy); margin-bottom: 8px; }
+.gmd-embed-preview iframe { display: block; max-width: 100%; border: 1px dashed var(--gmd-line); border-radius: 12px; background: var(--gmd-bg); }
+.gmd-stack-list { list-style: none; padding: 0; margin: 12px 0 0; }
+.gmd-stack-list li { display: grid; grid-template-columns: 220px 1fr; gap: 20px; padding-block: 14px; border-bottom: 1px solid var(--gmd-line); }
+.gmd-stack-list span { color: var(--gmd-copy); }
+.gmd-steps { list-style: none; padding: 0; margin: 12px 0 0; display: grid; gap: 14px; }
+.gmd-steps li { display: grid; grid-template-columns: 36px 1fr; gap: 14px; align-items: start; }
+.gmd-steps li > span { width: 32px; height: 32px; border-radius: 50%; background: #e4ebe9; color: var(--gmd-accent); display: flex; align-items: center; justify-content: center; font-weight: 600; }
+.gmd-app .gmd-steps p { margin-top: 2px; line-height: 1.6; }
+.gmd-plans { display: grid; grid-template-columns: repeat(3,minmax(0,1fr)); gap: 14px; margin-top: 16px; }
+.gmd-plans article { background: #fff; border: 1px solid var(--gmd-line); border-radius: 10px; padding: 20px; }
+.gmd-plans article:first-child { border-top: 3px solid var(--gmd-accent); }
+.gmd-plans span { font-size: 12px; color: var(--gmd-copy); }
+.gmd-app .gmd-plans h3 { font-size: 19px; margin-top: 4px; }
+.gmd-plans strong { display: block; font-family: "Instrument Sans",Arial,sans-serif; font-size: 26px; margin-top: 8px; }
+.gmd-plans strong small { font-size: 13px; font-weight: 400; color: var(--gmd-copy); }
+.gmd-plans ul { list-style: none; padding: 0; margin: 14px 0 0; display: grid; gap: 8px; font-size: 14px; }
+.gmd-plans li { display: flex; gap: 8px; align-items: center; }
+.gmd-plans li svg { color: var(--gmd-accent); }
+.gmd-roadmap { list-style: none; padding: 0; margin: 12px 0 0; border-inline-start: 2px solid var(--gmd-line); }
+.gmd-roadmap li { position: relative; padding: 0 0 18px 22px; }
+.gmd-roadmap li::before { content: ""; position: absolute; left: -7px; top: 5px; width: 12px; height: 12px; border-radius: 50%; background: #fff; border: 2px solid var(--gmd-accent); }
+.gmd-roadmap li:first-child::before { background: var(--gmd-accent); }
+.gmd-app .gmd-roadmap p { margin-top: 2px; line-height: 1.6; }
+@media (max-width: 760px) {
+  .gmd-plans { grid-template-columns: 1fr; }
+  .gmd-stack-list li { grid-template-columns: 1fr; gap: 4px; }
+}
+.gmd-ecosystem { margin-top: 36px; }
+.gmd-ecosystem-grid { display: grid; grid-template-columns: repeat(4,minmax(0,1fr)); gap: 12px; }
+.gmd-ecosystem-grid article { background: #fff; border: 1px solid var(--gmd-line); border-radius: 10px; padding: 18px; }
+.gmd-ecosystem-grid b { font-size: 15px; }
+.gmd-app .gmd-ecosystem-grid p { font-size: 14px; margin-top: 6px; }
+.gmd-ecosystem-links { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: 12px; margin-top: 12px; }
+.gmd-ecosystem-links a { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 18px 20px; border-radius: 10px; background: var(--gmd-ink); color: #fff; }
+.gmd-ecosystem-links span { display: flex; flex-direction: column; }
+.gmd-ecosystem-links small { color: #becdd2; font-size: 13px; }
+@media (max-width: 930px) { .gmd-ecosystem-grid { grid-template-columns: repeat(2,minmax(0,1fr)); } }
+@media (max-width: 600px) { .gmd-ecosystem-grid,.gmd-ecosystem-links { grid-template-columns: 1fr; } }
+.gmd-fund-facts a { display: inline-flex; align-items: center; gap: 4px; white-space: nowrap; }

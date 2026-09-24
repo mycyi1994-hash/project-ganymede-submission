@@ -20,9 +20,11 @@ Those modules still power the separate paper Lab. They are not part of the submi
 | Tokenized stocks | Six-xStock basket (USTX) priced through OKX OnchainOS on X Layer mainnet, with publication gates; NAV and document fingerprint published every five minutes | `0feca68`, `9562bdb`, `dc66eee` |
 | Verification | The browser reads the registry directly and recalculates the NAV; a three-way tamper experiment; a downloadable evidence file and the `verify:evidence` command | `27350f2`, `4641ddc`, `80a0316`, `11829e8` |
 | Product | Clearform redesign; Markets, USTX and Verify screens led by the browser check; read-only xStocks Portfolio at verified prices; NAV chart from publication receipts | `e5d1d8f`, `f4d67c1`, `ff04920`, `c0ce112`, `ebef0fa`, `d055246` |
+| Investing | Demo investing in USTX with demo dollars: private accounts, instant orders at the NAV recorded on X Layer, idempotent retries and a daily cap; order confirmations and a Portfolio that look through each holding to the six xStocks | `1327a6a`, `0c38037` |
+| Fund and ecosystem | Fund overview with size, investors and return since launch; the shares outstanding recorded on X Layer with every NAV; a public NAV API with open CORS, an embeddable self-verifying badge, and issuer and developer pages | `0c38037`, `23d35d2` |
 | Hardening | Public reads without writes, identity header gate, relayer retry and nonce handling, paper-ledger integrity, sanitized public errors | `c98e7ea`, `387ec35`, `8cd427f`, `7b18cf9`, `124bebe` |
 
-From `7a33392` to `6f8e570`: 181 files changed, 17775 insertions(+), 7370 deletions(-).
+From `7a33392` to `69bde0c`: 202 files changed, 19497 insertions(+), 7370 deletions(-).
 
 ## Every commit in the build period (UTC)
 
@@ -101,3 +103,13 @@ From `7a33392` to `6f8e570`: 181 files changed, 17775 insertions(+), 7370 deleti
 | 2026-09-24 14:04 | `0fd7322` | Describe the current screens in the release notes | 2 | +14 / −11 |
 | 2026-09-24 14:15 | `a65d6d7` | State the full record count when the chart series is thinned | 6 | +38 / −7 |
 | 2026-09-24 14:24 | `d255327` | Record the chart-count release and add the submission checklist | 4 | +352 / −7 |
+| 2026-09-24 14:31 | `1725c64` | Keep the submission notes accurate after the team submits | 3 | +9 / −6 |
+| 2026-09-24 14:38 | `13d69c1` | Keep only confirmed rate-limit events in the checklist | 1 | +2 / −2 |
+| 2026-09-24 14:38 | `77a7f63` | Update the submission checklist with the latest production observations | 1 | +7 / −3 |
+| 2026-09-24 16:52 | `4de4681` | State the build-period scope in the video script | 1 | +5 / −3 |
+| 2026-09-24 17:50 | `1327a6a` | Let visitors invest in USTX with demo dollars | 15 | +767 / −16 |
+| 2026-09-24 18:31 | `0c38037` | Show what a USTX share holds, fund figures and partner tools | 26 | +914 / −33 |
+| 2026-09-24 18:37 | `23d35d2` | Let keyboard users scroll code samples and give the badge a heading | 4 | +5 / −4 |
+| 2026-09-24 18:42 | `9f807c2` | Add demo investing and partner tools to the build-period record | 1 | +11 / −1 |
+| 2026-09-24 18:42 | `cbadccd` | Describe the fund product, partner tools and the new releases | 4 | +114 / −46 |
+| 2026-09-24 18:44 | `2e17e99` | Update the submission checklist, video script and form text for the fund product | 1 | +90 / −88 |

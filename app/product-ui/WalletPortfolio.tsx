@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import { DemoPortfolio } from "./DemoInvest";
 import { parseComposition } from "@/lib/xstocks/proof";
 import { readBalances, tokenExplorerUrl, type WalletBalances } from "@/lib/xstocks/mainnet";
 import { buildStatement, formatUnits, parseUsd, planBasket, valueWallet } from "@/lib/xstocks/wallet";
@@ -68,9 +69,11 @@ export default function WalletPortfolio() {
   const priceNote = state === "matched" && record ? `Prices from the ${shortTime(record.effectiveAt)} record, verified in your browser` : state === "failed" || state === "unavailable" ? "The price record could not be verified, so nothing is valued." : "Waiting for the price record to be verified in this browser…";
 
   return <>
-    <div className="gmd-page-heading"><div><h1>Portfolio</h1><p>Your xStocks on X Layer, valued with prices you can verify.</p></div><RecordCheckStatus /></div>
+    <div className="gmd-page-heading"><div><h1>Portfolio</h1><p>Your demo USTX investments and your xStocks on X Layer, valued with prices you can verify.</p></div><RecordCheckStatus /></div>
+    <DemoPortfolio />
+    <header className="gmd-section-heading gmd-wallet-heading"><div><h2>Your xStocks on X Layer</h2><p>Connect a wallet or view any public address. Read-only.</p></div></header>
     <AddressBar />
-    {address && <section className="gmd-wallet-holdings" aria-labelledby="holdings-title" aria-live="polite"><header className="gmd-section-heading"><h2 id="holdings-title">Holdings</h2><span>{current ? `Block ${current.blockNumber.toLocaleString("en-US")} · ${shortTime(current.blockTime)} · X Layer mainnet` : failure ? "Not read" : "Reading balances…"}</span></header>
+    {address && <section className="gmd-wallet-holdings" aria-labelledby="holdings-title" aria-live="polite"><header className="gmd-section-heading"><h2 id="holdings-title">xStock holdings</h2><span>{current ? `Block ${current.blockNumber.toLocaleString("en-US")} · ${shortTime(current.blockTime)} · X Layer mainnet` : failure ? "Not read" : "Reading balances…"}</span></header>
       {failure ? <div className="gmd-data-notice" role="status"><Icon name="info" /><span>{failure}</span><button onClick={() => setAttempt(value => value + 1)}>Try again</button></div>
         : !current ? <p className="gmd-caption">Reading the six xStock balances at the latest block…</p>
         : !valuation ? <p className="gmd-caption">{priceNote}</p>

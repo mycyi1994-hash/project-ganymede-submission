@@ -19,15 +19,16 @@ test("Markets renders the actual product path without fabricated values or the v
   assert.match(response.headers.get("content-type") ?? "", /^text\/html\b/i);
   const html = visible(await response.text());
   assert.match(html, /US Tech Basket/);
-  assert.match(html, /Explore basket/);
+  assert.match(html, />Invest </);
+  assert.match(html, /demo dollars/);
   assert.match(html, /Published NAV/);
-  assert.match(html, /href="\/products\/ustx"/);
+  assert.match(html, /href="\/products\/ustx#investment"/);
   assert.doesNotMatch(html, /Try verification|Try changing one price|<img\b[^>]*clearform-stack/);
   assert.doesNotMatch(html, /\$12,454|Example account/);
 });
 
 test("public product routes share navigation and select the right destination before hydration", async () => {
-  const expected = [["/", "Markets"], ["/products/ustx/transparency", "Verify"], ["/portfolio", "Portfolio"]];
+  const expected = [["/", "Markets"], ["/portfolio", "Portfolio"], ["/products/ustx/transparency", "Verify"]];
   for (const [path, current, heading] of [
     ["/", "/", "US Tech Basket"],
     ["/products/ustx", "/", "Terms &amp; approach"],
@@ -50,16 +51,19 @@ test("public product routes share navigation and select the right destination be
   }
 });
 
-test("product pages lead with verification instead of closed investment access", async () => {
+test("product pages offer clearly labelled demo investing next to the verification", async () => {
   for (const path of ["/", "/products/ustx", "/products/ustx/transparency"]) {
     const html = visible(await (await render(path)).text());
-    assert.doesNotMatch(html, /Subscriptions not open|Investment access|Invest in USTX|Know what you own|before investing|Connect wallet/, path);
+    assert.doesNotMatch(html, /Subscriptions not open|Investment access|Know what you own|before investing|Connect wallet|USDC/, path);
     assert.match(html, /href="\/products\/ustx\/transparency"/, path);
     assert.match(html, /X Layer Testnet/, path);
   }
   const product = visible(await (await render("/products/ustx")).text());
+  assert.match(product, /Invest in USTX/);
+  assert.match(product, /Testnet demo · demo dollars, no real money/);
+  assert.match(product, /No real money moves and no shares are issued on chain/);
   assert.match(product, /Verify this record/);
-  assert.match(product, /None are issued/);
+  assert.match(product, /id="investment"/);
 });
 
 test("legacy URLs route to their matching product or simulation destination", async () => {
@@ -126,4 +130,36 @@ test("Portfolio reads real xStocks read-only and offers the basket calculator", 
   assert.match(html, /Size a USTX-weighted basket/);
   assert.match(html, /not an order or a quote/);
   assert.doesNotMatch(html, /GMDCORE|testnet share records|Invest in USTX/);
+});
+
+test("the product page shows fund figures and Markets shows the OKX and X Layer integration", async () => {
+  const product = visible(await (await render("/products/ustx")).text());
+  assert.match(product, /Fund overview/);
+  assert.match(product, /href="#overview"/);
+  assert.match(product, /Minimum investment/);
+  assert.match(product, /Recent investor activity/);
+  const markets = visible(await (await render("/")).text());
+  assert.match(markets, /Built on X Layer and OKX/);
+  assert.match(markets, /OKX OnchainOS/);
+  assert.match(markets, /href="\/issuers"/);
+  assert.match(markets, /href="\/developers"/);
+});
+
+test("issuer, developer and embed pages render for partners", async () => {
+  const issuers = visible(await (await render("/issuers")).text());
+  assert.match(issuers, /Launch a basket investors can verify/);
+  assert.match(issuers, /Planned pricing/);
+  assert.match(issuers, /Roadmap/);
+  const developers = visible(await (await render("/developers")).text());
+  assert.match(developers, /\/api\/v1\/ustx/);
+  assert.match(developers, /latestNav/);
+  assert.match(developers, /\/embed\/ustx/);
+  assert.match(developers, /verify:evidence/);
+  const embed = await render("/embed/ustx");
+  assert.equal(embed.status, 200);
+  const badge = visible(await embed.text());
+  assert.match(badge, /<h1>USTX · US Tech Basket<\/h1>/);
+  assert.match(badge, /Checking the record/);
+  assert.doesNotMatch(badge, /Primary navigation/);
+  assert.equal(embed.headers.get("x-frame-options"), null, "partners can frame the badge");
 });

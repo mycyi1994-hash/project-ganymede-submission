@@ -13,7 +13,8 @@
     "test": "npm run typecheck && npm run build && node --experimental-loader ./tests/cloudflare-loader.mjs --test tests/*.test.mjs",
     "lint": "eslint . --ignore-pattern dist --ignore-pattern .next",
     "db:generate": "drizzle-kit generate",
-    "xstocks:check": "node --env-file-if-exists=.env --experimental-loader ./tests/cloudflare-loader.mjs scripts/xstocks-check.mjs"
+    "xstocks:check": "node --env-file-if-exists=.env --experimental-loader ./tests/cloudflare-loader.mjs scripts/xstocks-check.mjs",
+    "verify:evidence": "node --disable-warning=ExperimentalWarning --experimental-loader ./tests/cloudflare-loader.mjs scripts/verify-evidence.mjs"
   },
   "dependencies": {
     "drizzle-orm": "0.45.2",

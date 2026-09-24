@@ -26,12 +26,12 @@ export default function MarketChart({ points, loading }: { points: HistoryPoint[
         <defs><linearGradient id={gradient} x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stopColor="#0B625B" stopOpacity=".12" /><stop offset="100%" stopColor="#0B625B" stopOpacity="0" /></linearGradient></defs>
         {[0, .5, 1].map(f => <g key={f}><line x1="8" x2="668" y1={22 + f * 150} y2={22 + f * 150} stroke="#dce4e7" strokeDasharray="3 5" /><text x="688" y={27 + f * 150} fontSize="12" fill="#526570">${(high - f * (high - low)).toFixed(3)}</text></g>)}
         <path d={`${path} L668,184 L8,184 Z`} fill={`url(#${gradient})`} /><path d={path} fill="none" stroke="#0B625B" strokeWidth="2.5" strokeLinejoin="round" />
-        {points.map((p, i) => <circle key={p.at} cx={x(i)} cy={y(vals[i])} r="3.5" fill="#0B625B"><title>{shortTime(p.at)}: {formatUsdMicros(p.micros, 4)}</title></circle>)}
+        {points.length <= 60 && points.map((p, i) => <circle key={p.at} cx={x(i)} cy={y(vals[i])} r="3.5" fill="#0B625B"><title>{shortTime(p.at)}: {formatUsdMicros(p.micros, 4)}</title></circle>)}
         {active && index !== null && index < points.length && <g><line x1={x(index)} x2={x(index)} y1="14" y2="184" stroke="#526570" strokeDasharray="3 3" /><circle cx={x(index)} cy={y(vals[index])} r="5.5" fill="white" stroke="#0B625B" strokeWidth="2" /></g>}
       </svg>
       <label className="gmd-history-scrubber gmd-sr-only"><span>Inspect a published record</span><input type="range" min="0" max={points.length - 1} value={index === null ? points.length - 1 : Math.min(index, points.length - 1)} onFocus={() => setIndex(points.length - 1)} onBlur={() => setIndex(null)} onChange={event => setIndex(Number(event.target.value))} aria-valuetext={active ? `${shortTime(active.at)}, ${formatUsdMicros(active.micros, 4)}` : "Latest record"} /></label>
       <div className="gmd-chart-axis"><span>{shortTime(points[0].at)}</span><span>{shortTime(points[points.length - 1].at)}</span></div>
     </>}
-    <p className="gmd-chart-note">{points.length > 1 ? `${points.length} published records · available history only` : "Values per model share"}. Not an executable price.</p>
+    <p className="gmd-chart-note">{points.length > 1 ? `${points.length} published records since ${shortTime(points[0].at)}` : "Values per model share"}. Not an executable price.</p>
   </div>;
 }

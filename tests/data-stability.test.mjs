@@ -8,6 +8,7 @@ import { runEngineCycle } from "../lib/engine/runner.ts";
 import { jsonError } from "../lib/engine/api-helpers.ts";
 import { fetchXStockQuotes } from "../lib/xstocks/prices.ts";
 import { runXStocksCycle, STATE_BASKET, STATE_CONFIRMED, STATE_DOCUMENT_PREFIX, STATE_HISTORY, STATE_LATEST } from "../lib/xstocks/cycle.ts";
+import { STATE_SERIES } from "../lib/xstocks/series.ts";
 import { XSTOCKS_CONSTITUENTS } from "../lib/xstocks/basket.ts";
 import { GET as marketGET } from "../app/api/market/route.ts";
 import { GET as portfolioGET } from "../app/api/portfolio/route.ts";
@@ -99,6 +100,39 @@ test("unchanged candles consume no additional writes", async () => {
     await repo.saveCandles(candles);
     assert.equal(changes(), before);
   } finally { sql.close(); }
+});
+
+test("the public proof API reports a registry read failure without its error text", async (t) => {
+  const { db, sql } = database();
+  try {
+    db.readOnly = true;
+    env.DB = db;
+    env.NAV_REGISTRY_ADDRESS = "0x" + "b".repeat(40);
+    env.SETTLEMENT_RPC_URL = "https://rpc.example.test/v1/secret-provider-key";
+    const logged = [];
+    t.mock.method(console, "error", (...args) => logged.push(args.join(" ")));
+    t.mock.method(globalThis, "fetch", async () => { throw new TypeError("request to https://rpc.example.test/v1/secret-provider-key failed"); });
+    const response = await xstocksGET();
+    const body = await response.text();
+    assert.equal(response.status, 200);
+    assert.doesNotMatch(body, /secret-provider-key|rpc\.example|request to/);
+    assert.equal(JSON.parse(body).onchainError, "The chain read is unavailable.");
+    assert.ok(logged.some((line) => line.includes("registry read failed")));
+    assert.ok(logged.every((line) => !line.includes("secret-provider-key")));
+  } finally { delete env.DB; delete env.NAV_REGISTRY_ADDRESS; delete env.SETTLEMENT_RPC_URL; sql.close(); }
+});
+
+test("the public proof API returns the stored NAV series without writing", async (t) => {
+  const { db, sql } = database();
+  try {
+    await new EngineRepository(db).setState(STATE_SERIES, JSON.stringify({ v: 1, points: [[1790000000, "98000000"], [1790000300, "98100000"]] }));
+    db.readOnly = true;
+    env.DB = db;
+    t.mock.method(globalThis, "fetch", async () => { throw new TypeError("offline"); });
+    t.mock.method(console, "error", () => {});
+    const body = await (await xstocksGET()).json();
+    assert.deepEqual(body.series, [[1790000000, "98000000"], [1790000300, "98100000"]]);
+  } finally { delete env.DB; sql.close(); }
 });
 
 test("proof API recovers the current chain document after rolling history has expired", async (t) => {

@@ -20,6 +20,7 @@ import {
 } from "./basket";
 import { fetchXStockQuotes, MAX_COOLDOWN_MS, onchainOsCredentials } from "./prices";
 import { parseComposition } from "./proof";
+import { updateNavSeries } from "./series";
 
 export const STATE_BASKET = "xstocks:basket";
 export const STATE_LATEST = "xstocks:latest";
@@ -185,7 +186,8 @@ export async function runXStocksCycle(env: EngineEnv, repo: EngineRepository, se
     const confirmed = history.find((entry) => entry.status === "confirmed");
     if (confirmed && !(await repo.getState(STATE_CONFIRMED))) await repo.setState(STATE_CONFIRMED, JSON.stringify(confirmed));
     const pending: Publication = { asOf: now, navPerShareMicros: evaluation.composition.navPerShareMicros, holdingsHash: evaluation.holdingsHash, canonical: evaluation.canonical, status: "queued", txHash: null, error: null };
-    // Content-addressed evidence survives a lost receipt or history rotation.
+    // Content-addressed evidence survives a lost receipt. Documents are pruned with the
+    // rolling history below, except for the latest confirmed one.
     await repo.setState(`${STATE_DOCUMENT_PREFIX}${pending.holdingsHash}`, JSON.stringify(pending));
     const previousHistory = history.filter((entry) => entry.holdingsHash !== pending.holdingsHash);
     await repo.setState(STATE_HISTORY, JSON.stringify([pending, ...previousHistory].slice(0, HISTORY_LIMIT)));
@@ -221,5 +223,11 @@ export async function runXStocksCycle(env: EngineEnv, repo: EngineRepository, se
     publication,
   };
   await repo.setState(STATE_LATEST, JSON.stringify(latest));
+  // The chart series is kept apart from publication: its failure never changes a NAV result.
+  try {
+    await updateNavSeries(repo, { rpcUrl: settlementClient.rpcUrl, registry: env.NAV_REGISTRY_ADDRESS, historyKey: STATE_HISTORY });
+  } catch (error) {
+    warnings.push(`NAV series not updated: ${error instanceof Error ? error.message : "unknown error"}`);
+  }
   return { navsPublished, settlementsQueued, warnings };
 }

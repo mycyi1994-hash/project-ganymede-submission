@@ -1,4 +1,4 @@
 import { ProductShell } from "../product-ui/ProductShell";
-import { LedgerScreen } from "../product-ui/LedgerScreens";
+import WalletPortfolio from "../product-ui/WalletPortfolio";
 export const metadata = { title: "Portfolio · Ganymede" };
-export default function PortfolioPage() { return <ProductShell section="portfolio"><LedgerScreen /></ProductShell>; }
+export default function PortfolioPage() { return <ProductShell section="portfolio"><WalletPortfolio /></ProductShell>; }

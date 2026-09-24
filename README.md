@@ -1,41 +1,86 @@
-# Ganymede — inspectable NAV for tokenized-stock baskets
+# Ganymede — tokenized-stock NAV you can verify yourself
 
-Ganymede presents a tokenized-stock basket as a product whose value can be checked. It demonstrates this with **GMD USTX**, a model basket of six US technology xStocks. Visitors can browse the basket, follow its published NAV history and composition, and have their browser verify the latest record against X Layer. Nothing can be bought or redeemed yet.
+Ganymede publishes the NAV of **GMD USTX**, a model basket of six tokenized US tech stocks (xStocks), and lets anyone check it without trusting our server. Every five minutes it prices the xStocks through OKX OnchainOS on X Layer, records the NAV and a SHA-256 fingerprint of the full composition document on X Layer, and your browser reads that record directly and recalculates the NAV. The result can be downloaded as an evidence file and re-checked anywhere with one command.
 
-[Markets](https://ganymede-xlayer.gana003.workers.dev/) · [USTX](https://ganymede-xlayer.gana003.workers.dev/products/ustx) · [Transparency](https://ganymede-xlayer.gana003.workers.dev/products/ustx/transparency) · [Portfolio](https://ganymede-xlayer.gana003.workers.dev/portfolio) · [Activity](https://ganymede-xlayer.gana003.workers.dev/activity) · [Lab](https://ganymede-xlayer.gana003.workers.dev/lab)
+[Markets](https://ganymede-xlayer.gana003.workers.dev/) · [USTX](https://ganymede-xlayer.gana003.workers.dev/products/ustx) · [Verify](https://ganymede-xlayer.gana003.workers.dev/products/ustx/transparency) · [Portfolio](https://ganymede-xlayer.gana003.workers.dev/portfolio) · [Methodology](https://ganymede-xlayer.gana003.workers.dev/methodology) · [Limitations](https://ganymede-xlayer.gana003.workers.dev/limitations)
 
-## Try the product
+**Built for OKX Dev Day 2026 (Build a Market).** Ganymede existed before the event. The new work of the 17–25 September build period is listed with its commits in [docs/BUILD_PERIOD.md](docs/BUILD_PERIOD.md) and summarized below.
 
-1. **Markets** shows USTX, its latest published NAV, the publication history available and the actual value weights of AAPLx, MSFTx, NVDAx, AMZNx, METAx and TSLAx.
-2. **USTX** charts the NAV at its real publication times, lets you pick a holding to see its contribution per share, and states the product's terms and that investing is not open.
-3. **Transparency** runs the checks automatically. Your browser reads the pinned X Layer Testnet registry directly, hashes the original composition document and recalculates the NAV. Technical detail, quote-age policy, publication history and the original document are expandable.
-4. **Portfolio** reads the GMDCORE test share ledger for a public address, either one your wallet shares or one you type. **Activity** lists that address's CORE transfers in the last 2,000 blocks and opens each transaction's receipt. These are read-only views of a testnet ledger, not USTX holdings.
-5. **Lab** keeps the separate experiments: the price-edit experiment, where a $1 change in a local copy makes the real verifier fail and restoring it passes again, and the older KRW paper strategies.
+## Try it in two minutes
 
-No account, signature or transaction is needed. The wallet is asked only for a public address. A missing document or unavailable RPC stays unverified, and pricing freshness is reported separately from record consistency.
+1. **Markets** shows USTX, its latest NAV, the NAV history and the value weights of AAPLx, MSFTx, NVDAx, AMZNx, METAx and TSLAx. A status chip reports the check your browser has just run against X Layer.
+2. **USTX** shows the basket, the latest record with its X Layer transaction, and the product terms. No shares are issued. USTX is a reference value.
+3. **Verify** runs the check automatically. Your browser reads the pinned registry on X Layer Testnet, hashes the original document and recalculates every holding. The page lists what a match confirms and what it does not.
+4. **Try to break it** on the same page edits a copy of the document in your browser in three ways:
+   - change one price: the row arithmetic and the fingerprint fail;
+   - also fix the arithmetic: the NAV no longer matches the record;
+   - offset two prices so every number and the NAV stay the same: only the fingerprint recorded on X Layer catches the change.
+5. **Portfolio** reads any wallet's six xStock balances on X Layer mainnet at one block (connect a wallet or paste a public address), values them with the prices of the verified record, and offers a downloadable valuation statement. A calculator sizes a USTX-weighted basket for any amount. It is read-only; nothing is signed or sent.
+6. **Download evidence** on the Verify page saves the document, the record and the publishing transaction. Anyone can re-check it:
 
-## Meaningful OKX integration
+```sh
+npm ci
+npm run verify:evidence -- ustx-evidence.json
+```
+
+The command repeats the fingerprint and arithmetic checks against the verifier's pinned deployment. It then reads the transaction receipt from X Layer and requires a matching `NavPublished` event, so a file still verifies after its record is no longer the latest. Add `--offline` to skip the chain read.
+
+No account, signature or transaction is needed.
+
+## What was built during the event
+
+| Area | New in the build period |
+| --- | --- |
+| X Layer | Settlement moved from the GIWA Sepolia testnet to X Layer Testnet. NAV registry, share ledger and relayer deployed; sources verified on the explorer |
+| Tokenized stocks | Six-xStock basket priced through OKX OnchainOS on X Layer mainnet. Publication gates reject missing, stale or mismatched quotes. NAV and fingerprint published every five minutes |
+| Verification | Direct browser read and recalculation, a mainnet check of the six xStock contracts, the three-way tamper experiment, the evidence file and `verify:evidence` |
+| Portfolio | Read-only valuation of any wallet's xStocks on X Layer mainnet at the verified prices, a downloadable statement and a USTX-weighted basket calculator |
+| Product | Markets, USTX and Verify screens built around the browser check |
+| Hardening | Public reads never write, spoofable identity headers ignored, relayer retries reconcile before re-sending, upstream errors kept out of public responses |
+
+Commit-by-commit detail, with times and line counts: [docs/BUILD_PERIOD.md](docs/BUILD_PERIOD.md).
+
+## Project history
+
+Ganymede started in July 2026 as a Korean-won crypto strategy engine. Its paper portfolios are priced from Upbit market data, and its fund-share settlement was first built for the GIWA Sepolia testnet with a Dojang verified-address check. That code is still in the repository. It powers the separate paper Lab, which is not part of the submission's new work.
+
+For OKX Dev Day we moved settlement to X Layer and built the tokenized-stock product on top. The GMDCORE share-ledger contract deployed to X Layer comes from that earlier rail, so its verified source still describes GIWA settlement. The same X Layer registry also carries NAV records for the earlier paper strategies under a different product key. The USTX check reads only the USTX key.
+
+## OKX integration
 
 | Component | Use |
 | --- | --- |
-| OKX OnchainOS Market API | Signed requests for token prices on X Layer mainnet (196) |
-| X Layer mainnet | Network on which the six constituent token addresses are priced |
-| X Layer Testnet (1952) | Stores NAV and the SHA-256 fingerprint of the canonical composition; hosts the GMDCORE test share ledger |
-| Browser verifier | Reads the registry directly and verifies exact integer arithmetic and document bytes |
-| Browser ledger reader | Reads GMDCORE balances, transfer logs and receipts over public RPC after checking the chain ID, contract code and decimals |
-| Optional injected wallet | Shares a public address for Portfolio and Activity; never asked to sign or send |
+| OKX OnchainOS Market API | Signed price requests for the six xStock tokens on X Layer mainnet (196). The prices are the inputs of every NAV |
+| X Layer mainnet | Where the priced xStock tokens live. The browser reads the six pinned token contracts (code, symbol, decimals) and any wallet's balances directly |
+| X Layer Testnet (1952) | `GanymedeNavRegistry` stores each NAV, effective time and composition fingerprint and emits `NavPublished` |
+| Browser verifier | Reads the registry over public RPC after checking the chain ID, then verifies exact document bytes and integer arithmetic |
+| Evidence command | Re-checks a downloaded file and matches it to the `NavPublished` event in its transaction receipt |
 
-NAV registry: [`0xf320d2a7f280b7ab61e24374986869d7be34289c`](https://web3.okx.com/explorer/x-layer-testnet/address/0xf320d2a7f280b7ab61e24374986869d7be34289c). GMDCORE share ledger: [`0x68c4e8c904b3eddb1146ef52a76a0a2755a55b59`](https://web3.okx.com/explorer/x-layer-testnet/address/0x68c4e8c904b3eddb1146ef52a76a0a2755a55b59).
+NAV registry: [`0xf320d2a7f280b7ab61e24374986869d7be34289c`](https://web3.okx.com/explorer/x-layer-testnet/address/0xf320d2a7f280b7ab61e24374986869d7be34289c) on X Layer Testnet.
 
-The share ledger is an issuer-controlled, allowlisted testnet record. Its mint and burn are not evidence of a deposit or payout, and GMDCORE is not a claim on USTX. The older crypto strategy engine and paper portfolio are in Lab. They are not USTX holdings or evidence of a live fund. [Engine reference](docs/ENGINE_REFERENCE.md).
+## What a match means
 
-## What the checks mean
+A match shows that one published document, its arithmetic and its X Layer record agree, and that the document was not changed after publication. It does **not** show that the prices are accurate (there is one provider), that anyone holds the tokens, or that the NAV can be traded or redeemed.
 
-They establish agreement between a published document, its arithmetic and an on-chain record. They do **not** establish custody, backing, price accuracy, liquidity, investment safety or regulated fund status. Ganymede does not hold or custody the modeled xStocks. There is no deposit address, settlement token or custody contract, and investing and redemption are not implemented. Contracts are unaudited. There is no public offering.
+- **USTX** is a model basket. It issues no shares, holds no assets and gives no rights.
+- **xStocks** carry the rights their issuer's documents describe. Ganymede does not hold them.
+- **GMDCORE** is an issuer-controlled test share ledger from the earlier settlement work. Its supply is zero, and it is not a claim on USTX.
+- **Portfolio valuations** price the six xStocks at the recorded prices. A valuation is not an executable quote and does not prove who controls an address.
 
-Pricing uses one provider. Publication is attempted on a five-minute schedule but can be delayed or fail. USTX never substitutes reference prices for missing eligible quotes. The code's quote-age default is 360 minutes and can be overridden; the provider timestamp is not a guarantee of the last trade time. This differs from the UI's 15-minute cycle-delay indicator. Do not interpret either as an execution-price guarantee.
+Ganymede has no deposit address, settlement token or custody contract. Contracts are unaudited, and there is no public offering. [Limitations and data policy](https://ganymede-xlayer.gana003.workers.dev/limitations).
 
-[Calculation method](https://ganymede-xlayer.gana003.workers.dev/methodology) · [Limitations and data policy](https://ganymede-xlayer.gana003.workers.dev/limitations) · [Portfolio identity](docs/release-identity.md)
+## Prior work and what is different
+
+Putting NAV data on chain is not new. The [DTCC Smart NAV pilot](https://www.dtcc.com/insights/2024/smart-nav-pilot-report-bringing-trusted-data-to-the-blockchain-ecosystem) distributed fund NAVs to several chains. [Centrifuge](https://docs.centrifuge.io/user/manager/nav/) managers publish share prices on chain. [Reserve Index DTFs](https://docs.reserve.org/core-components/index-dtfs/overview) already issue and redeem token baskets. [Chainlink Proof of Reserve](https://chain.link/proof-of-reserve) addresses asset backing, a different problem that Ganymede does not solve.
+
+Ganymede's contribution is narrower. Any visitor can reproduce a published basket NAV row by row in their own browser against an X Layer record, see which check catches which kind of change, and hand the result to someone else as a file they can verify independently.
+
+## Next steps (not built)
+
+1. Publish the registry on X Layer mainnet and keep every document in a public archive, so any past record can be verified in the interface.
+2. Add a second price source and a written policy for corporate actions and constituent changes.
+3. Let other basket operators publish their own documents to the same registry format.
+4. With an issuer, custody and legal structure in place, a vault holding the xStocks, a basket token that mints and redeems at the verified NAV, and rebalancing through OKX DEX. None of this has started.
 
 ## Reproduce locally
 
@@ -47,7 +92,7 @@ npm test
 npm run dev
 ```
 
-`npm test` type-checks and builds the application, then runs the suite: USTX market data and ledger adapters, integer NAV verification, tampered documents, unavailable data, publication retries, paper-ledger integrity, portfolio isolation and server-rendered routes. It needs no production credentials and submits no transactions. Public UI renders locally, but API-backed live data requires a configured D1 database and provider settings; an unconfigured local preview is not a full production replica.
+`npm test` type-checks and builds the application, then runs the suite: USTX market data, integer NAV verification, the tamper experiment, evidence files, wallet valuation, the NAV series, tampered documents, unavailable data, publication retries, paper-ledger integrity and server-rendered routes. It needs no production credentials and submits no transactions. The public UI renders locally, but live data needs a configured D1 database and provider settings.
 
 For optional local database setup after building:
 
@@ -55,20 +100,20 @@ For optional local database setup after building:
 npx wrangler d1 execute site-creator-d1 --local --config dist/server/wrangler.json --file drizzle/0000_giant_speedball.sql
 ```
 
-See `.env.example` for setting names and [the engine reference](docs/ENGINE_REFERENCE.md) for deployment details. Never copy production secrets into a review checkout. Tests do not require enabling live trading or a signing key. Relayer checks: run `npm ci`, `npm run typecheck` and `npm test` in `relayer/`.
+See `.env.example` for setting names and [the engine reference](docs/ENGINE_REFERENCE.md) for deployment details. Never copy production secrets into a review checkout. Relayer checks: run `npm ci`, `npm run typecheck` and `npm test` in `relayer/`.
 
 ## Source and release
 
-This public review snapshot corresponds to production source commit `f0ae49ce3f410af6cfcab9d3e2ff4e3a85aa4d68`. Application code matches the recorded source; documentation may be newer. The original development history remains private, and public-hosting identifiers are adjusted. See [snapshot provenance](docs/BUILD_EVIDENCE.md) and [the product release notes](docs/PRODUCT_RELEASE.md). Cloudflare deployment messages identify the production source commit. [Release rules and identity model](docs/release-identity.md).
+This public review snapshot corresponds to production source commit `d05524681bc0f29fb7f196cd6a465728050f83b6`. Application code matches the recorded source; documentation may be newer. The original development history remains private, and public-hosting identifiers are adjusted. See [snapshot provenance](docs/BUILD_EVIDENCE.md). Cloudflare deployment messages identify the production source commit. The current release, its checks and its limits are in [the product release notes](docs/PRODUCT_RELEASE.md). [Release rules and identity model](docs/release-identity.md).
 
-- [Dev Day submission notes and build-period evidence](docs/OKX_DEV_DAY.md)
+- [Dev Day submission notes](docs/OKX_DEV_DAY.md) and [build-period work](docs/BUILD_PERIOD.md)
 - [Asset credits](public/ASSET-CREDITS.md)
 - Product screens: `app/product-ui/`
-- Market data and publication history: `lib/product-market.ts`
-- Test share ledger reader: `lib/product-ledger.ts`
 - Calculation: `lib/xstocks/basket.ts`
 - Publication: `lib/xstocks/cycle.ts`
-- Direct browser verification: `lib/xstocks/proof.ts`, `lib/xstocks/onchain.ts`
-- Local failure experiment: `lib/xstocks/proof-experiment.ts`
+- Browser verification: `lib/xstocks/proof.ts`, `lib/xstocks/onchain.ts`
+- Tamper experiment: `lib/xstocks/proof-experiment.ts`
+- Evidence file and command: `lib/xstocks/evidence.ts`, `scripts/verify-evidence.mjs`
+- X Layer mainnet reads and wallet valuation: `lib/xstocks/mainnet.ts`, `lib/xstocks/wallet.ts`
 
 AI-assisted development was used. The submitting team remains responsible for explaining, reviewing and maintaining the work. No customer adoption or independent audit is claimed.

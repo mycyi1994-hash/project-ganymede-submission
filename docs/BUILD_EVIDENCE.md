@@ -1,6 +1,6 @@
 # Build provenance
 
-Production source revision: `f0ae49ce3f410af6cfcab9d3e2ff4e3a85aa4d68`.
+Production source revision: `d05524681bc0f29fb7f196cd6a465728050f83b6`.
 
 This is a source snapshot, not a claim that the entire project was newly built for this event. The original repository remains private. The entries below were exported from its Git history; reviewers can inspect current implementations and tests, and request original history access from the team if needed. No old secrets, local environment files or full private Git history are published.
 
@@ -69,3 +69,33 @@ Releases since the previous snapshot:
 - f0ae49ce3f410af6cfcab9d3e2ff4e3a85aa4d68 → 6e8ba126-42e0-4114-b355-77275a4bcd98: NAV unit label contrast and landmark structure on the verification page, plus a test-fixture time fix.
 
 Validation of the snapshot source: typecheck, build, lint (0 errors) and 89 tests; relayer typecheck and 16 tests. After the last deployment, public routes returned 200, legacy routes redirected, axe reported no violations on nine pages, 200% and 400% zoom and 320 and 390 px widths showed no horizontal overflow, and NAV publications continued to confirm on X Layer Testnet. These are point-in-time observations, not continuous availability or a security audit.
+
+## Verification-led and Portfolio releases
+
+Production source: d05524681bc0f29fb7f196cd6a465728050f83b6. Worker version: 80d4b272-dfae-4fdf-b404-e15dddf54e15, deployed 2026-09-24 13:50 UTC. Relayer Worker version: cb38524c-cb75-4350-a9ee-a363f49a5c93, unchanged because the relayer has not changed since the previous snapshot. This snapshot is exported from d409f34fdc167fdd09e1a8ceb80e44ef5b2f5986, which adds only documentation to the production source. Every build-period commit, with times and line counts, is listed in BUILD_PERIOD.md.
+
+Releases since the previous snapshot:
+
+- 333ee0d97023d6e66cc6b26f9eda5b257e3c43a1 → d95963d6-3a81-4c33-8f16-a9e9618371b0, 13:31 UTC.
+  - Markets and USTX lead with the browser's own check of the latest record, and the menu is Markets / Verify.
+  - The Verify page states what a match confirms and what it does not. It shows the age of the oldest quote and the document retention window.
+  - It adds a three-way tamper experiment: change one price; also fix the arithmetic; offset two prices so that every number and the NAV stay the same.
+  - A downloadable evidence file is re-checked by `npm run verify:evidence` against the `NavPublished` event in the receipt of the publishing transaction.
+  - Chain errors in the public API are replaced by fixed text.
+- d05524681bc0f29fb7f196cd6a465728050f83b6 → 80d4b272-dfae-4fdf-b404-e15dddf54e15, 13:50 UTC.
+  - A read-only Portfolio reads any wallet's six xStock balances on X Layer mainnet at one block. It values them at the prices of the verified record and offers a downloadable statement and a USTX-weighted basket calculator.
+  - The Verify page checks the code, symbol and decimals of the six pinned xStock contracts on X Layer mainnet.
+  - The chart covers every publication. Older points are recovered from the `NavPublished` events in the receipts of confirmed publications, separately from publication itself.
+
+Validation of the snapshot source:
+
+- In the development repository, the typecheck, clean build and 110 tests pass, lint reports 0 errors, and the relayer typecheck and 16 tests pass.
+- The same tests pass in this public checkout after `npm ci`.
+- After the last deployment:
+  - nine public routes returned 200 and the legacy routes redirected;
+  - the browser check matched and all six xStock contracts matched;
+  - the three experiment edits gave the intended results;
+  - an evidence file for the 13:50:17 UTC record passed `verify:evidence` against its X Layer Testnet transaction;
+  - axe reported no violations.
+
+These are point-in-time observations, not continuous availability or a security audit.

@@ -1,4 +1,4 @@
-import { changedPriceCopy } from "../lib/xstocks/proof-experiment.ts";
+import { changedPriceCopy, compensatedEditCopy, consistentEditCopy, layeredChecks, priceEditCopy } from "../lib/xstocks/proof-experiment.ts";
 import assert from "node:assert/strict";
 import test from "node:test";
 import { evaluateBasket, constituentsWithAddresses, XSTOCKS_CONSTITUENTS } from "../lib/xstocks/basket.ts";
@@ -111,5 +111,30 @@ test("price experiment edits exactly one field, fails real checks, and restores 
   const restored = await verifyComposition(canonical, record);
   assert.equal(restored.hash.state, "pass");
   assert.equal(restored.nav.state, "pass");
+  assert.deepEqual(JSON.parse(canonical), original);
+});
+
+test("the three experiment edits isolate what each layer of the check catches", async () => {
+  const { canonical, record } = await fixture();
+  const states = checks => [checks.fingerprint.state, checks.arithmetic.state, checks.record.state];
+  assert.deepEqual(states(await layeredChecks(canonical, record)), ["pass", "pass", "pass"]);
+  // A careless edit breaks the row arithmetic; the document still claims the recorded NAV.
+  const price = priceEditCopy(canonical);
+  assert.deepEqual(states(await layeredChecks(price.canonical, record)), ["fail", "fail", "pass"]);
+  // Fixing the arithmetic moves the document NAV away from the X Layer record.
+  const consistent = consistentEditCopy(canonical);
+  assert.deepEqual(states(await layeredChecks(consistent.canonical, record)), ["fail", "pass", "fail"]);
+  // Offsetting two prices keeps every number and the NAV; only the recorded fingerprint differs.
+  const compensated = compensatedEditCopy(canonical);
+  assert.ok(compensated);
+  const original = JSON.parse(canonical), edited = JSON.parse(compensated.canonical);
+  assert.equal(edited.navPerShareMicros, original.navPerShareMicros);
+  assert.equal(compensated.changes.length, 2);
+  assert.equal(BigInt(edited.holdings[0].priceMicros) - BigInt(original.holdings[0].priceMicros), 1000000n);
+  assert.ok(BigInt(edited.holdings[1].priceMicros) < BigInt(original.holdings[1].priceMicros));
+  assert.deepEqual(edited.holdings.slice(2), original.holdings.slice(2));
+  assert.deepEqual(states(await layeredChecks(compensated.canonical, record)), ["fail", "pass", "pass"]);
+  // The live verdict rejects every edit.
+  for (const copy of [price, consistent, compensated]) assert.equal((await verifyComposition(copy.canonical, record)).hash.state, "fail");
   assert.deepEqual(JSON.parse(canonical), original);
 });

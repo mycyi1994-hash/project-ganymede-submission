@@ -783,6 +783,19 @@ export class EngineRepository {
     await this.audit("engine.cycle_completed", "engine", result.cycleId, "ENGINE", result);
   }
 
+  /** Confirmed NAV publications whose entity id starts with the prefix, newest first, older than `before` when given. */
+  async confirmedNavSettlements(entityPrefix: string, before: string | null, limit: number): Promise<{ entityId: string; txHash: string }[]> {
+    const pattern = `${entityPrefix.replace(/[\\%_]/g, (character) => `\\${character}`)}%`;
+    const olderThan = before ? " AND entity_id < ?" : "";
+    const { results } = await this.db.prepare(`
+      SELECT entity_id, tx_hash FROM giwa_settlements
+      WHERE entity_type = 'nav' AND action = 'publish_nav' AND status = 'confirmed' AND tx_hash IS NOT NULL
+        AND entity_id LIKE ? ESCAPE '\\'${olderThan}
+      ORDER BY entity_id DESC LIMIT ?
+    `).bind(...(before ? [pattern, before, limit] : [pattern, limit])).all<{ entity_id: string; tx_hash: string }>();
+    return (results ?? []).map((row) => ({ entityId: row.entity_id, txHash: row.tx_hash }));
+  }
+
   async getState(key: string): Promise<{ value: string; updatedAt: string } | null> {
     const row = await this.db.prepare("SELECT value, updated_at FROM engine_state WHERE key = ?").bind(key).first<{ value: string; updated_at: string }>();
     return row ? { value: row.value, updatedAt: row.updated_at } : null;

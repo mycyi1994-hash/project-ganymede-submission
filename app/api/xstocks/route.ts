@@ -4,6 +4,7 @@ import { SettlementClient } from "@/lib/engine/settlement";
 import { constituentsWithAddresses, XSTOCKS_CHAIN, XSTOCKS_PRODUCT } from "@/lib/xstocks/basket";
 import { maxQuoteAgeMinutes, STATE_CONFIRMED, STATE_DOCUMENT_PREFIX, STATE_HISTORY, STATE_LATEST, STATE_REBALANCE, type LatestState, type Publication, type RebalanceEvidence } from "@/lib/xstocks/cycle";
 import { readLatestNav, type OnchainNav } from "@/lib/xstocks/onchain";
+import { downsampleSeries, parseSeries, STATE_SERIES } from "@/lib/xstocks/series";
 
 export const dynamic = "force-dynamic";
 
@@ -12,7 +13,7 @@ export async function GET() {
   try {
     const repo = new EngineRepository(env.DB);
     const settlement = new SettlementClient(env);
-    const [latestRow, historyRow, confirmedRow, rebalanceRow] = await Promise.all([repo.getState(STATE_LATEST), repo.getState(STATE_HISTORY), repo.getState(STATE_CONFIRMED), repo.getState(STATE_REBALANCE)]);
+    const [latestRow, historyRow, confirmedRow, rebalanceRow, seriesRow] = await Promise.all([repo.getState(STATE_LATEST), repo.getState(STATE_HISTORY), repo.getState(STATE_CONFIRMED), repo.getState(STATE_REBALANCE), repo.getState(STATE_SERIES)]);
     const rebalance = rebalanceRow ? JSON.parse(rebalanceRow.value) as RebalanceEvidence : null;
     const latest = latestRow ? JSON.parse(latestRow.value) as LatestState : null;
     const history = historyRow ? JSON.parse(historyRow.value) as Publication[] : [];
@@ -26,10 +27,12 @@ export async function GET() {
       try {
         onchain = await readLatestNav(settlement.rpcUrl, registry);
       } catch (error) {
-        onchainError = error instanceof Error ? error.message : "On-chain read failed";
+        // Upstream messages can name the provider or its URL; keep them in the operator log only.
+        console.error("Ganymede registry read failed", (error instanceof Error ? error.message : String(error)).replace(/https?:\/\/\S+/g, "[rpc]"));
+        onchainError = "The chain read is unavailable.";
       }
     } else {
-      onchainError = "NAV_REGISTRY_ADDRESS is not configured";
+      onchainError = "The NAV registry is not configured.";
     }
     if (onchain?.effectiveAt && !history.some((entry) => entry.holdingsHash === onchain!.holdingsHash)) {
       const documentRow = await repo.getState(`${STATE_DOCUMENT_PREFIX}${onchain.holdingsHash}`);
@@ -55,6 +58,8 @@ export async function GET() {
       },
       latest,
       history,
+      // [seconds, NAV micros] of confirmed publications for the chart; no documents.
+      series: downsampleSeries(parseSeries(seriesRow?.value)),
       // The latest re-fixing: sha256(canonical) is the hash published as rebalance evidence.
       rebalance,
       onchain,

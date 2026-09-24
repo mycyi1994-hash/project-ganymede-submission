@@ -11,6 +11,8 @@ export type MarketSnapshot = {
   history: MarketPublication[];
   onchain: OnchainNav | null;
   onchainError: string | null;
+  /** Confirmed publications as [seconds, NAV micros], possibly thinned; older responses omit it. */
+  series?: [number, string][];
 };
 const integer = (s: unknown): s is string => typeof s === "string" && /^(0|[1-9]\d{0,77})$/.test(s);
 const timestamp = (s: unknown): s is string => typeof s === "string" && Number.isFinite(Date.parse(s));
@@ -26,6 +28,7 @@ export function decodeMarketSnapshot(value: unknown): MarketSnapshot {
   if (data.history.some(entry => !publication(entry)) || (data.latest?.publication && !publication(data.latest.publication))) throw new Error("The publication history is invalid.");
   if (data.latest && (!timestamp(data.latest.evaluatedAt) || typeof data.latest.status !== "string" || !Array.isArray(data.latest.warnings) || !data.latest.warnings.every(item => typeof item === "string") || !Array.isArray(data.latest.blockers) || !data.latest.blockers.every(item => typeof item === "string"))) throw new Error("The latest market evaluation is invalid.");
   if (data.pricing.maxQuoteAgeMinutes !== undefined && (!Number.isFinite(data.pricing.maxQuoteAgeMinutes) || data.pricing.maxQuoteAgeMinutes < 0)) throw new Error("The pricing policy is invalid.");
+  if (data.series !== undefined && (!Array.isArray(data.series) || !data.series.every(point => Array.isArray(point) && point.length === 2 && Number.isSafeInteger(point[0]) && point[0] > 0 && integer(point[1])))) throw new Error("The NAV series is invalid.");
   return data;
 }
 
@@ -45,6 +48,8 @@ export type HistoryPoint = { at: string; micros: string; hash: string };
 /** Publication history, not stock-market returns. No interpolation, fabricated range or unconfirmed points. */
 export function publicationHistory(data: MarketSnapshot): HistoryPoint[] {
   const unique = new Map<string, HistoryPoint>();
+  // The long series has no document hashes; exact recent records below replace its points.
+  for (const [seconds, micros] of data.series ?? []) unique.set(String(seconds), { at: new Date(seconds * 1000).toISOString(), micros, hash: "" });
   for (const entry of data.history) {
     if (entry.status !== "confirmed" || !timestamp(entry.asOf) || !integer(entry.navPerShareMicros) || !hash(entry.holdingsHash)) continue;
     unique.set(String(Math.floor(Date.parse(entry.asOf) / 1000)), { at: entry.asOf, micros: entry.navPerShareMicros, hash: entry.holdingsHash });

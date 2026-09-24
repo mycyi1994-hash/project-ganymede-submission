@@ -2,11 +2,12 @@
 
 import { useCallback, useEffect, useState } from "react";
 import ProofExperiment from "./ProofExperiment";
+import ReportExamples from "./ReportExamples";
 import SiteHeader from "../SiteHeader";
 import { formatUsdMicros as usd } from "@/lib/nav-display";
 import { PROOF_DEPLOYMENT, parseComposition, verifyComposition, type Check } from "@/lib/xstocks/proof";
 import { readLatestNav, type OnchainNav } from "@/lib/xstocks/onchain";
-import { formatRecordTime as time, pricingStatus } from "@/lib/nav-status";
+import { formatRecordTime as time, pricingStatus, publicationStatus } from "@/lib/nav-status";
 import RecordTime from "../RecordTime";
 import { SiteFooter, StockMark } from "../DesignElements";
 
@@ -42,7 +43,7 @@ type Publication = {
 
 type ProofResponse = {
   product: { id: string; ticker: string; name: string; benchmark: string; methodology: string; inceptionNavMicros: string };
-  pricing: { chainIndex: string; name: string; explorerUrl: string; constituents: Array<{ symbol: string; underlying: string; name: string; address: string | null }> };
+  pricing: { maxQuoteAgeMinutes?: number; chainIndex: string; name: string; explorerUrl: string; constituents: Array<{ symbol: string; underlying: string; name: string; address: string | null }> };
   registry: { chain: string; chainName: string; chainId: number; explorerUrl: string; address: string | null };
   latest: {
     evaluatedAt: string;
@@ -71,8 +72,8 @@ function shortHash(hash: string | null | undefined): string {
 }
 
 const STATUS_LABEL: Record<string, string> = {
-  priced: "LIVE PRICED",
-  awaiting_prices: "AWAITING LIVE PRICES",
+  priced: "QUOTES ACCEPTED",
+  awaiting_prices: "AWAITING ELIGIBLE QUOTES",
   awaiting_configuration: "AWAITING CONFIGURATION",
 };
 
@@ -162,6 +163,7 @@ export default function ProofClient() {
   const composition = publishedComposition;
   const record = displayedRecord?.effectiveAt ? displayedRecord : null;
   const pricing = pricingStatus(data?.latest ?? null, now, Boolean(error));
+  const publication = publicationStatus(record, data?.latest ?? null, now, Boolean(error || checks?.rpcError || data?.onchainError));
   const checkList = [
     { label: "Direct chain read", check: checks?.chain, description: "Read from X Layer in your browser." },
     { label: "Composition hash", check: checks?.hash, description: "The document matches the hash on chain." },
@@ -197,7 +199,7 @@ export default function ProofClient() {
           <p className="proof-kicker">GMD USTX · NAV evidence</p>
           <h1 id="proof-title">The value.<br />And the evidence.</h1>
           <p className="proof-lede">Follow one published model share from its six holding values to the X Layer Testnet record. Your browser checks whether the calculation, document and record agree.</p>
-          <div className="proof-jump-links"><a href="#proof-holdings">1. Calculation</a><a href="#proof-record">2. Chain record</a><a href="#proof-verify">3. Compare</a></div>
+          <div className="proof-jump-links"><a href="#proof-holdings">Calculation</a><a href="#proof-record">Chain record</a><a href="#proof-verify">Verification</a></div>
         </div>
         <aside className="proof-record" aria-label="Last on-chain NAV">
           <span>Last published NAV / USD</span>
@@ -207,26 +209,9 @@ export default function ProofClient() {
         </aside>
       </section>
 
-      <section className="proof-pricing-status" aria-label="Latest pricing status"><div><span>LATEST PRICING</span><strong className={"pricing-label pricing-" + pricing.tone}>{data || error ? pricing.label : "Loading pricing status…"}</strong><p>{data || error ? pricing.detail : "Retrieving the latest pricing attempt."}</p></div><div className="pricing-last-attempt"><span>LAST PRICING ATTEMPT</span><RecordTime value={data?.latest?.evaluatedAt} /></div></section>
-
-      <section className="proof-section proof-basket-section" aria-labelledby="proof-holdings">
-        <header><div><span className="proof-result-eyebrow">{publishedComposition ? "PUBLISHED COMPOSITION" : "PUBLISHED COMPOSITION UNAVAILABLE"}</span><h2 id="proof-holdings">1. Calculate one model share.</h2></div><p>{composition ? `Priced ${time(composition.asOf)}` : error ? "Composition unavailable" : data ? "No document matched to this record" : "Waiting for composition data"}</p></header>
-        {composition && !publishedComposition && <p className="proof-footnote">This composition has not been matched to the on-chain record shown above.</p>}
-        <div className="proof-basket-layout"><aside className="proof-basket-method"><span>THE BASKET AT A GLANCE</span><strong>{composition ? String(composition.holdings.length).padStart(2, "0") : "—"}</strong><p>US tech xStocks</p><dl><div><dt>Allocation</dt><dd>Equal weight at fixing</dd></div><div><dt>Review</dt><dd>Quarterly</dd></div><div><dt>Pricing source</dt><dd>OKX OnchainOS · X Layer</dd></div></dl><p className="basket-method-note">Fixed token units per model share. Their value changes with market prices.</p></aside>
-        <div className="proof-table-wrap proof-simple-wrap"><table className="proof-table proof-simple-table"><thead><tr><th scope="col">Token</th><th scope="col">Weight at fixing</th><th scope="col">Value / share</th></tr></thead><tbody>
-          {(composition?.holdings ?? []).map((holding) => <tr key={holding.symbol}><th scope="row"><div className="proof-stock"><StockMark symbol={holding.symbol} /><span><b>{holding.symbol}</b><small>{data?.pricing.constituents.find((item) => item.symbol === holding.symbol)?.name}</small></span></div></th><td><span>{(holding.weightBps / 100).toFixed(2)}%</span><span className="proof-weight-track" aria-hidden="true"><i style={{ width: `${Math.max(0, Math.min(100, holding.weightBps / 100))}%` }} /></span></td><td>{usd(holding.valueMicros, 4)}</td></tr>)}
-        </tbody></table>{!composition && <p className="proof-empty">{data ? "No published composition matched this chain record. Check again or inspect the source records below." : error ? "Composition unavailable." : "Loading composition…"}</p>}</div>
-        </div>
-        <div className="nav-calculation"><div><span>For each holding</span><strong>Token units × token price</strong><p>Each holding is rounded down to USD micros before summing. Displayed amounts are rounded for reading; checks use full precision.</p></div><div><span>Sum of the six holding values</span><strong>{composition ? usd(composition.holdings.reduce((sum, item) => sum + BigInt(item.valueMicros), 0n).toString(), 4) : "—"}</strong><p>USD per model share in the published document</p></div></div>
-        <p className="proof-footnote">Weights are set at fixing and can drift with prices. {composition ? `Basket fixed ${time(composition.basketFixedAt)}.` : ""}</p>
-        <details className="detail-disclosure"><summary>Token addresses & pricing details <span aria-hidden="true">+</span></summary><div className="disclosure-content"><div className="proof-table-wrap"><table className="proof-table"><thead><tr><th scope="col">Token / address</th><th scope="col">Units / share</th><th scope="col">Price</th><th scope="col">Priced at</th></tr></thead><tbody>{(composition?.holdings ?? []).map((holding) => <tr key={holding.symbol}><th scope="row">{holding.symbol}<small><a href={`${data?.pricing.explorerUrl}/address/${holding.address}`} target="_blank" rel="noreferrer">{shortHash(holding.address)} ↗</a></small></th><td>{units(holding.unitsWad)}</td><td>{usd(holding.priceMicros, 4)}</td><td>{time(holding.priceTime)}</td></tr>)}</tbody></table></div>{data?.latest?.blockers && data.latest.blockers.length > 0 && <ul className="proof-blockers" aria-label="Why the latest NAV was not published">{data.latest.blockers.map((blocker) => <li key={blocker}>Not published: {blocker}</li>)}</ul>}<p className="proof-footnote">Latest pricing: {status === "loading" ? "LOADING DATA" : status === "unavailable" ? "DATA UNAVAILABLE" : STATUS_LABEL[status]} · {time(data?.latest?.evaluatedAt)}. Prices: OKX OnchainOS DEX, X Layer (chain {data?.pricing.chainIndex ?? "196"}).</p></div></details>
-      </section>
-
-      <section className="proof-section proof-chain-summary" aria-labelledby="proof-record"><header><h2 id="proof-record">2. Read the chain record.</h2><p>{checks?.record ? "Fetched directly by your browser from X Layer Testnet." : "Server snapshot only until the direct browser read succeeds."}</p></header><dl><div><dt>Recorded NAV / USD</dt><dd>{record ? usd(record.navPerShareMicros, 4) : "—"}</dd></div><div><dt>Composition fingerprint</dt><dd><code>{record?.holdingsHash ?? "Awaiting a record"}</code></dd></div><div><dt>Effective at</dt><dd><RecordTime value={record?.effectiveAt} /></dd></div></dl><p>The fingerprint identifies the exact published document. A matching fingerprint does not establish custody or backing.</p></section>
-
       <section className="proof-section proof-result" aria-label="Evidence checks">
         <div className={`proof-result-heading proof-result-${summaryState}`} aria-live="polite" aria-atomic="true">
-          <div><span className="proof-result-eyebrow">3. COMPARE THE EVIDENCE / IN YOUR BROWSER</span><h2 id="proof-verify">{summaryText}</h2></div>
+          <div><span className="proof-result-eyebrow">VERIFICATION / IN YOUR BROWSER</span><h2 id="proof-verify">{summaryText}</h2></div>
           <span className="proof-count">{summaryState === "pass" || summaryState === "fail" ? `${passed} / 3 CHECKS PASSED` : summaryState === "unavailable" ? "DATA UNAVAILABLE" : summaryState === "loading" ? "LOADING DATA" : summaryState === "waiting" ? "NOT YET VERIFIED" : "CHECKING…"}</span>
         </div>
         {error && <p className="proof-refresh-error" role="alert">{data ? "The latest refresh failed. The record shown is from the last successful load." : "NAV evidence could not be loaded."} <button type="button" onClick={() => void load()}>TRY AGAIN</button></p>}
@@ -244,6 +229,27 @@ export default function ProofClient() {
       </section>
 
       {!error && experiment ? <ProofExperiment key={`${experiment.record.holdingsHash}:${experiment.record.effectiveAt}`} canonical={experiment.canonical} record={experiment.record} /> : <section className="proof-section proof-experiment-unavailable"><h2>Try changing one price.</h2><p>The local experiment becomes available after the original document passes all three checks. Resolve any missing data or connection problem above first.</p></section>}
+
+      <section className="proof-pricing-status" aria-label="Latest pricing status"><div><span>LATEST PRICING</span><strong className={"pricing-label pricing-" + pricing.tone}>{data || error ? pricing.label : "Loading pricing status…"}</strong><p>{data || error ? pricing.detail : "Retrieving the latest pricing attempt."}</p></div><div className="pricing-last-attempt"><span>LAST PRICING ATTEMPT</span><RecordTime value={data?.latest?.evaluatedAt} /></div></section>
+
+      <section className="proof-pricing-status" aria-label="Publication status"><div><span>Publication</span><strong className={"pricing-label pricing-" + publication.tone}>{data || error ? publication.label : "Loading publication status…"}</strong><p>{publication.detail}</p></div><div className="pricing-last-attempt"><span>Quote eligibility policy</span><p>{data?.pricing.maxQuoteAgeMinutes ? `Quotes up to ${data.pricing.maxQuoteAgeMinutes} minutes old may be accepted at evaluation. This is not a guarantee of live market prices.` : "Quote-age policy unavailable in this response."}</p></div></section>
+
+      <section className="proof-section proof-basket-section" aria-labelledby="proof-holdings">
+        <header><div><span className="proof-result-eyebrow">{publishedComposition ? "PUBLISHED COMPOSITION" : "PUBLISHED COMPOSITION UNAVAILABLE"}</span><h2 id="proof-holdings">Calculate one model share.</h2></div><p>{composition ? `Priced ${time(composition.asOf)}` : error ? "Composition unavailable" : data ? "No document matched to this record" : "Waiting for composition data"}</p></header>
+        {composition && !publishedComposition && <p className="proof-footnote">This composition has not been matched to the on-chain record shown above.</p>}
+        <div className="proof-basket-layout"><aside className="proof-basket-method"><span>THE BASKET AT A GLANCE</span><strong>{composition ? String(composition.holdings.length).padStart(2, "0") : "—"}</strong><p>US tech xStocks</p><dl><div><dt>Allocation</dt><dd>Equal weight at fixing</dd></div><div><dt>Review</dt><dd>Quarterly</dd></div><div><dt>Pricing source</dt><dd>OKX OnchainOS · X Layer</dd></div></dl><p className="basket-method-note">Fixed token units per model share. Their value changes with market prices.</p></aside>
+        <div className="proof-table-wrap proof-simple-wrap"><table className="proof-table proof-simple-table"><thead><tr><th scope="col">Token</th><th scope="col">Weight at fixing</th><th scope="col">Value / share</th></tr></thead><tbody>
+          {(composition?.holdings ?? []).map((holding) => <tr key={holding.symbol}><th scope="row"><div className="proof-stock"><StockMark symbol={holding.symbol} /><span><b>{holding.symbol}</b><small>{data?.pricing.constituents.find((item) => item.symbol === holding.symbol)?.name}</small></span></div></th><td><span>{(holding.weightBps / 100).toFixed(2)}%</span><span className="proof-weight-track" aria-hidden="true"><i style={{ width: `${Math.max(0, Math.min(100, holding.weightBps / 100))}%` }} /></span></td><td>{usd(holding.valueMicros, 4)}</td></tr>)}
+        </tbody></table>{!composition && <p className="proof-empty">{data ? "No published composition matched this chain record. Check again or inspect the source records below." : error ? "Composition unavailable." : "Loading composition…"}</p>}</div>
+        </div>
+        <div className="nav-calculation"><div><span>For each holding</span><strong>Token units × token price</strong><p>Each holding is rounded down to USD micros before summing. Displayed amounts are rounded for reading; checks use full precision.</p></div><div><span>Sum of the six holding values</span><strong>{composition ? usd(composition.holdings.reduce((sum, item) => sum + BigInt(item.valueMicros), 0n).toString(), 4) : "—"}</strong><p>USD per model share in the published document</p></div></div>
+        <p className="proof-footnote">Weights are set at fixing and can drift with prices. {composition ? `Basket fixed ${time(composition.basketFixedAt)}.` : ""}</p>
+        <details className="detail-disclosure"><summary>Token addresses & pricing details <span aria-hidden="true">+</span></summary><div className="disclosure-content"><div className="proof-table-wrap"><table className="proof-table"><thead><tr><th scope="col">Token / address</th><th scope="col">Units / share</th><th scope="col">Price</th><th scope="col">Priced at</th></tr></thead><tbody>{(composition?.holdings ?? []).map((holding) => <tr key={holding.symbol}><th scope="row">{holding.symbol}<small><a href={`${data?.pricing.explorerUrl}/address/${holding.address}`} target="_blank" rel="noreferrer">{shortHash(holding.address)} ↗</a></small></th><td>{units(holding.unitsWad)}</td><td>{usd(holding.priceMicros, 4)}</td><td>{time(holding.priceTime)}</td></tr>)}</tbody></table></div>{data?.latest?.blockers && data.latest.blockers.length > 0 && <ul className="proof-blockers" aria-label="Why the latest NAV was not published">{data.latest.blockers.map((blocker) => <li key={blocker}>Not published: {blocker}</li>)}</ul>}<p className="proof-footnote">Latest pricing: {status === "loading" ? "LOADING DATA" : status === "unavailable" ? "DATA UNAVAILABLE" : STATUS_LABEL[status]} · {time(data?.latest?.evaluatedAt)}. Prices: OKX OnchainOS DEX, X Layer (chain {data?.pricing.chainIndex ?? "196"}).</p></div></details>
+      </section>
+
+      <section className="proof-section proof-chain-summary" aria-labelledby="proof-record"><header><h2 id="proof-record">Read the chain record.</h2><p>{checks?.record ? "Fetched directly by your browser from X Layer Testnet." : "Server snapshot only until the direct browser read succeeds."}</p></header><dl><div><dt>Recorded NAV / USD</dt><dd>{record ? usd(record.navPerShareMicros, 4) : "—"}</dd></div><div><dt>Composition fingerprint</dt><dd><code>{record?.holdingsHash ?? "Awaiting a record"}</code></dd></div><div><dt>Effective at</dt><dd><RecordTime value={record?.effectiveAt} /></dd></div></dl><p>The fingerprint identifies the exact published document. A matching fingerprint does not establish custody or backing.</p></section>
+
+      <ReportExamples />
 
       <section id="proof-source" className="proof-section proof-supporting" aria-label="Supporting evidence">
         <details className="detail-disclosure"><summary><span>On-chain publications<small>{data ? `${data.history.length} recent records` : error ? "Publications unavailable" : "Loading publications…"}</small></span><span aria-hidden="true">+</span></summary><div className="disclosure-content">

@@ -90,7 +90,7 @@ async function handleSettlement(request: Request, env: Env): Promise<Response> {
 
   // Fast path: already settled, no need to wake the submitter.
   const existing = await readSettlement(env.DB, key);
-  if (existing && existing.status !== "failed") {
+  if (existing?.status === "confirmed") {
     return Response.json(toResponse(existing, env), { status: 200 });
   }
 

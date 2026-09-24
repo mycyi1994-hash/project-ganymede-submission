@@ -1,6 +1,6 @@
 # Build provenance
 
-Production source revision: `28e0ce2ddfabaa87ebdc73007a37d84460bdfa46`.
+Production source revision: `41de09df73150a0177d8a209abdd1926d0fc9977`.
 
 This is a source snapshot, not a claim that the entire project was newly built for this event. The original repository remains private. The entries below were exported from its Git history; reviewers can inspect current implementations and tests, and request original history access from the team if needed. No old secrets, local environment files or full private Git history are published.
 
@@ -33,3 +33,21 @@ e5d1d8f5213d89addb6ed43b97568c491d7c6015 2026-09-24T03:09:20+09:00 Redesign Gany
 ```
 
 Publication adjustments: AGENTS.md is review-specific; .openai/hosting.json uses a placeholder project ID; relayer/wrangler.jsonc uses a separate example Worker name and placeholder D1 ID; README and submission notes reference this snapshot. No app, lib, contracts, tests or lockfile changes were made for publication.
+
+
+## Review journey and publication correction
+
+Source 41de09d adds the report-first navigation and Overview verification, two
+explicitly synthetic report profiles, publication/quote-policy status, and exact
+registry evidence for stale publication retries. It also serializes submissions
+and reconciles known transaction receipts. The public repository now contains
+an inspectable diff from its previous snapshot; no private history is required
+to inspect these changes.
+
+Validation: application build and 51 tests; relayer typecheck and 5 lifecycle
+tests. Production verification passes 3/3; a local $1 edit fails both checks and
+restoration passes. Ten public page routes returned 200. These are point-in-time
+observations, not continuous availability or a security audit.
+
+Application deployment: 91eba3cc-00d7-4d2a-8050-4c9daa01e827.
+Relayer deployment: a9cf2c42-f4d8-48f2-8a3c-d167a03437f5.

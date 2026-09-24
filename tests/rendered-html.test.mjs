@@ -20,7 +20,7 @@ test("server-renders the Ganymede landing page", async () => {
   const html = await response.text();
   assert.match(html, /Ganymede/);
   assert.match(html, /Digital-asset strategies/);
-  assert.match(html, /Inspect NAV/);
+  assert.match(html, /Try verification/);
   assert.match(html, /An index you/);
   assert.match(html, /can inspect/);
   assert.match(html, /href="\/proof"/);
@@ -71,8 +71,8 @@ test("unknown ETF slugs return not found", async () => {
 
 test("all public screens keep the same primary links and select the requested section before hydration", async () => {
   const links = [
-    ["/", "Overview"], ["/?app=select", "Funds"],
-    ["/?app=portfolio", "My portfolio"], ["/proof", "Proof of NAV"],
+    ["/", "Overview"], ["/?app=select", "Basket"],
+    ["/proof", "Verify NAV"], ["/?app=portfolio", "Paper lab"],
   ];
   for (const [path, active, heading] of [
     ["/", "/", "An index you"],

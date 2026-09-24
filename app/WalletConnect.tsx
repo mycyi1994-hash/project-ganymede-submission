@@ -128,7 +128,7 @@ export default function WalletConnect({ compact = false }: { compact?: boolean }
         disabled={status === "Connecting…"}
       >
         <span className="wallet-network-dot" />
-        {address && onCorrectChain ? shortAddress(address) : address ? "Switch network" : status}
+        {address && onCorrectChain ? shortAddress(address) : address ? "Switch network" : compact && status === "Connect wallet" ? "Optional wallet" : status}
       </button>
       {!compact && <span id={statusId} className="wallet-chain-label" aria-live="polite">OPTIONAL TEST WALLET · {DEFAULT_SETTLEMENT_CHAIN.label} {DEFAULT_SETTLEMENT_CHAIN.chainId}</span>}
       {compact && <span id={statusId} className="sr-only" aria-live="polite">Optional {DEFAULT_SETTLEMENT_CHAIN.name} test wallet</span>}

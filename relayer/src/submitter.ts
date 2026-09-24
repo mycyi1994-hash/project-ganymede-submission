@@ -19,7 +19,8 @@ import {
   type Hex,
 } from "viem";
 import { privateKeyToAccount } from "viem/accounts";
-import { classifyRevert, planCall, RequestError, type SettlementRequest } from "./contracts";
+import { classifyRevert, planCall, RequestError, NAV_REGISTRY_ABI, type SettlementRequest } from "./contracts";
+import { navPayloadHash, SubmissionQueue } from "./publication-evidence";
 import { idempotencyKey } from "./ids";
 import { readSettlement, writeSettlement, type StoredSettlement } from "./store";
 import type { Env } from "./env";
@@ -29,13 +30,14 @@ const RECEIPT_TIMEOUT_MS = 20_000;
 
 export class Submitter implements DurableObject {
   private nextNonce: number | null = null;
+  private queue = new SubmissionQueue();
 
   constructor(private readonly state: DurableObjectState, private readonly env: Env) {}
 
   async fetch(request: Request): Promise<Response> {
     const settlement = (await request.json()) as SettlementRequest;
     try {
-      const result = await this.submit(settlement);
+      const result = await this.queue.run(() => this.submit(settlement));
       return Response.json(result, { status: 200 });
     } catch (error) {
       if (error instanceof RequestError) {
@@ -88,11 +90,21 @@ export class Submitter implements DurableObject {
 
     // Replay guard #1: our own record. Cheap, and covers the common retry.
     const existing = await readSettlement(this.env.DB, key);
-    if (existing && existing.status !== "failed") return existing;
+    if (existing?.status === "confirmed") return existing;
 
     const plan = planCall(request);
     const address = this.contractAddress(plan.target);
     const { account, publicClient, walletClient } = this.clients();
+
+    // A timeout is not permission to broadcast again. Reconcile the known hash.
+    if (existing?.txHash && existing.status !== "failed") {
+      let receipt;
+      try { receipt = await publicClient.getTransactionReceipt({ hash: existing.txHash as Hex }); }
+      catch { return existing; }
+      const reconciled: StoredSettlement = { ...existing, status: receipt.status === "success" ? "confirmed" : "failed", blockNumber: receipt.blockNumber.toString(), error: receipt.status === "success" ? null : "transaction reverted on chain", updatedAt: new Date().toISOString() };
+      await writeSettlement(this.env.DB, reconciled);
+      return reconciled;
+    }
 
     // Replay guard #2: simulate first. This is where the contract's own guards
     // (SettlementAlreadyProcessed, StalePublication, ...) surface without
@@ -107,7 +119,12 @@ export class Submitter implements DurableObject {
         args: plan.args as never,
       });
     } catch (error) {
-      const disposition = classifyRevert(revertName(error));
+      const name = revertName(error);
+      let disposition = classifyRevert(name);
+      if (name === "StalePublication" && plan.functionName === "publishNav") {
+        const published = await publicClient.readContract({ address, abi: NAV_REGISTRY_ABI, functionName: "publishedPayload", args: [navPayloadHash(plan.args)] });
+        if (published) disposition = { kind: "settled", reason: "exact NAV payload independently confirmed in registry history" };
+      }
       if (disposition?.kind === "settled") {
         const record: StoredSettlement = {
           key,
@@ -149,6 +166,8 @@ export class Submitter implements DurableObject {
       throw error;
     }
 
+    // Persist immediately after broadcast, before waiting for a receipt.
+    await writeSettlement(this.env.DB, { key, status: "submitted", txHash, blockNumber: null, error: null, note: null, updatedAt: new Date().toISOString() });
     let status: StoredSettlement["status"] = "submitted";
     let blockNumber: string | null = null;
     try {

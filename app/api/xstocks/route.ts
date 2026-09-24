@@ -2,7 +2,7 @@ import { engineEnv, jsonError, noStoreJson } from "@/lib/engine/api-helpers";
 import { EngineRepository } from "@/lib/engine/repository";
 import { SettlementClient } from "@/lib/engine/settlement";
 import { constituentsWithAddresses, XSTOCKS_CHAIN, XSTOCKS_PRODUCT } from "@/lib/xstocks/basket";
-import { STATE_CONFIRMED, STATE_DOCUMENT_PREFIX, STATE_HISTORY, STATE_LATEST, type LatestState, type Publication } from "@/lib/xstocks/cycle";
+import { maxQuoteAgeMinutes, STATE_CONFIRMED, STATE_DOCUMENT_PREFIX, STATE_HISTORY, STATE_LATEST, type LatestState, type Publication } from "@/lib/xstocks/cycle";
 import { readLatestNav, type OnchainNav } from "@/lib/xstocks/onchain";
 
 export const dynamic = "force-dynamic";
@@ -44,7 +44,7 @@ export async function GET() {
         methodology: XSTOCKS_PRODUCT.methodology,
         inceptionNavMicros: XSTOCKS_PRODUCT.inceptionNavMicros.toString(),
       },
-      pricing: { ...XSTOCKS_CHAIN, constituents: constituentsWithAddresses(env.XSTOCKS_ADDRESSES) },
+      pricing: { ...XSTOCKS_CHAIN, maxQuoteAgeMinutes: maxQuoteAgeMinutes(env), constituents: constituentsWithAddresses(env.XSTOCKS_ADDRESSES) },
       registry: {
         chain: settlement.chain.key,
         chainName: settlement.chain.name,

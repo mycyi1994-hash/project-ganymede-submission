@@ -67,3 +67,14 @@ This public review snapshot corresponds to production source commit `28e0ce2ddfa
 - Local failure experiment: `lib/xstocks/proof-experiment.ts`
 
 AI-assisted development was used. The submitting team remains responsible for explaining, reviewing and maintaining the work. No customer adoption or independent audit is claimed.
+
+
+### Latest review improvements
+
+Overview now includes live browser verification and a local price-edit experiment.
+Verify NAV places results first and exposes the configured quote eligibility
+window separately from publication freshness. Two offline example reports reuse
+the arithmetic verifier without claiming on-chain authentication. See
+[report schema](docs/REPORT_SCHEMA.md) and [publication retry review](docs/PUBLICATION_RETRY_REVIEW.md).
+
+Relayer checks: run `npm ci`, `npm run typecheck`, and `npm test` in `relayer/`.

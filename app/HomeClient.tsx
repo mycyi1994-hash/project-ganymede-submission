@@ -4,6 +4,7 @@ import Link from "next/link";
 import { KeyboardEvent as ReactKeyboardEvent, useCallback, useEffect, useId, useMemo, useRef, useState } from "react";
 import BasketOverview from "./BasketOverview";
 import NavPreview from "./NavPreview";
+import EvidencePreview from "./EvidencePreview";
 import PortfolioView from "./PortfolioView";
 import DataNotice from "./DataNotice";
 import type { PortfolioData, PortfolioPosition } from "@/lib/portfolio-display";
@@ -497,12 +498,13 @@ export default function HomeClient({ initialView }: { initialView: View | "overv
       <div className="launch-layout">
       <section className="launch-copy etf-launch-copy">
         <h1 id="hero-title">An index you<br />can inspect.</h1>
-        <p className="launch-description">For basket operators sharing NAV evidence and analysts checking it. Six US tech xStocks, with the calculation and published record open to inspection.</p>
-        <div className="launch-actions"><Link className="button is-primary" href="/?app=select" prefetch={false}>Explore USTX <Arrow /></Link><a className="button" href="/proof">Inspect NAV</a></div>
+        <p className="launch-description">A reported NAV should come with the numbers behind it. Recalculate a six-stock basket and compare its report with the record on X Layer.</p>
+        <div className="launch-actions"><a className="button is-primary" href="#try-verification">Try verification <Arrow /></a><Link className="button" href="/?app=select" prefetch={false}>Explore the basket</Link></div>
         <div className="launch-status-line"><span className="badge badge-blue">X Layer Testnet</span><span className="badge badge-sand">Model basket</span></div>
       </section>
       <div className="launch-observatory"><div className="hero-sculpture"><img src="/images/clearform-stack.webp" width="1024" height="1024" fetchPriority="high" alt="Six translucent layers representing the Apple, Microsoft, NVIDIA, Amazon, Meta and Tesla xStocks in the basket" /></div><NavPreview /></div>
       </div>
+      <EvidencePreview />
       <section className="home-basket" aria-labelledby="home-basket-title"><header><h2 id="home-basket-title">Inside GMD USTX</h2><span>Equal weight at fixing</span></header><ul className="launch-constituents" aria-label="Basket constituents">{XSTOCKS_CONSTITUENTS.map((item) => <li key={item.symbol}><StockMark symbol={item.symbol} /><div><b>{item.symbol}</b><span>{item.name === "Meta Platforms" ? "Meta" : item.name}</span></div></li>)}</ul><a className="evidence-callout" href="/proof"><span className="evidence-symbol" aria-hidden="true">≋</span><span><strong>See how NAV is calculated</strong><small>Inspect the basket, its calculation and the record on X Layer.</small></span><Arrow /></a></section>
       <section className="launch-evidence-path" aria-label="How to inspect the evidence">
         <div><span>01 · The basket</span><h2>Know what’s inside.</h2><p>Six disclosed holdings. See the units and prices behind each model share.</p></div>

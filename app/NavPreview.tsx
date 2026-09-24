@@ -3,14 +3,14 @@
 import { useEffect, useState } from "react";
 import { Arrow } from "./DesignElements";
 import { formatUsdMicros } from "@/lib/nav-display";
-import { pricingStatus, type PricingSnapshot } from "@/lib/nav-status";
+import { pricingStatus, publicationStatus, type PricingSnapshot } from "@/lib/nav-status";
 import RecordTime from "./RecordTime";
 
 type Snapshot = {
   onchain: { navPerShareMicros: string; effectiveAt: string | null } | null;
   registry: { chainName: string };
   onchainError: string | null;
-  latest: PricingSnapshot;
+  latest: (NonNullable<PricingSnapshot> & { publication?: { status: string } | null }) | null;
 };
 
 export default function NavPreview({ compact = false }: { compact?: boolean }) {
@@ -43,14 +43,16 @@ export default function NavPreview({ compact = false }: { compact?: boolean }) {
   const nav = record ? formatUsdMicros(record.navPerShareMicros, 4) : "—";
   const pricing = pricingStatus(snapshot?.latest ?? null, now, unavailable);
 
+  const publication = publicationStatus(record, snapshot?.latest ?? null, now, unavailable || Boolean(snapshot?.onchainError));
+
   return (
     <section className={`launch-proof-panel${compact ? " is-compact" : ""}`} aria-label="GMD USTX published value">
       <div className="preview-reading" aria-live="polite" aria-atomic="true">
         <div><span>Last published NAV <small>/ USD</small></span><strong>{nav}</strong></div>
         <span className={`preview-state${record && !unavailable && !snapshot?.onchainError ? " is-published" : ""}`}><i />{status}</span>
       </div>
-      <dl className="preview-facts"><div><dt>Effective</dt><dd><RecordTime value={record?.effectiveAt} /></dd></div><div><dt>Latest pricing</dt><dd className={`pricing-label pricing-${pricing.tone}`}>{snapshot || unavailable ? pricing.label : "Loading…"}</dd></div></dl>
-      <div className="preview-footer"><span>One model share · {snapshot?.registry.chainName ?? "X Layer Testnet"}</span><a href="/proof">View record <Arrow diagonal /></a></div>
+      <dl className="preview-facts"><div><dt>Effective</dt><dd><RecordTime value={record?.effectiveAt} /></dd></div><div><dt>Pricing cycle</dt><dd className={`pricing-label pricing-${pricing.tone}`}>{snapshot || unavailable ? pricing.label : "Loading…"}</dd></div><div><dt>Publication</dt><dd className={`pricing-label pricing-${publication.tone}`}>{snapshot || unavailable ? publication.label : "Loading…"}</dd></div></dl>
+      <div className="preview-footer"><span>One model share · {snapshot?.registry.chainName ?? "X Layer Testnet"}</span><a href="/proof">Verify record <Arrow diagonal /></a></div>
     </section>
   );
 }

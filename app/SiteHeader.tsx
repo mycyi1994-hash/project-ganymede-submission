@@ -9,9 +9,9 @@ type LocalView = "overview" | "select" | "portfolio";
 type Section = LocalView | "proof";
 const items: Array<{ id: Section; href: string; label: string }> = [
   { id: "overview", href: "/", label: "Overview" },
-  { id: "select", href: "/?app=select", label: "Funds" },
-  { id: "portfolio", href: "/?app=portfolio", label: "My portfolio" },
-  { id: "proof", href: "/proof", label: "Proof of NAV" },
+  { id: "select", href: "/?app=select", label: "Basket" },
+  { id: "proof", href: "/proof", label: "Verify NAV" },
+  { id: "portfolio", href: "/?app=portfolio", label: "Paper lab" },
 ];
 
 export default function SiteHeader({ current, onNavigate }: {

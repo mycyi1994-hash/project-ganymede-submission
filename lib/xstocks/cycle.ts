@@ -51,7 +51,7 @@ export type LatestState = {
 
 export type XStocksCycleResult = { navsPublished: number; settlementsQueued: number; warnings: string[] };
 
-function maxQuoteAgeMinutes(env: EngineEnv): number {
+export function maxQuoteAgeMinutes(env: EngineEnv): number {
   const parsed = Number(env.XSTOCKS_MAX_QUOTE_AGE_MINUTES);
   return Number.isFinite(parsed) && parsed > 0 ? parsed : DEFAULT_MAX_QUOTE_AGE_MINUTES;
 }

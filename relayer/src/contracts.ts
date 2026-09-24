@@ -77,6 +77,7 @@ export const FUND_SHARE_ABI = [
 ] as const;
 
 export const NAV_REGISTRY_ABI = [
+  { type: "function", name: "publishedPayload", stateMutability: "view", inputs: [{ type: "bytes32" }], outputs: [{ type: "bool" }] },
   {
     type: "function",
     name: "publishNav",
@@ -252,7 +253,7 @@ export function classifyRevert(errorName: string | undefined): RevertDisposition
     case "DuplicatePayload":
       return { kind: "settled", reason: "identical payload already published" };
     case "StalePublication":
-      return { kind: "settled", reason: "a newer snapshot is already published for this product" };
+      return { kind: "client", status: 409, code: "stale_publication", reason: "An equal or newer snapshot exists; this does not prove the requested payload was published." };
     case "TransferRestricted":
       return {
         kind: "client",

@@ -5479,3 +5479,23 @@ button:active:not(:disabled),.button:active {
 .proof-document-links { width: min(calc(100% - var(--gutter)*2),var(--content)); margin-inline: auto; }
 .documents-panel .document-status { color: var(--ink); text-decoration: underline; white-space: nowrap; }
 @media (max-width: 600px) { .product-guide { margin-block: 35px 55px; } .product-guide header > p { font-size: 18px; } }
+
+/* Report-first refinement: a single working example, with supporting copy beside it. */
+.home-verification { max-width: 1280px; margin: 64px auto; padding: 40px; background: #fff; border: 1px solid #dde3e9; border-radius: 24px; scroll-margin-top: 100px; }
+.home-verification-intro { display: flex; align-items: end; justify-content: space-between; gap: 32px; margin-bottom: 28px; }
+.home-verification-intro h2 { font-size: clamp(28px, 3.2vw, 44px); line-height: 1.1; margin: 12px 0; letter-spacing: -.035em; }
+.home-verification-intro p { max-width: 55ch; color: #566274; }
+.home-verification .proof-section { margin: 0; padding: 24px 0 0; border-radius: 0; border-width: 1px 0 0; box-shadow: none; }
+.verification-placeholder { min-height: 140px; padding: 24px 0; }
+.example-selector { display: flex; align-items: center; gap: 16px; margin: 24px 0; }
+.example-selector select { font: inherit; color: #20262f; padding: 12px 16px; border: 1px solid #dde3e9; border-radius: 10px; background: #fff; max-width: 100%; }
+.report-examples [role="status"] { min-height: 80px; padding-top: 16px; }
+.proof-pricing-status > div { min-width: 0; }
+@media (max-width: 700px) {
+  .home-verification { margin: 32px 16px; padding: 24px 18px; }
+  .home-verification-intro { display: block; }
+  .home-verification-intro .text-link { display: inline-block; margin-top: 12px; }
+  .example-selector { align-items: stretch; flex-direction: column; gap: 8px; }
+}
+
+.site-utilities .wallet-connect>button:not(.is-connected) { background: transparent; color: #566274; border: 1px solid #dde3e9; box-shadow: none; }

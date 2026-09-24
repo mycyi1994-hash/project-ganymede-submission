@@ -14,17 +14,24 @@ const integer = (value: unknown): value is string => typeof value === "string" &
 const date = (value: unknown): value is string => typeof value === "string" && Number.isFinite(Date.parse(value));
 const object = (value: unknown): value is Record<string, unknown> => !!value && typeof value === "object" && !Array.isArray(value);
 
-/** Validate before rendering or doing arithmetic on a supplied document. */
-export function parseComposition(canonical: string): Composition {
+export type ReportProfile = { productId: string; pricingChainIndex: string; symbols: readonly string[] };
+const USTX_PROFILE: ReportProfile = { productId: XSTOCKS_PRODUCT.id, pricingChainIndex: "196", symbols: XSTOCKS_CONSTITUENTS.map(item => item.symbol) };
+
+/** The live path always uses the pinned USTX profile. */
+export function parseComposition(canonical: string): Composition { return parseReport(canonical, USTX_PROFILE); }
+
+/** Explicit profile for offline examples; it never changes the live deployment. */
+export function parseReport(canonical: string, profile: ReportProfile): Composition {
+  if (canonical.length > 100_000) throw new Error("Report exceeds the supported size.");
   const doc: unknown = JSON.parse(canonical);
-  if (!object(doc) || doc.productId !== XSTOCKS_PRODUCT.id || doc.pricingChainIndex !== "196"
+  if (!object(doc) || doc.productId !== profile.productId || doc.pricingChainIndex !== profile.pricingChainIndex
     || !date(doc.asOf) || !date(doc.basketFixedAt) || Date.parse(doc.basketFixedAt) > Date.parse(doc.asOf)
-    || !integer(doc.navPerShareMicros) || !Array.isArray(doc.holdings) || doc.holdings.length !== XSTOCKS_CONSTITUENTS.length) throw new Error("The composition is incomplete or belongs to another basket.");
+    || !integer(doc.navPerShareMicros) || !Array.isArray(doc.holdings) || doc.holdings.length !== profile.symbols.length) throw new Error("The composition is incomplete or belongs to another basket.");
   const symbols = new Set<string>();
   const addresses = new Set<string>();
   let weight = 0;
   for (const row of doc.holdings) {
-    if (!object(row) || typeof row.symbol !== "string" || !XSTOCKS_CONSTITUENTS.some((item) => item.symbol === row.symbol)
+    if (!object(row) || typeof row.symbol !== "string" || !profile.symbols.includes(row.symbol)
       || symbols.has(row.symbol) || typeof row.address !== "string" || !/^0x[0-9a-f]{40}$/i.test(row.address) || addresses.has(row.address.toLowerCase())
       || !integer(row.unitsWad) || BigInt(row.unitsWad) === 0n || !integer(row.priceMicros) || BigInt(row.priceMicros) === 0n
       || !integer(row.valueMicros) || !Number.isInteger(row.weightBps) || Number(row.weightBps) < 0 || Number(row.weightBps) > 10_000
@@ -38,22 +45,27 @@ export function parseComposition(canonical: string): Composition {
 }
 
 export async function verifyComposition(canonical: string, record: OnchainNav): Promise<{ hash: Check; nav: Check; composition: Composition | null }> {
+  return verifyReport(canonical, record, USTX_PROFILE, "chain");
+}
+
+/** Shared arithmetic and byte checks. Offline records are explicitly not chain evidence. */
+export async function verifyReport(canonical: string, record: OnchainNav, profile: ReportProfile, source: "chain" | "example" = "example"): Promise<{ hash: Check; nav: Check; composition: Composition | null }> {
   const computedHash = await sha256Hex(canonical);
   const hash: Check = computedHash.toLowerCase() === record.holdingsHash.toLowerCase()
-    ? { state: "pass", detail: "SHA-256 of the exact document bytes matches the hash read directly from the registry." }
-    : { state: "fail", detail: "The document bytes do not match the registry's holdings hash." };
+    ? { state: "pass", detail: source === "chain" ? "SHA-256 of the exact document bytes matches the hash read directly from the registry." : "The exact document bytes match the bundled example fingerprint; no chain read was performed." }
+    : { state: "fail", detail: "The document bytes do not match the reference fingerprint." };
   let composition: Composition | null = null;
   try {
-    composition = parseComposition(canonical);
+    composition = parseReport(canonical, profile);
     let total = 0n;
     for (const holding of composition.holdings) {
       const value = BigInt(holding.unitsWad) * BigInt(holding.priceMicros) / WAD;
       if (value !== BigInt(holding.valueMicros)) throw new Error(`${holding.symbol}: units × price does not match the stated holding value.`);
       total += value;
     }
-    if (total !== BigInt(composition.navPerShareMicros) || total !== BigInt(record.navPerShareMicros)) throw new Error("Recalculated holdings do not sum to both the documented and on-chain NAV.");
-    if (!record.effectiveAt || Math.floor(Date.parse(composition.asOf) / 1000) !== Math.floor(Date.parse(record.effectiveAt) / 1000)) throw new Error("The composition timestamp differs from the registry record.");
-    return { hash, nav: { state: "pass", detail: "All six units × price calculations, truncated to micro-dollars per holding, sum exactly to the document and on-chain NAV. The effective timestamp also matches." }, composition };
+    if (total !== BigInt(composition.navPerShareMicros) || total !== BigInt(record.navPerShareMicros)) throw new Error("Recalculated holdings do not sum to both the documented and reference NAV.");
+    if (!record.effectiveAt || Math.floor(Date.parse(composition.asOf) / 1000) !== Math.floor(Date.parse(record.effectiveAt) / 1000)) throw new Error("The composition timestamp differs from the reference record.");
+    return { hash, nav: { state: "pass", detail: `All ${composition.holdings.length} units × price calculations, truncated to micro-dollars per holding, sum exactly to the document and ${source === "chain" ? "on-chain" : "example"} NAV. The effective timestamp also matches.` }, composition };
   } catch (error) {
     return { hash, nav: { state: "fail", detail: error instanceof Error ? error.message : "The NAV could not be recalculated." }, composition };
   }

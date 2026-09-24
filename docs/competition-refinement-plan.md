@@ -90,4 +90,6 @@ customer validation or an award prediction.
 Stages 1–3 implemented and deployed. Stage 4 automated and supported browser
 checks passed, with native 200% zoom and runtime reduced-motion emulation explicitly
 unverified in this environment (see REFINEMENT_RELEASE.md). Stage 5 app/relayer
-released; public export build passed; publication of the export is in progress.
+released; public export build passed and export published as 5f22710. Native
+zoom and runtime reduced-motion verification remain open; no claim of full
+completion of those validation gates is made.

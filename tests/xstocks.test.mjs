@@ -12,7 +12,7 @@ import {
 } from "../lib/xstocks/basket.ts";
 import { sha256Hex } from "../lib/engine/fixed.ts";
 import { decodeLatestNav, XSTOCKS_PRODUCT_KEY } from "../lib/xstocks/onchain.ts";
-import { normalizeQuoteTime, signedHeaders } from "../lib/xstocks/prices.ts";
+import { fetchXStockQuotes, normalizeQuoteTime, signedHeaders } from "../lib/xstocks/prices.ts";
 
 const NOW = "2026-09-23T09:00:00.000Z";
 const PRICES = { AAPLx: "231.25", MSFTx: "512.4", NVDAx: "187.431234", AMZNx: "228.9", METAx: "742.05", TSLAx: "402.117" };
@@ -124,4 +124,36 @@ test("OnchainOS requests are signed over timestamp + method + path + body", asyn
   assert.equal(headers["OK-ACCESS-SIGN"], expected);
   assert.equal(headers["OK-ACCESS-PROJECT"], undefined);
   assert.equal(normalizeQuoteTime("1790000000000"), new Date(1_790_000_000_000).toISOString());
+});
+
+const CREDENTIALS = { apiKey: "key", secret: "secret", passphrase: "pass", baseUrl: "https://onchainos.test" };
+const CONSTITUENTS = constituentsWithAddresses(ADDRESSES);
+
+function priceResponse() {
+  const data = CONSTITUENTS.map((constituent) => ({ chainIndex: "196", tokenContractAddress: constituent.address.toLowerCase(), time: String(Date.parse(NOW)), price: PRICES[constituent.symbol] }));
+  return new Response(JSON.stringify({ code: "0", msg: "", data }), { status: 200, headers: { "Content-Type": "application/json" } });
+}
+
+test("retries once when the price API answers with a transient server error", async () => {
+  const responses = [new Response("upstream unavailable", { status: 503 }), priceResponse()];
+  let calls = 0;
+  const fetcher = async () => { calls += 1; return responses.shift(); };
+  const { quotes, warnings, retryAt } = await fetchXStockQuotes(CREDENTIALS, CONSTITUENTS, fetcher);
+  assert.equal(calls, 2);
+  assert.deepEqual(warnings, []);
+  assert.equal(retryAt, undefined);
+  assert.equal(quotes.size, XSTOCKS_CONSTITUENTS.length);
+  assert.equal(quotes.get("AAPLx").priceMicros, parseDecimalMicros(PRICES.AAPLx));
+});
+
+test("a rate-limited price request sets a cooldown instead of retrying", async () => {
+  let calls = 0;
+  const fetcher = async () => { calls += 1; return new Response("error code: 1015", { status: 429 }); };
+  const before = Date.now();
+  const { quotes, warnings, retryAt } = await fetchXStockQuotes(CREDENTIALS, CONSTITUENTS, fetcher);
+  assert.equal(calls, 1);
+  assert.equal(quotes.size, 0);
+  assert.match(warnings[0], /429/);
+  assert.match(warnings[0], /rate limit/);
+  assert.ok(Date.parse(retryAt) - before >= 10 * 60_000, `cooldown until ${retryAt} is shorter than ten minutes`);
 });

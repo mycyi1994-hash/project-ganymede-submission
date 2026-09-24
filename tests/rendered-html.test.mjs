@@ -19,7 +19,7 @@ test("server-renders the Ganymede landing page", async () => {
   assert.match(response.headers.get("content-type") ?? "", /^text\/html\b/i);
   const html = await response.text();
   assert.match(html, /Ganymede/);
-  assert.match(html, /Digital-asset strategies/);
+  assert.match(html, /Six holdings. One reported value/);
   assert.match(html, /Try verification/);
   assert.match(html, /An index you/);
   assert.match(html, /can inspect/);
@@ -78,7 +78,7 @@ test("all public screens keep the same primary links and select the requested se
     ["/", "/", "An index you"],
     ["/?app=select", "/?app=select", "Start with what’s inside"],
     ["/?app=portfolio", "/?app=portfolio", "Your paper portfolio"],
-    ["/etfs/gmd-core", "/?app=select", "GANYMEDE CORE 20"],
+    ["/etfs/gmd-core", "/?app=portfolio", "GANYMEDE CORE 20"],
     ["/proof", "/proof", "Last published NAV"],
   ]) {
     const response = await render(path);
@@ -94,4 +94,18 @@ test("all public screens keep the same primary links and select the requested se
     assert.ok(html.includes(heading), `${path} must render its content directly`);
     if (path.includes("?app=")) assert.ok(!html.includes('id="hero-title"'), "App screens must not first render the landing page");
   }
+});
+
+test("basket and simulation journeys stay separate, with proof links in reading order", async () => {
+  const visible = async (url) => (await (await render(url)).text()).replace(/<script\b[^>]*>[\s\S]*?<\/script>/gi, "");
+  const basket = await visible('/?app=select');
+  assert.match(basket, /What makes up one model share/);
+  assert.doesNotMatch(basket, /aria-label="Paper strategies"/);
+  const lab = await visible('/?app=portfolio');
+  assert.match(lab, /aria-label="Paper strategies"/);
+  assert.match(lab, /id="paper-strategy-lab"/);
+  const proof = await visible('/proof');
+  assert.ok(proof.indexOf('href="#proof-verify"') < proof.indexOf('href="#proof-holdings"'));
+  assert.ok(proof.indexOf('id="proof-experiment"') < proof.indexOf('id="proof-holdings"'));
+  assert.match(proof, /<details[^>]*journey-examples/);
 });

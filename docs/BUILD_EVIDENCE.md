@@ -51,3 +51,8 @@ observations, not continuous availability or a security audit.
 
 Application deployment: 91eba3cc-00d7-4d2a-8050-4c9daa01e827.
 Relayer deployment: a9cf2c42-f4d8-48f2-8a3c-d167a03437f5.
+
+
+## Five-stage journey release
+
+Production source: e8631c26ca9f6b384c32604c96bd0e3b92955111. Worker version: 19417a86-37cf-4f6f-9d51-2c6c71426ac5. The private main now integrates the journey and Claude review changes. This export includes the same implementation, with review-only deployment identifiers preserved. See JOURNEY_RELEASE.md for checks and limitations.

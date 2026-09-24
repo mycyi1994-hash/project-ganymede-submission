@@ -9,7 +9,8 @@
     "dev": "vinext dev",
     "build": "vinext build",
     "start": "vinext start",
-    "test": "npm run build && node --experimental-loader ./tests/cloudflare-loader.mjs --test tests/*.test.mjs",
+    "typecheck": "tsc --noEmit",
+    "test": "npm run typecheck && npm run build && node --experimental-loader ./tests/cloudflare-loader.mjs --test tests/*.test.mjs",
     "lint": "eslint . --ignore-pattern dist --ignore-pattern .next",
     "db:generate": "drizzle-kit generate",
     "xstocks:check": "node --env-file-if-exists=.env --experimental-loader ./tests/cloudflare-loader.mjs scripts/xstocks-check.mjs"

@@ -82,6 +82,8 @@ h1,h2,h3,strong,b {
 h1,h2,h3 {
   font-family: var(--font-display);
   letter-spacing: -.045em;
+  /* Negative tracking also narrows each space; word-spacing restores the gap without loosening the letterforms. */
+  word-spacing: .04em;
   line-height: 1.12;
   text-wrap: balance;
 }
@@ -455,6 +457,7 @@ button:active:not(:disabled),.button:active {
   font-size: clamp(58px,6.2vw,106px);
   font-weight: 700;
   letter-spacing: -.075em;
+  word-spacing: .09em;
   line-height: 1.02;
 }
 
@@ -2677,6 +2680,7 @@ button:active:not(:disabled),.button:active {
 .proof-hero h1 {
   font-size: clamp(42px,5vw,76px);
   letter-spacing: -.06em;
+  word-spacing: .07em;
 }
 
 .proof-lede {
@@ -4686,7 +4690,8 @@ button:active:not(:disabled),.button:active {
     padding-top: 24px;
   }
   .product-overview-panel {
-    grid-template-columns: 1fr;
+    /* minmax(0,…) lets the column shrink below its content's min-content width. */
+    grid-template-columns: minmax(0,1fr);
     gap: 24px;
   }
   .product-order-card {
@@ -5498,4 +5503,100 @@ button:active:not(:disabled),.button:active {
   .example-selector { align-items: stretch; flex-direction: column; gap: 8px; }
 }
 
+/* 320 CSS px (400% zoom, smallest phones): stack the price comparison instead of overflowing. */
+@media (max-width: 340px) {
+  .experiment-prices { flex-direction: column; align-items: flex-start; gap: 8px; }
+  .experiment-prices > span[aria-hidden="true"] { transform: rotate(90deg); }
+}
+
 .site-utilities .wallet-connect>button:not(.is-connected) { background: transparent; color: #566274; border: 1px solid #dde3e9; box-shadow: none; }
+/* Journey stages 1–3: understand, test a copy, inspect the evidence. */
+.site-navigation .nav-lab { border-left: 1px solid var(--line); padding-left: 24px; margin-left: 12px; color: var(--copy); }
+.launch-layout { padding-top: 40px; padding-bottom: 40px; min-height: 0; }
+.launch-copy h1 { letter-spacing: -.045em; }
+.home-verification { width: min(calc(100% - var(--gutter)*2),var(--content)); max-width: none; margin: 24px auto 56px; padding: 32px; }
+.home-verification-intro { align-items: center; }
+.journey-composition { display: grid; grid-template-columns: 1fr 220px; gap: 24px; align-items: stretch; margin-block: 24px; }
+.journey-composition ol { list-style: none; padding: 0; margin: 0; display: grid; grid-template-columns: repeat(3,minmax(0,1fr)); gap: 12px; }
+.journey-composition li { display: grid; grid-template-columns: 28px 1fr; gap: 6px 12px; padding: 16px; background: var(--bg,#f5f7fa); border-radius: 12px; }
+.journey-composition li span:last-child { grid-column: 2; font-variant-numeric: tabular-nums; }
+.journey-composition li svg,.journey-composition li img { max-width: 28px; max-height: 28px; }
+.journey-total { display: flex; flex-direction: column; justify-content: center; gap: 12px; padding: 24px; background: #232b33; color: white; border-radius: 14px; }
+.journey-total strong { font-size: clamp(28px,3vw,42px); letter-spacing: -.03em; }
+.journey-total small { line-height: 1.5; color: #d5dde4; }
+.journey-baseline { display: flex; flex-wrap: wrap; gap: 12px 24px; padding: 18px 0; border-top: 1px solid var(--line); color: #285d4c; }
+.journey-baseline span { color: var(--copy); }
+.journey-next { display: flex; align-items: center; justify-content: space-between; gap: 24px; border-top: 1px solid var(--line); padding-top: 24px; margin-top: 24px; }
+.journey-next h3 { margin: 0 0 8px; font-size: 22px; }
+.journey-next p { margin: 0; color: var(--copy); }
+.journey-lab-link { width: min(calc(100% - var(--gutter)*2),var(--content)); margin: 32px auto; display: flex; flex-wrap: wrap; gap: 12px 24px; padding-block: 24px; border-top: 1px solid var(--line); color: var(--copy); }
+.journey-lab-link a { color: var(--ink); text-decoration: underline; text-underline-offset: 4px; }
+.product-market-page > .journey-lab-link { width: 100%; }
+.lab-catalog { width: min(calc(100% - var(--gutter)*2),var(--content)); margin: 32px auto 64px; }
+#paper-strategy-lab,#proof-experiment,#proof-holdings,#proof-record { scroll-margin-top: 110px; }
+.holding-select { border: 0; background: transparent; text-align: left; color: inherit; font: inherit; cursor: pointer; padding: 8px; min-height: 48px; width: 100%; border-radius: 8px; }
+.holding-selected { background: #eaf0f5; }
+.holding-select:focus-visible { outline: 2px solid #285d4c; outline-offset: 2px; }
+.basket-contribution { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; padding: 24px; background: #eaf0f5; border-radius: 14px; }
+.basket-contribution div { display: flex; flex-direction: column; gap: 10px; }
+.basket-contribution strong { font-size: 30px; font-variant-numeric: tabular-nums; }
+.basket-contribution p { grid-column: 1/-1; margin: 0; color: var(--copy); }
+.proof-hero { padding-block: 32px; }
+.proof-hero h1 { font-size: clamp(36px,4.2vw,60px); letter-spacing: -.04em; }
+.journey-examples > .proof-section { width: 100%; margin: 24px 0 0; padding: 0; border: 0; box-shadow: none; }
+.verification-placeholder .text-link { margin-left: 20px; }
+@media(max-width: 760px) {
+ .site-navigation .nav-lab { padding-left: 12px; margin-left: 0; }
+ .journey-composition { grid-template-columns: 1fr; }
+ .journey-composition ol { grid-template-columns: repeat(2,minmax(0,1fr)); }
+ .journey-total { gap: 8px; }
+ .home-verification { padding: 22px 18px; }
+ .journey-next { flex-direction: column; align-items: stretch; }
+ .basket-contribution { grid-template-columns: 1fr; }
+ .launch-layout { padding-block: 28px; }
+}
+.home-verification .journey-total strong { color: #fff; }
+.home-verification .proof-experiment { width: 100%; }
+.basket-overview .holding-select { justify-content: flex-start; }
+.basket-overview .proof-table th,.basket-overview .proof-table td { padding-block: 10px; }
+.product-market-page .product-market-intro { margin-bottom: 24px; }
+.basket-overview-facts { padding-block: 18px; margin-block: 20px; }
+@media(max-width: 760px) {
+ .product-market-page .product-market-intro { gap: 12px; margin-bottom: 18px; }
+ .product-market-page .product-market-intro h1 { font-size: 34px; line-height: 1.1; }
+ .basket-overview header h2 { font-size: 23px; }
+ .basket-overview-facts { display: grid; grid-template-columns: repeat(3,minmax(0,1fr)); gap: 10px; padding-block: 14px; }
+ .basket-overview-facts span { font-size: 12px; line-height: 1.4; }
+ .basket-overview-facts b { font-size: 13px; }
+}
+/* Stage 4: short, state-driven motion. No artificial verification delay. */
+@keyframes sculpture-arrive { from { opacity: 0; transform: translateY(16px) scale(.985); } to { opacity: 1; transform: none; } }
+@keyframes evidence-arrive { from { opacity: .45; transform: translateY(5px); } to { opacity: 1; transform: none; } }
+@keyframes price-emphasis { from { background-color: #dce9f2; } to { background-color: transparent; } }
+@media (prefers-reduced-motion: no-preference) {
+ .hero-sculpture img { animation: sculpture-arrive 500ms cubic-bezier(.16,1,.3,1) both; }
+ .experiment-check { animation: evidence-arrive 240ms ease-out both; }
+ .experiment-copy-price strong { animation: price-emphasis 360ms ease-out; }
+ .basket-overview .proof-table tr { transition: background-color 180ms ease-out; }
+ .basket-contribution strong { animation: evidence-arrive 180ms ease-out; }
+ .proof-result-pass .proof-check,.proof-result-fail .proof-check { animation: evidence-arrive 240ms ease-out; }
+}
+.proof-experiment .experiment-outcome { min-height: 245px; }
+.proof-experiment .experiment-outcome h3 { min-height: 30px; }
+.proof-experiment .experiment-check { min-height: 150px; border-left: 3px solid #aab6c1; padding: 18px; border-radius: 10px; background: #f4f6f8; }
+.proof-experiment .experiment-check.is-pass { border-color: #417a63; background: #eef5f1; }
+.proof-experiment .experiment-check.is-fail { border-color: #a75638; background: #fbf1ec; }
+.proof-experiment[data-copy="changed"] .experiment-copy-price strong { color: #944329; }
+.proof-experiment .experiment-check p { min-height: 3.2em; line-height: 1.6; }
+@media(max-width: 700px) {
+ .proof-experiment .experiment-outcome { min-height: 440px; }
+ .proof-experiment .experiment-outcome h3 { min-height: 52px; }
+ .proof-experiment .experiment-check { min-height: 170px; }
+}
+@media (prefers-reduced-motion: reduce) {
+ .hero-sculpture img,.experiment-check,.experiment-copy-price strong,.basket-contribution strong,.proof-check { animation: none !important; transform: none !important; }
+ .basket-overview .proof-table tr { transition: none !important; }
+}
+.experiment-check-details { margin-block: 12px 20px; color: var(--copy); }
+.experiment-check-details summary { cursor: pointer; padding-block: 10px; text-decoration: underline; text-underline-offset: 4px; }
+.experiment-check-details p { max-width: 78ch; line-height: 1.6; }

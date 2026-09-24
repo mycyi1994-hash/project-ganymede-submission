@@ -46,10 +46,16 @@ changes between retries, so keying on it would mint the same subscription twice.
 `relayer/src/ids.ts` is the single source of that derivation, and the contract
 tests in `onchain/test` import the same module.
 
-**Reverts that mean "already done".** `SettlementAlreadyProcessed`,
-`DuplicatePayload` and `StalePublication` are recorded as `confirmed`, not
-failures. Returning an error would make the engine retry forever against a guard
-that will never let it through.
+**Reverts that mean "already done".** `SettlementAlreadyProcessed` and
+`DuplicatePayload` are recorded as `confirmed`, not failures. Returning an error
+would make the engine retry forever against a guard that will never let it
+through.
+
+`StalePublication` only says the registry already holds an equal or newer
+snapshot. Because the registry checks staleness before duplicates, an exact
+retry of a published NAV also lands here, so the submitter reads
+`publishedPayload(keccak256(abi.encode(...)))` for the exact payload: present
+means `confirmed`, absent means `409 stale_publication`.
 
 Other reverts map to actionable responses: `TransferRestricted` →
 `409 investor_not_allowlisted`, `ContractPaused` → `503`, `Unauthorized` →
@@ -61,6 +67,7 @@ Other reverts map to actionable responses: `TransferRestricted` →
 cd relayer
 npm install
 npm run typecheck
+npm test                   # request mapping, revert handling, ids and submission lifecycle; no network
 
 # wrangler.jsonc already names the deployed `ganymede-settlement-relayer`
 # database. On a fresh Cloudflare account, create one and put its id there:

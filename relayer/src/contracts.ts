@@ -6,7 +6,7 @@
  * revert into a name, and the relayer's whole retry/idempotency behaviour keys
  * off those names.
  */
-import type { Address, Hex } from "viem";
+import type { Address } from "viem";
 import { productKey, settlementKey, toBytes32, toMicros, toUnixSeconds } from "./ids";
 
 export const FUND_SHARE_ABI = [

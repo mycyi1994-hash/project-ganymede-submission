@@ -464,14 +464,14 @@ export default function EtfDetailClient({ etf }: { etf: Etf }) {
 
   return (
     <main className={`product-detail-page ganymede-v4 product-${etf.id}`}>
-      <SiteHeader current="select" />
-      <aside className="strategy-context"><Link href="/?app=select#paper-strategy-lab" prefetch={false}>← Paper strategy lab</Link><span>Crypto simulation · Separate from the USTX stock basket</span><a href="/proof">Inspect USTX NAV ↗</a></aside>
+      <SiteHeader current="portfolio" />
+      <aside className="strategy-context"><Link href="/?app=portfolio#paper-strategy-lab" prefetch={false}>← Paper strategy lab</Link><span>Crypto simulation · Separate from the USTX stock basket</span><a href="/proof">Inspect USTX NAV ↗</a></aside>
 
       <div className="chain-testnet-notice"><span><i /> PRE-LAUNCH TEST ENVIRONMENT</span><p>{DEFAULT_SETTLEMENT_CHAIN.name} · Chain ID {DEFAULT_SETTLEMENT_CHAIN.chainId} · Simulated fund-share registry</p><a href={DEFAULT_SETTLEMENT_CHAIN.explorerUrl} target="_blank" rel="noreferrer">OPEN EXPLORER ↗</a></div>
 
       <section className="product-detail-hero" aria-labelledby="detail-product-name">
         <div className="product-detail-copy">
-          <Link href="/?app=select" className="detail-back">← All strategies</Link>
+          <Link href="/?app=portfolio#paper-strategy-lab" className="detail-back">← All strategies</Link>
           <div className="product-detail-labels"><span>{etf.roleName} / {etf.ticker}</span><b className={`strategy-style-badge strategy-${etf.strategyStyle}`}>{etf.strategyStyle.toUpperCase()}</b></div>
           <h1 id="detail-product-name">{etf.name}</h1>
           <h2>{etf.tagline}</h2>

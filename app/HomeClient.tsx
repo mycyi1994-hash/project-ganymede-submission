@@ -8,8 +8,7 @@ import EvidencePreview from "./EvidencePreview";
 import PortfolioView from "./PortfolioView";
 import DataNotice from "./DataNotice";
 import type { PortfolioData, PortfolioPosition } from "@/lib/portfolio-display";
-import { Arrow, SiteFooter, StockMark, StrategyGlyph } from "./DesignElements";
-import { XSTOCKS_CONSTITUENTS } from "@/lib/xstocks/basket";
+import { Arrow, SiteFooter, StrategyGlyph } from "./DesignElements";
 import SiteHeader from "./SiteHeader";
 import { etfs, type Etf, type Filter } from "./data/etfs";
 
@@ -468,17 +467,16 @@ export default function HomeClient({ initialView }: { initialView: View | "overv
               <div><p className="section-kicker">The USTX basket</p><h1>Start with what’s inside.</h1><p>Six tokenized US stocks. Inspect their composition, then follow the published NAV to its evidence.</p></div>
               <span className="catalog-environment"><i /> Testnet models</span>
             </header>
-            <section className="featured-basket" aria-label="US tech model basket"><div className="featured-basket-copy"><span className="eyebrow">GMD USTX · Stock basket</span><h2>Six companies.<br />One inspectable index.</h2><p>A model basket for exploring transparent NAV reporting. Mainnet prices, with publication evidence on X Layer Testnet.</p><div className="featured-symbols">{XSTOCKS_CONSTITUENTS.map((item) => <StockMark key={item.symbol} symbol={item.symbol} />)}</div><a className="button is-primary" href="/proof">Inspect NAV <Arrow /></a><a className="text-link" href="#ustx-basket">Explore the basket</a></div><NavPreview compact /></section>
-            <BasketOverview /><section className="paper-strategy-lab" id="paper-strategy-lab" aria-labelledby="paper-lab-title"><div className="collection-heading"><div><h2 id="paper-lab-title">Paper strategy lab</h2><p>Four digital-asset simulations, separate from the USTX basket and its NAV evidence. Compare strategies and save sample allocations.</p></div><span>Simulation only</span></div>
+            <BasketOverview /><aside className="journey-lab-link"><span>Looking for crypto simulations?</span><Link href="/?app=portfolio#paper-strategy-lab" prefetch={false}>Explore Paper lab</Link></aside>
+          </main>
+        ) : view === "portfolio" ? (
+          <><PortfolioView data={portfolio} loading={portfolioLoading} error={portfolioError} actionError={removeError} removing={removing} onRetry={() => void refreshPortfolio()} onBrowse={() => document.getElementById("paper-strategy-lab")?.scrollIntoView()} onOpen={(position) => window.location.assign(`/etfs/${position.slug}`)} onRedeem={(position) => setPendingRedeem(position)} /><div className="lab-catalog"><section className="paper-strategy-lab" id="paper-strategy-lab" aria-labelledby="paper-lab-title"><div className="collection-heading"><div><h2 id="paper-lab-title">Paper strategy lab</h2><p>Four digital-asset simulations, separate from the USTX basket and its NAV evidence. Compare strategies and save sample allocations.</p></div><span>Simulation only</span></div>
             <div className="product-market-toolbar">
               <div className="etf-filters strategy-filters" role="group" aria-label="Filter ETF strategies">{filters.map((filter) => <button key={filter.id} type="button" className={activeFilter === filter.id ? "is-active" : ""} aria-pressed={activeFilter === filter.id} onClick={() => { setActiveFilter(filter.id); sessionStorage.setItem("ganymede-etf-filter", filter.id); }}>{filter.label}</button>)}</div>
               <div className="market-toolbar-status"><button type="button" className="choice-guide-trigger" onClick={() => setGuideOpen(true)}>Help me choose <span>?</span></button><p aria-live="polite" aria-atomic="true">{marketError ? market ? "Showing last loaded NAV" : "NAV unavailable" : market?.updatedAt ? `NAV updated ${displayTime(market.updatedAt)}` : "Loading indicative NAV…"}</p></div>
             </div>
             <>{marketError && <DataNotice title={market ? "NAV refresh is unavailable." : "Prices are temporarily unavailable."} onRetry={() => void refreshMarket()} loading={marketLoading}>{market ? "The values below are from the last successful load. You can still compare strategy details." : "You can still compare each strategy’s role, risk and fee. Share estimates will return when pricing is available."}</DataNotice>}</>
-            <section key={activeFilter} className="etf-card-grid is-filtered" aria-label="Paper strategies">{visibleEtfs.map((etf) => <EtfCard key={etf.id} etf={etf} liveProduct={marketById.get(etf.id)} dataState={marketError ? "error" : market ? "ready" : "loading"} onOpen={openEtfDetail} onNavigate={navigateCards} />)}</section></section>
-          </main>
-        ) : view === "portfolio" ? (
-          <PortfolioView data={portfolio} loading={portfolioLoading} error={portfolioError} actionError={removeError} removing={removing} onRetry={() => void refreshPortfolio()} onBrowse={() => window.location.assign("/?app=select#paper-strategy-lab")} onOpen={(position) => window.location.assign(`/etfs/${position.slug}`)} onRedeem={(position) => setPendingRedeem(position)} />
+            <section key={activeFilter} className="etf-card-grid is-filtered" aria-label="Paper strategies">{visibleEtfs.map((etf) => <EtfCard key={etf.id} etf={etf} liveProduct={marketById.get(etf.id)} dataState={marketError ? "error" : market ? "ready" : "loading"} onOpen={openEtfDetail} onNavigate={navigateCards} />)}</section></section></div></>
         ) : (
           <OperationsView data={operations} loading={operationsLoading} error={operationsError} onRun={async () => setConfirmCycle(true)} />
         )}
@@ -499,22 +497,13 @@ export default function HomeClient({ initialView }: { initialView: View | "overv
       <section className="launch-copy etf-launch-copy">
         <h1 id="hero-title">An index you<br />can inspect.</h1>
         <p className="launch-description">A reported NAV should come with the numbers behind it. Recalculate a six-stock basket and compare its report with the record on X Layer.</p>
-        <div className="launch-actions"><a className="button is-primary" href="#try-verification">Try verification <Arrow /></a><Link className="button" href="/?app=select" prefetch={false}>Explore the basket</Link></div>
+        <div className="launch-actions"><a className="button is-primary" href="#try-verification">Try verification <Arrow /></a><Link className="button" href="/?app=select" prefetch={false}>View basket details</Link></div>
         <div className="launch-status-line"><span className="badge badge-blue">X Layer Testnet</span><span className="badge badge-sand">Model basket</span></div>
       </section>
       <div className="launch-observatory"><div className="hero-sculpture"><img src="/images/clearform-stack.webp" width="1024" height="1024" fetchPriority="high" alt="Six translucent layers representing the Apple, Microsoft, NVIDIA, Amazon, Meta and Tesla xStocks in the basket" /></div><NavPreview /></div>
       </div>
       <EvidencePreview />
-      <section className="home-basket" aria-labelledby="home-basket-title"><header><h2 id="home-basket-title">Inside GMD USTX</h2><span>Equal weight at fixing</span></header><ul className="launch-constituents" aria-label="Basket constituents">{XSTOCKS_CONSTITUENTS.map((item) => <li key={item.symbol}><StockMark symbol={item.symbol} /><div><b>{item.symbol}</b><span>{item.name === "Meta Platforms" ? "Meta" : item.name}</span></div></li>)}</ul><a className="evidence-callout" href="/proof"><span className="evidence-symbol" aria-hidden="true">≋</span><span><strong>See how NAV is calculated</strong><small>Inspect the basket, its calculation and the record on X Layer.</small></span><Arrow /></a></section>
-      <section className="launch-evidence-path" aria-label="How to inspect the evidence">
-        <div><span>01 · The basket</span><h2>Know what’s inside.</h2><p>Six disclosed holdings. See the units and prices behind each model share.</p></div>
-        <div><span>02 · The record</span><h2>Trace the published value.</h2><p>A timestamped NAV and composition hash, recorded on X Layer Testnet.</p></div>
-        <div><span>03 · The evidence</span><h2>Check it for yourself.</h2><p>Your browser compares the document, its hash and the recorded NAV.</p></div>
-      </section>
-      <aside className="launch-fund-index" aria-label="Fund universe">
-        <span className="launch-fund-index-label">ALSO EXPLORE<span>Paper strategy lab</span><small>Digital-asset strategies · Simulations</small></span>
-        {etfs.map((etf, index) => <button key={etf.id} type="button" className={`product-${etf.id}`} onClick={() => openEtfDetail(etf.id)}><i>{String(index + 1).padStart(2, "0")}</i><span><b>{etf.ticker.replace("GMD ", "")}</b><small>{etf.portfolioRole}</small></span><em aria-hidden="true">↗</em></button>)}
-      </aside>
+      <aside className="journey-lab-link"><span>Also explore digital-asset simulations.</span><Link href="/?app=portfolio" prefetch={false}>Explore Paper lab</Link></aside>
       </main><SiteFooter />
       {guideOpen && <ChoiceGuide onClose={() => setGuideOpen(false)} onOpen={(id) => { setGuideOpen(false); openEtfDetail(id); }} />}
     </div>

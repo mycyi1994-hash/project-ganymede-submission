@@ -199,7 +199,7 @@ export default function ProofClient() {
           <p className="proof-kicker">GMD USTX · NAV evidence</p>
           <h1 id="proof-title">The value.<br />And the evidence.</h1>
           <p className="proof-lede">Follow one published model share from its six holding values to the X Layer Testnet record. Your browser checks whether the calculation, document and record agree.</p>
-          <div className="proof-jump-links"><a href="#proof-holdings">Calculation</a><a href="#proof-record">Chain record</a><a href="#proof-verify">Verification</a></div>
+          <div className="proof-jump-links"><a href="#proof-verify">Results</a><a href="#proof-experiment">Try a change</a><a href="#proof-holdings">Calculation</a><a href="#proof-record">Chain record</a></div>
         </div>
         <aside className="proof-record" aria-label="Last on-chain NAV">
           <span>Last published NAV / USD</span>
@@ -209,7 +209,7 @@ export default function ProofClient() {
         </aside>
       </section>
 
-      <section className="proof-section proof-result" aria-label="Evidence checks">
+      <section className={`proof-section proof-result proof-result-${summaryState}`} aria-label="Evidence checks">
         <div className={`proof-result-heading proof-result-${summaryState}`} aria-live="polite" aria-atomic="true">
           <div><span className="proof-result-eyebrow">VERIFICATION / IN YOUR BROWSER</span><h2 id="proof-verify">{summaryText}</h2></div>
           <span className="proof-count">{summaryState === "pass" || summaryState === "fail" ? `${passed} / 3 CHECKS PASSED` : summaryState === "unavailable" ? "DATA UNAVAILABLE" : summaryState === "loading" ? "LOADING DATA" : summaryState === "waiting" ? "NOT YET VERIFIED" : "CHECKING…"}</span>
@@ -228,11 +228,7 @@ export default function ProofClient() {
         </div></details>
       </section>
 
-      {!error && experiment ? <ProofExperiment key={`${experiment.record.holdingsHash}:${experiment.record.effectiveAt}`} canonical={experiment.canonical} record={experiment.record} /> : <section className="proof-section proof-experiment-unavailable"><h2>Try changing one price.</h2><p>The local experiment becomes available after the original document passes all three checks. Resolve any missing data or connection problem above first.</p></section>}
-
-      <section className="proof-pricing-status" aria-label="Latest pricing status"><div><span>LATEST PRICING</span><strong className={"pricing-label pricing-" + pricing.tone}>{data || error ? pricing.label : "Loading pricing status…"}</strong><p>{data || error ? pricing.detail : "Retrieving the latest pricing attempt."}</p></div><div className="pricing-last-attempt"><span>LAST PRICING ATTEMPT</span><RecordTime value={data?.latest?.evaluatedAt} /></div></section>
-
-      <section className="proof-pricing-status" aria-label="Publication status"><div><span>Publication</span><strong className={"pricing-label pricing-" + publication.tone}>{data || error ? publication.label : "Loading publication status…"}</strong><p>{publication.detail}</p></div><div className="pricing-last-attempt"><span>Quote eligibility policy</span><p>{data?.pricing.maxQuoteAgeMinutes ? `Quotes up to ${data.pricing.maxQuoteAgeMinutes} minutes old may be accepted at evaluation. This is not a guarantee of live market prices.` : "Quote-age policy unavailable in this response."}</p></div></section>
+      <div id="proof-experiment">{!error && experiment ? <ProofExperiment key={`${experiment.record.holdingsHash}:${experiment.record.effectiveAt}`} canonical={experiment.canonical} record={experiment.record} /> : <section className="proof-section proof-experiment-unavailable"><h2>Try changing one price.</h2><p>The local experiment becomes available after the original document passes all three checks. Resolve any missing data or connection problem above first.</p></section>}</div>
 
       <section className="proof-section proof-basket-section" aria-labelledby="proof-holdings">
         <header><div><span className="proof-result-eyebrow">{publishedComposition ? "PUBLISHED COMPOSITION" : "PUBLISHED COMPOSITION UNAVAILABLE"}</span><h2 id="proof-holdings">Calculate one model share.</h2></div><p>{composition ? `Priced ${time(composition.asOf)}` : error ? "Composition unavailable" : data ? "No document matched to this record" : "Waiting for composition data"}</p></header>
@@ -249,7 +245,11 @@ export default function ProofClient() {
 
       <section className="proof-section proof-chain-summary" aria-labelledby="proof-record"><header><h2 id="proof-record">Read the chain record.</h2><p>{checks?.record ? "Fetched directly by your browser from X Layer Testnet." : "Server snapshot only until the direct browser read succeeds."}</p></header><dl><div><dt>Recorded NAV / USD</dt><dd>{record ? usd(record.navPerShareMicros, 4) : "—"}</dd></div><div><dt>Composition fingerprint</dt><dd><code>{record?.holdingsHash ?? "Awaiting a record"}</code></dd></div><div><dt>Effective at</dt><dd><RecordTime value={record?.effectiveAt} /></dd></div></dl><p>The fingerprint identifies the exact published document. A matching fingerprint does not establish custody or backing.</p></section>
 
-      <ReportExamples />
+      <section className="proof-pricing-status" aria-label="Latest pricing status"><div><span>LATEST PRICING</span><strong className={"pricing-label pricing-" + pricing.tone}>{data || error ? pricing.label : "Loading pricing status…"}</strong><p>{data || error ? pricing.detail : "Retrieving the latest pricing attempt."}</p></div><div className="pricing-last-attempt"><span>LAST PRICING ATTEMPT</span><RecordTime value={data?.latest?.evaluatedAt} /></div></section>
+
+      <section className="proof-pricing-status" aria-label="Publication status"><div><span>Publication</span><strong className={"pricing-label pricing-" + publication.tone}>{data || error ? publication.label : "Loading publication status…"}</strong><p>{publication.detail}</p></div><div className="pricing-last-attempt"><span>Quote eligibility policy</span><p>{data?.pricing.maxQuoteAgeMinutes ? `Quotes up to ${data.pricing.maxQuoteAgeMinutes} minutes old may be accepted at evaluation. This is not a guarantee of live market prices.` : "Quote-age policy unavailable in this response."}</p></div></section>
+
+      <details className="proof-section detail-disclosure journey-examples"><summary>Explore synthetic report examples <span aria-hidden="true">+</span></summary><p>Optional offline examples. These are not the published USTX record.</p><ReportExamples /></details>
 
       <section id="proof-source" className="proof-section proof-supporting" aria-label="Supporting evidence">
         <details className="detail-disclosure"><summary><span>On-chain publications<small>{data ? `${data.history.length} recent records` : error ? "Publications unavailable" : "Loading publications…"}</small></span><span aria-hidden="true">+</span></summary><div className="disclosure-content">

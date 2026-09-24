@@ -27,7 +27,7 @@ export default function SiteHeader({ current, onNavigate }: {
   return <header className="site-header">
     <Link className="site-identity" href="/" prefetch={false} aria-label="Ganymede Index overview" onClick={(event) => navigate(event, "overview")}><BrandMark /><strong>Ganymede</strong></Link>
     <nav className="site-navigation" aria-label="Primary navigation">
-      {items.map((item) => <Link key={item.id} href={item.href} prefetch={false} aria-current={current === item.id ? "page" : undefined} onClick={(event) => navigate(event, item.id)}>{item.label}</Link>)}
+      {items.map((item) => <Link key={item.id} className={item.id === "portfolio" ? "nav-lab" : undefined} href={item.href} prefetch={false} aria-current={current === item.id ? "page" : undefined} onClick={(event) => navigate(event, item.id)}>{item.label}</Link>)}
     </nav>
     <div className="site-utilities"><WalletConnect compact /></div>
   </header>;

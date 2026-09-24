@@ -41,7 +41,7 @@ function authorize(request: Request, env: Env): boolean {
 
 const REQUIRED_FIELDS: Array<keyof SettlementRequest> = ["entityType", "entityId", "action", "productId", "effectiveAt"];
 
-export default {
+const worker = {
   async fetch(request: Request, env: Env): Promise<Response> {
     const url = new URL(request.url);
 
@@ -63,6 +63,8 @@ export default {
     return Response.json({ error: "Not found" }, { status: 404 });
   },
 };
+
+export default worker;
 
 async function handleSettlement(request: Request, env: Env): Promise<Response> {
   let body: SettlementRequest;

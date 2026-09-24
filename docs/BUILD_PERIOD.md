@@ -22,7 +22,7 @@ Those modules still power the separate paper Lab. They are not part of the submi
 | Product | Clearform redesign; Markets, USTX and Verify screens led by the browser check; read-only xStocks Portfolio at verified prices; NAV chart from publication receipts | `e5d1d8f`, `f4d67c1`, `ff04920`, `c0ce112`, `ebef0fa`, `d055246` |
 | Hardening | Public reads without writes, identity header gate, relayer retry and nonce handling, paper-ledger integrity, sanitized public errors | `c98e7ea`, `387ec35`, `8cd427f`, `7b18cf9`, `124bebe` |
 
-From `7a33392` to `a65d6d7`: 180 files changed, 17430 insertions(+), 7370 deletions(-).
+From `7a33392` to `6f8e570`: 181 files changed, 17775 insertions(+), 7370 deletions(-).
 
 ## Every commit in the build period (UTC)
 
@@ -100,3 +100,4 @@ From `7a33392` to `a65d6d7`: 180 files changed, 17430 insertions(+), 7370 deleti
 | 2026-09-24 14:01 | `678c713` | Refresh the build-period log through the release record | 1 | +2 / −1 |
 | 2026-09-24 14:04 | `0fd7322` | Describe the current screens in the release notes | 2 | +14 / −11 |
 | 2026-09-24 14:15 | `a65d6d7` | State the full record count when the chart series is thinned | 6 | +38 / −7 |
+| 2026-09-24 14:24 | `d255327` | Record the chart-count release and add the submission checklist | 4 | +352 / −7 |

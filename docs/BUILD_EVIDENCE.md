@@ -103,7 +103,7 @@ These are point-in-time observations, not continuous availability or a security 
 
 ## Chart record count release
 
-Production source: a65d6d79951eebd8a48ce97b489bdb40e28134b8. Worker version: cabd72ed-5134-4df3-aa21-534d16a74449, deployed 2026-09-24 14:16 UTC. Relayer Worker version: cb38524c-cb75-4350-a9ee-a363f49a5c93, unchanged. This snapshot is exported from 6f8e5705722c239fced3f5b902b0b3101c921b07, which adds only documentation to the production source.
+Production source: a65d6d79951eebd8a48ce97b489bdb40e28134b8. Worker version: cabd72ed-5134-4df3-aa21-534d16a74449, deployed 2026-09-24 14:16 UTC. Relayer Worker version: cb38524c-cb75-4350-a9ee-a363f49a5c93, unchanged. This snapshot is exported from 345ea3dfd28f64075d1ea252e99392dfb28d5f79, which adds only documentation to the production source.
 
 - a65d6d79951eebd8a48ce97b489bdb40e28134b8 → cabd72ed-5134-4df3-aa21-534d16a74449: the public API thins the stored NAV series to about 300 points for the chart. The chart note counted the points it drew, so after 300 publications it would have understated the number of records. The API now also returns the stored count. The note states that count and, when fewer points are drawn, how many are shown.
 

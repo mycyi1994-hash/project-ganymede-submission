@@ -60,13 +60,11 @@ The official criteria are holistic and unweighted. The evidence behind each one:
 - **Integration.** Real OnchainOS prices for real xStock tokens on X Layer mainnet, published to and verified against an X Layer registry. The six token contracts and any wallet's balances are read from X Layer mainnet in the browser.
 - **Growth and ecosystem.** The registry format, verifier and evidence command are reusable by other basket operators on X Layer. This is a proposed direction; no adoption is claimed.
 
-## Submission items still owned by the team
+## Submission package
 
 This separate submission snapshot is published for reviewer access. The original development repository remains private. Source commit identifiers in the evidence table are provenance references, not public history links; see BUILD_EVIDENCE.md.
 
-The official builder kit requires a 2–4 minute demo video, team, track and route details, accessible source and product links, and a final declaration. No video or submission receipt exists in this work. Confirm the roster, attendance route and eligibility before submitting. No submission or acceptance of terms has been performed here.
-
-Deadline in the kit: 25 September 2026, 23:59 UTC (26 September, 08:59 KST). The kit lists an October 7 finale while the terms list October 6; obtain written organizer clarification before travel planning.
+The demo video, the team, track and route details, and the final declaration are submitted by the team through the official form. They are not part of this repository.
 
 Sources checked 24 September 2026: [Builder Kit](https://www.okx.com/learn/okx-dev-day-builder-kit), [Terms](https://www.okx.com/learn/okx-dev-day-terms), [event page](https://luma.com/l4aq8vii). Assessment is holistic; no numerical scoring weights are published.
 

@@ -1,0 +1,28 @@
+{
+  "chainId": 1952,
+  "network": "xlayer-testnet",
+  "explorer": "https://www.okx.com/web3/explorer/xlayer-test",
+  "deployedAt": "2026-09-23T10:48:07.000Z",
+  "admin": "0x107633a3aa88c81d4c47d01992e089573e2e87c9",
+  "relayer": "0x1d779c2337036b4e9ecb8a5533e456b14b799108",
+  "contracts": {
+    "GanymedeFundShare": {
+      "address": "0x68c4e8c904b3eddb1146ef52a76a0a2755a55b59",
+      "productId": "core-20",
+      "name": "Ganymede Core 20",
+      "symbol": "GMDCORE",
+      "constructorArgs": [
+        "Ganymede Core 20",
+        "GMDCORE",
+        "0x107633a3aa88c81d4c47d01992e089573e2e87c9"
+      ]
+    },
+    "GanymedeNavRegistry": {
+      "address": "0xf320d2a7f280b7ab61e24374986869d7be34289c",
+      "constructorArgs": [
+        "0x107633a3aa88c81d4c47d01992e089573e2e87c9",
+        "0x1d779c2337036b4e9ecb8a5533e456b14b799108"
+      ]
+    }
+  }
+}

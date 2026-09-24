@@ -1,0 +1,30 @@
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    "module": "commonjs",
+    "moduleResolution": "node",
+    "esModuleInterop": true,
+    "allowSyntheticDefaultImports": true,
+    "forceConsistentCasingInFileNames": true,
+    "strict": true,
+    "skipLibCheck": true,
+    "resolveJsonModule": true
+  },
+  "ts-node": {
+    "files": true,
+    // The shared id module lives under the app package, which is ESM. Hardhat
+    // runs CommonJS, so compile that one file as CJS.
+    "moduleTypes": {
+      "../relayer/src/ids.ts": "cjs"
+    }
+  },
+  "include": [
+    "./scripts/**/*.ts",
+    "./test/**/*.ts",
+    "./hardhat.config.ts",
+    // Only the id module — the rest of relayer/src targets the Workers runtime.
+    "../relayer/src/ids.ts",
+    // hardhat-viem writes contract types here on `npm run build`.
+    "./artifacts/**/*.d.ts"
+  ]
+}

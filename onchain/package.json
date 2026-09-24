@@ -1,0 +1,26 @@
+{
+  "name": "ganymede-onchain",
+  "version": "0.1.0",
+  "private": true,
+  "description": "X Layer testnet (and GIWA Sepolia) deployment, verification and evidence tooling for the Ganymede settlement contracts.",
+  "scripts": {
+    "build": "hardhat compile",
+    "test": "hardhat test",
+    "deploy": "hardhat run scripts/deploy.ts --network xlayerTestnet",
+    "allowlist": "hardhat run scripts/allowlist.ts --network xlayerTestnet",
+    "status": "hardhat run scripts/status.ts --network xlayerTestnet",
+    "deploy:giwa": "hardhat run scripts/deploy.ts --network giwaSepolia",
+    "allowlist:giwa": "hardhat run scripts/allowlist.ts --network giwaSepolia",
+    "status:giwa": "hardhat run scripts/status.ts --network giwaSepolia",
+    "verify:export": "hardhat run scripts/export-verification.ts --network xlayerTestnet",
+    "verify:export:giwa": "hardhat run scripts/export-verification.ts --network giwaSepolia"
+  },
+  "dependencies": {
+    "@nomicfoundation/hardhat-toolbox-viem": "^3.0.0",
+    "@nomicfoundation/hardhat-verify": "^2.1.3",
+    "dotenv": "^17.4.2",
+    "hardhat": "^2.29.0",
+    "solc": "^0.8.28",
+    "viem": "^2.55.10"
+  }
+}

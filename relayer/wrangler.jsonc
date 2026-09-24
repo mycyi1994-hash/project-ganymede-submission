@@ -1,0 +1,33 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "ganymede-submission-relayer",
+  "main": "src/index.ts",
+  "compatibility_date": "2026-07-01",
+  "compatibility_flags": ["nodejs_compat"],
+
+  // Deployed separately from the application on purpose: this is the only
+  // component that holds an EVM private key.
+  "vars": {
+    // xlayer-testnet (default) or giwa-sepolia. See src/chain.ts.
+    "SETTLEMENT_CHAIN": "xlayer-testnet"
+    // SETTLEMENT_RPC_URL overrides the chain's public RPC when set.
+    // FUND_SHARE_ADDRESS / NAV_REGISTRY_ADDRESS are set after deploy:
+    //   npx wrangler secret put FUND_SHARE_ADDRESS
+    // RELAYER_API_TOKEN and RELAYER_PRIVATE_KEY are secrets, never vars.
+  },
+
+  "d1_databases": [
+    {
+      "binding": "DB",
+      // Its own ledger: the GIWA relayer keeps the older `ganymede-relayer` database.
+      "database_name": "ganymede-settlement-relayer",
+      "database_id": "00000000-0000-4000-8000-000000000000"
+    }
+  ],
+
+  "durable_objects": {
+    "bindings": [{ "name": "SUBMITTER", "class_name": "Submitter" }]
+  },
+
+  "migrations": [{ "tag": "v1", "new_sqlite_classes": ["Submitter"] }]
+}

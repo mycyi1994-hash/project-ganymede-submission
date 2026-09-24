@@ -1,0 +1,21 @@
+# Local `wrangler dev` values. Never commit the real file (.dev.vars is ignored).
+# In production every one of these is a `wrangler secret`, not a var.
+
+# Bearer token the application presents. Must equal the app's SETTLEMENT_RELAYER_TOKEN.
+RELAYER_API_TOKEN=local-dev-relayer-token
+
+# Hot key holding issuer + publisher. NEVER the administrator key.
+RELAYER_PRIVATE_KEY=
+
+# xlayer-testnet (default) or giwa-sepolia.
+SETTLEMENT_CHAIN=xlayer-testnet
+# Optional. Defaults to the chain's public RPC.
+SETTLEMENT_RPC_URL=
+
+# Written by `cd onchain && npm run deploy`.
+FUND_SHARE_ADDRESS=
+NAV_REGISTRY_ADDRESS=
+
+# GIWA Sepolia only: wallets treated as Dojang-verified, comma separated.
+# On X Layer eligibility is read from the share ledger's on-chain allowlist.
+DOJANG_TESTNET_ALLOWLIST=

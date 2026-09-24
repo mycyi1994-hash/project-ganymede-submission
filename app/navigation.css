@@ -1,0 +1,39 @@
+/* Every public screen uses the same navigation, labels and responsive layout. */
+.ganymede-v4 { --site-header-height: 76px; }
+body:has(.ganymede-v4) { overflow: visible; }
+.ganymede-v4.etf-platform-shell { grid-template-rows: auto auto auto; }
+.ganymede-v4.etf-platform-shell, .ganymede-v4.etf-platform-launch { overflow: clip; }
+.site-header { position: sticky; top: 0; z-index: 50; height: var(--site-header-height); width: 100%; display: grid; grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr); align-items: stretch; border-bottom: 1px solid var(--obs-line); background: #08090c; }
+.site-identity { width: fit-content; min-width: 0; display: flex; align-items: center; gap: 14px; padding: 0 24px; color: var(--obs-text); text-decoration: none; }
+.site-identity > span { display: grid; place-items: center; width: 40px; height: 40px; flex-shrink: 0; border: 1px solid var(--obs-line); font: 650 17px/1 var(--font-geist-mono), monospace; }
+.site-identity strong { font: 650 12px/1.4 var(--font-geist-mono), monospace; letter-spacing: .1em; white-space: nowrap; }
+.site-identity small { display: block; margin-top: 4px; color: var(--obs-text-3); font: 500 8px/1.4 var(--font-geist-mono), monospace; letter-spacing: .12em; }
+.site-navigation { display: flex; min-width: 0; align-items: stretch; }
+.site-navigation a { position: relative; display: flex; align-items: center; justify-content: center; padding: 0 18px; min-height: 48px; color: var(--obs-text-2); text-decoration: none; white-space: nowrap; font: 600 11px/1.4 var(--font-geist-mono), monospace; letter-spacing: .035em; }
+.site-navigation a:hover { background: #ffffff08; color: var(--obs-text); }
+.site-navigation a[aria-current] { color: var(--obs-text); background: #ffffff05; }
+.site-navigation a[aria-current]::after { content: ""; position: absolute; bottom: 0; left: 16px; right: 16px; height: 2px; background: var(--obs-ivory); }
+.site-identity:focus-visible, .site-navigation a:focus-visible { outline-offset: -4px; }
+.site-utilities { display: flex; align-items: center; justify-content: flex-end; padding: 0 24px; min-width: 0; }
+.site-utilities .wallet-connect.is-compact { padding: 0; }
+.ganymede-v4 .product-tabs { top: var(--site-header-height); }
+.ganymede-v4 .product-order-card { top: calc(var(--site-header-height) + 74px); scroll-margin-top: calc(var(--site-header-height) + 78px); }
+@media (max-width: 1100px) {
+  .ganymede-v4 { --site-header-height: 112px; }
+  .site-header { grid-template-columns: 1fr auto; grid-template-rows: 64px 48px; }
+  .site-identity { grid-column: 1; grid-row: 1; }
+  .site-utilities { grid-column: 2; grid-row: 1; }
+  .site-navigation { grid-column: 1 / -1; grid-row: 2; justify-content: center; border-top: 1px solid var(--obs-line-soft); }
+}
+@media (max-width: 600px) {
+  .site-identity { padding: 0 16px; gap: 10px; }
+  .site-identity > span { width: 34px; height: 34px; font-size: 15px; }
+  .site-identity strong { font-size: 10px; letter-spacing: .07em; }
+  .site-identity small { display: none; }
+  .site-navigation { display: grid; grid-template-columns: .9fr .7fr 1.2fr 1.2fr; }
+  .site-navigation a { padding: 0 5px; font-size: 9px; letter-spacing: 0; }
+  .site-navigation a[aria-current]::after { left: 8px; right: 8px; }
+  .site-utilities { padding: 0 16px; }
+  .site-utilities .wallet-connect.is-compact > button { width: 44px; min-width: 44px; min-height: 44px; padding: 0; font-size: 0; }
+  .site-utilities .wallet-connect.is-compact > button::after { content: "◎"; font-size: 18px; }
+}

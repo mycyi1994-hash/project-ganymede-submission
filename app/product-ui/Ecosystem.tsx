@@ -84,16 +84,9 @@ const steps = [
 ] as const;
 
 const plans = [
-  { name: "Sandbox", price: "Free", note: "Available now", items: ["Testnet NAV records", "Demo investing app", "Public API and badge"] },
-  { name: "Issuer", price: "$990", unit: "per basket / month", note: "Planned", items: ["X Layer mainnet records", "Your own basket and branding", "Full evidence archive"] },
-  { name: "Distribution", price: "0.10%", unit: "a year on assets raised", note: "Planned, where licensed", items: ["Listing in the Ganymede app", "Partner wallets and sites", "Investor reporting"] },
-] as const;
-
-const roadmap = [
-  ["Now", "USTX priced by OKX OnchainOS and recorded on X Layer every five minutes; demo investing, look-through portfolio, public API and embeddable badge."],
-  ["Q4 2026", "Registry on X Layer mainnet, a second basket and an archive that keeps every composition document."],
-  ["Q1 2027", "Issuer console to define and launch baskets, and an on-chain share token for allow-listed investors (the contract is already written and tested)."],
-  ["Q2 2027", "Distribution with licensed partners: real subscriptions and redemptions where regulation allows."],
+  { name: "Sandbox", price: "Free", note: "Available now on X Layer Testnet", items: ["NAV records every five minutes", "Investor app with demo balances", "Public API and verified badge"] },
+  { name: "Issuer", price: "Contact us", note: "X Layer mainnet", items: ["Your own basket and branding", "Mainnet NAV records", "Full evidence archive"] },
+  { name: "Distribution", price: "Contact us", note: "With licensed partners", items: ["Listing in the Ganymede app", "Partner wallets and sites", "Investor reporting"] },
 ] as const;
 
 export function IssuersPage() {
@@ -108,8 +101,7 @@ export function IssuersPage() {
           <li><b>Distribution tools</b><span>A public NAV API and a badge any partner can embed, both backed by the record on X Layer.</span></li>
           <li><b>Operations</b><span>Scheduled pricing, publication with idempotent retries, and rate-limit handling for the price provider.</span></li>
         </ul><Link prefetch={false} className="gmd-inline-link" href="/products/ustx">See it working with USTX <Icon name="arrow" size={16} /></Link></section>
-        <section id="pricing"><h2>Pricing</h2><div className="gmd-plans">{plans.map(plan => <article key={plan.name}><span>{plan.note}</span><h3>{plan.name}</h3><strong>{plan.price}{"unit" in plan && <small> {plan.unit}</small>}</strong><ul>{plan.items.map(item => <li key={item}><Icon name="check" size={15} />{item}</li>)}</ul></article>)}</div><p className="gmd-caption">Planned pricing for discussion. Real-money services start only with licensed partners in the markets they serve.</p></section>
-        <section id="roadmap"><h2>Roadmap</h2><ol className="gmd-roadmap">{roadmap.map(([when, copy]) => <li key={when}><b>{when}</b><p>{copy}</p></li>)}</ol></section>
-        <footer><p>Want to launch a basket, list USTX or integrate the NAV? Open an issue on GitHub and we will follow up.</p><div className="gmd-terms-links"><a className="gmd-button" href={`${REPOSITORY}/issues`} target="_blank" rel="noreferrer">Contact us on GitHub <Icon name="external" size={16} /></a><Link prefetch={false} className="gmd-inline-link" href="/developers">Developer docs <Icon name="arrow" size={16} /></Link></div></footer>
+        <section id="plans"><h2>Plans</h2><div className="gmd-plans">{plans.map(plan => <article key={plan.name}><span>{plan.note}</span><h3>{plan.name}</h3><strong>{plan.price}</strong><ul>{plan.items.map(item => <li key={item}><Icon name="check" size={15} />{item}</li>)}</ul></article>)}</div><p className="gmd-caption">Real-money services are offered only with licensed partners in the markets they serve.</p></section>
+        <footer><p>Launching a basket, listing USTX or showing its NAV in your app? Get in touch on GitHub.</p><div className="gmd-terms-links"><a className="gmd-button" href={`${REPOSITORY}/issues`} target="_blank" rel="noreferrer">Contact us on GitHub <Icon name="external" size={16} /></a><Link prefetch={false} className="gmd-inline-link" href="/developers">Developer docs <Icon name="arrow" size={16} /></Link></div></footer>
       </article></div></ProductShell>;
 }

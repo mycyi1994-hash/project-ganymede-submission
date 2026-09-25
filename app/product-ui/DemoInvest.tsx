@@ -9,7 +9,6 @@ import { DEMO_ORDER_EVENT, formatShares, parseShares } from "@/lib/demo/format";
 import { Icon } from "./Icons";
 import { useMarket } from "./MarketProvider";
 import { BasketList, BasketTable, useRecordComposition } from "./Basket";
-import { OkxSource } from "./OkxSource";
 
 // Demo investing with demo dollars in a private browser session. No real money moves and no
 // shares are issued on chain; orders fill at the latest NAV recorded on X Layer.
@@ -92,7 +91,6 @@ export function InvestPanel() {
   const heading = filled ? "Order filled" : review ? `Review ${side === "buy" ? "investment" : "redemption"}` : "Invest in USTX";
   return <aside className="gmd-order-panel" aria-labelledby="invest-title">
     <div className="gmd-order-heading"><h2 id="invest-title">{heading}</h2><Icon name="wallet" /></div>
-    <p className="gmd-example-note">Testnet demo · demo dollars, no real money</p>
     {demo.error ? <p className="gmd-inline-error" role="alert">{demo.error}</p> : !account ? <p className="gmd-caption" role="status">Opening your demo account…</p>
       : filled ? <div className="gmd-order-review" role="status">
         <span>{filled.side === "subscribe" ? "You bought" : "You redeemed"}</span>
@@ -102,7 +100,7 @@ export function InvestPanel() {
           <div><dt>NAV per share</dt><dd>{formatUsdMicros(filled.navMicros, 4)}</dd></div>
           <div><dt>Priced by</dt><dd>OKX OnchainOS</dd></div>
           <div><dt>Recorded on X Layer</dt><dd>{shortTime(filled.navEffectiveAt)}</dd></div>
-          <div><dt>Demo cash left</dt><dd>{formatUsdMicros(account.cashMicros, 2)}</dd></div>
+          <div><dt>Balance left</dt><dd>{formatUsdMicros(account.cashMicros, 2)}</dd></div>
         </dl>
         {composition && <div className="gmd-order-basket">
           <h3>{filled.side === "subscribe" ? "Added to your basket" : "Taken out of your basket"}</h3>
@@ -122,7 +120,7 @@ export function InvestPanel() {
           <div><dt>Priced by</dt><dd>OKX OnchainOS</dd></div>
           <div><dt>{side === "buy" ? "Estimated shares" : "Estimated proceeds"}</dt><dd>{estimate}</dd></div>
           <div><dt>Fee</dt><dd>None</dd></div>
-          <div><dt>Account</dt><dd>Demo account in this browser</dd></div>
+          <div><dt>Paid from</dt><dd>Demo balance</dd></div>
         </dl>
         {failure && <p className="gmd-inline-error" role="alert">{failure}</p>}
         <button type="button" className="gmd-button" disabled={busy} onClick={submit}>{busy ? "Placing order…" : side === "buy" ? "Buy with demo dollars" : "Redeem shares"} {!busy && <Icon name="arrow" size={17} />}</button>
@@ -137,7 +135,7 @@ export function InvestPanel() {
         <div className="gmd-order-input">
           <label htmlFor="invest-amount">{side === "buy" ? "You invest" : "Shares to redeem"}</label>
           <div><input id="invest-amount" inputMode="decimal" autoComplete="off" value={amount} onChange={event => { setAmount(event.target.value); setFailure(null); }} aria-invalid={Boolean(problem)} aria-describedby="invest-help" /><span>{side === "buy" ? "USD" : "USTX"}</span></div>
-          <p id="invest-help">{problem ?? (side === "buy" ? `Demo cash: ${formatUsdMicros(cash, 2)}` : `You hold ${formatShares(held)} USTX`)}</p>
+          <p id="invest-help">{problem ?? (side === "buy" ? `Demo balance: ${formatUsdMicros(cash, 2)}` : `You hold ${formatShares(held)} USTX`)}</p>
         </div>
         <div className="gmd-order-presets" aria-label={side === "buy" ? "Investment amounts" : "Redemption amounts"}>
           {side === "buy"
@@ -150,7 +148,6 @@ export function InvestPanel() {
           <div><dt>Recorded on X Layer</dt><dd>{nav ? shortTime(nav.at) : "—"}</dd></div>
           <div><dt>Fee</dt><dd>None</dd></div>
         </dl>
-        <p className="gmd-invest-source"><OkxSource>Priced by OKX OnchainOS</OkxSource></p>
         <button type="button" className="gmd-button" disabled={Boolean(problem) || !nav} onClick={() => setReview(crypto.randomUUID())}>Review {side === "buy" ? "investment" : "redemption"} <Icon name="arrow" size={17} /></button>
         <p className="gmd-caption">Demo dollars only. No real money moves and no shares are issued on chain.</p>
       </>}
@@ -179,12 +176,12 @@ export function DemoPortfolio() {
     try { await demo.reset(); } finally { setResetting(false); }
   }
   return <section className="gmd-demo-portfolio" aria-labelledby="demo-title">
-    <header className="gmd-section-heading"><div><h2 id="demo-title">Demo account</h2><p>USTX bought with demo dollars in this browser. No real money.</p></div><Link prefetch={false} className="gmd-button" href="/products/ustx#investment">Invest <Icon name="arrow" size={16} /></Link></header>
+    <header className="gmd-section-heading"><div><h2 id="demo-title">Your investments</h2><p>Held with your demo balance in this browser.</p></div><Link prefetch={false} className="gmd-button" href="/products/ustx#investment">Invest <Icon name="arrow" size={16} /></Link></header>
     {demo.error ? <p className="gmd-inline-error" role="alert">{demo.error}</p> : !account ? <p className="gmd-caption" role="status">Opening your demo account…</p> : <>
       <div className="gmd-portfolio-summary">
         <div><span className="gmd-label">Total value</span><strong className="gmd-value">{value === null ? "—" : formatUsdRounded(cash + value)}</strong><p>{nav ? `USTX at ${formatUsdMicros(nav.navMicros, 4)} per share, priced by OKX OnchainOS and recorded on X Layer at ${shortTime(nav.at)}` : "Waiting for the latest recorded NAV…"}</p></div>
         <dl>
-          <div><dt>Demo cash</dt><dd>{formatUsdMicros(cash, 2)}</dd></div>
+          <div><dt>Cash balance</dt><dd>{formatUsdMicros(cash, 2)}</dd></div>
           <div><dt>Invested</dt><dd>{formatUsdMicros(cost, 2)}</dd></div>
           <div><dt>Unrealized return</dt><dd className={tone}>{gain === null ? "—" : signed(gain)}{percent !== null && <small>{signedPercent(percent)}</small>}</dd></div>
         </dl>
@@ -211,7 +208,7 @@ export function DemoPortfolio() {
           <span><b>{order.side === "subscribe" ? "Bought USTX" : "Redeemed USTX"}</b><small>{shortTime(order.createdAt)} · NAV {formatUsdMicros(order.navMicros, 4)} recorded {shortTime(order.navEffectiveAt)}</small></span>
           <span><b>{formatUsdMicros(order.usdMicros, 2)}</b><small>{formatShares(order.sharesMicros)} USTX</small></span>
         </div>)}</div>}
-        <button type="button" className="gmd-text-button" disabled={resetting || !account.exists} onClick={reset}>{resetting ? "Resetting…" : "Reset demo account"}</button>
+        <button type="button" className="gmd-text-button" disabled={resetting || !account.exists} onClick={reset}>{resetting ? "Resetting…" : "Reset demo balance"}</button>
       </div>
     </>}
   </section>;

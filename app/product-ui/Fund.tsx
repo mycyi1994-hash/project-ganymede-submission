@@ -4,12 +4,12 @@ import { useEffect, useState } from "react";
 import { fundValueMicros } from "@/lib/demo/basket";
 import { DEMO_ORDER_EVENT, formatSharesShort } from "@/lib/demo/format";
 import { formatUsdRounded } from "@/lib/nav-display";
-import { publicationHistory, shortTime, signedPercent, sinceFirstRecord } from "@/lib/product-market";
+import { compositionForRecord, publicationHistory, shortTime, signedPercent, sinceFirstRecord } from "@/lib/product-market";
 import { PROOF_DEPLOYMENT } from "@/lib/xstocks/proof";
 import { useMarket } from "./MarketProvider";
 import { BasketTable, useRecordComposition } from "./Basket";
 import { Icon } from "./Icons";
-import { OkxSource } from "./OkxSource";
+import Holdings from "./Holdings";
 
 // Fund figures for USTX: size and shares outstanding from the NAV record on X Layer, investors
 // and 24-hour flows from the demo ledger. Demo dollars only; totals, never single orders.
@@ -64,25 +64,29 @@ function useFundFigures() {
 
 const tone = (percent: number | undefined) => percent === undefined || Math.round(percent * 100) === 0 ? "" : percent > 0 ? "gmd-positive" : "gmd-negative";
 
-/** Three headline figures for the market card. */
+/** Three headline figures for the market card; the chart above it shows the return. */
 export function FundStats() {
   const figures = useFundFigures();
+  const flows = figures.fund?.last24h;
+  const net = flows ? BigInt(flows.investedMicros) - BigInt(flows.redeemedMicros) : null;
   return <dl className="gmd-fund-stats" aria-label="USTX fund figures">
     <div><dt>Fund size</dt><dd>{figures.size === null ? "—" : formatUsdRounded(figures.size)}</dd></div>
     <div><dt>Investors</dt><dd>{figures.fund ? figures.fund.investors.toLocaleString("en-US") : "—"}</dd></div>
-    <div><dt>Since launch</dt><dd className={tone(figures.since?.percent)}>{figures.since ? signedPercent(figures.since.percent) : "—"}</dd></div>
+    <div><dt>Net flows, 24h</dt><dd className={net === null || net === 0n ? "" : net > 0n ? "gmd-positive" : "gmd-negative"}>{net === null ? "—" : `${net > 0n ? "+" : ""}${formatUsdRounded(net)}`}</dd></div>
   </dl>;
 }
 
-/** The fund overview on the USTX page: figures, key facts and look-through holdings. */
+/** The fund overview on the USTX page: figures and key facts. */
 export function FundOverview() {
   const figures = useFundFigures();
-  const { composition } = useRecordComposition();
+  const { data } = useMarket();
   const { fund, since, record } = figures;
+  const entry = record ? [data?.latest?.publication, ...(data?.history ?? [])].find(item => item?.holdingsHash.toLowerCase() === record.holdingsHash.toLowerCase()) : null;
+  const tx = entry?.txHash && /^0x[0-9a-f]{64}$/i.test(entry.txHash) ? entry.txHash : null;
   const unavailable = figures.failed && !fund;
   const net = fund ? BigInt(fund.last24h.investedMicros) - BigInt(fund.last24h.redeemedMicros) : null;
   return <section id="overview" className="gmd-fund" aria-labelledby="fund-title">
-    <header className="gmd-section-heading"><div><h2 id="fund-title">Fund overview</h2><p>Live figures for USTX. Demo dollars on X Layer Testnet.</p></div><span className="gmd-badge">Demo</span></header>
+    <header className="gmd-section-heading"><div><h2 id="fund-title">Fund overview</h2><p>Live figures, refreshed every minute.</p></div></header>
     {unavailable && <p className="gmd-inline-error" role="status">Fund figures are unavailable right now. The NAV and verification are not affected.</p>}
     <div className="gmd-fund-grid">
       <article><span>Fund size</span><strong>{figures.size === null ? "—" : formatUsdRounded(figures.size)}</strong><small>{figures.shares === null ? "Loading…" : figures.onChain && record ? `${formatSharesShort(figures.shares)} shares outstanding, recorded on X Layer at ${shortTime(record.effectiveAt)}` : `${formatSharesShort(figures.shares)} shares outstanding; recorded on X Layer with the next NAV`}</small></article>
@@ -90,21 +94,28 @@ export function FundOverview() {
       <article><span>Net flows, 24h</span><strong className={net === null || net === 0n ? "" : net > 0n ? "gmd-positive" : "gmd-negative"}>{net === null ? "—" : `${net > 0n ? "+" : ""}${formatUsdRounded(net)}`}</strong><small>{fund ? `${formatUsdRounded(fund.last24h.investedMicros)} in · ${formatUsdRounded(fund.last24h.redeemedMicros)} out · ${fund.last24h.orders.toLocaleString("en-US")} ${fund.last24h.orders === 1 ? "order" : "orders"}` : "Loading…"}</small></article>
       <article><span>Since launch</span><strong className={tone(since?.percent)}>{since ? signedPercent(since.percent) : "—"}</strong><small>{since ? `From ${formatUsdRounded(since.first.micros)} on ${day(since.first.at)}` : "Loading…"}</small></article>
     </div>
-    <p className="gmd-fund-source"><OkxSource>Priced by OKX OnchainOS every 5 minutes</OkxSource><span>The NAV, the shares outstanding and a fingerprint of the holdings are recorded on X Layer with every price.</span></p>
     <dl className="gmd-fund-facts">
       <div><dt>Launch date</dt><dd>{since ? day(since.first.at) : "—"}</dd></div>
       <div><dt>Minimum investment</dt><dd>$10</dd></div>
-      <div><dt>Management fee</dt><dd>0.00% during the demo</dd></div>
+      <div><dt>Management fee</dt><dd>0.00%</dd></div>
       <div><dt>Dealing</dt><dd>Instant, at the latest NAV on X Layer</dd></div>
       <div><dt>Base currency</dt><dd>USD</dd></div>
       <div><dt>Rebalancing</dt><dd>Quarterly, back to equal weight</dd></div>
-      <div><dt>Pricing</dt><dd>OKX OnchainOS, every 5 minutes</dd></div>
-      <div><dt>NAV record</dt><dd><a className="gmd-inline-tx" href={`${PROOF_DEPLOYMENT.explorerUrl}/address/${PROOF_DEPLOYMENT.registry}`} target="_blank" rel="noreferrer">X Layer · OKX Explorer<Icon name="external" size={12} /><span className="gmd-sr-only"> (opens in a new tab)</span></a></dd></div>
+      <div><dt>Price oracle</dt><dd>OKX OnchainOS, every 5 minutes</dd></div>
+      <div><dt>Last NAV record</dt><dd>{record ? <a className="gmd-inline-tx" href={tx ? `${PROOF_DEPLOYMENT.explorerUrl}/tx/${tx}` : `${PROOF_DEPLOYMENT.explorerUrl}/address/${PROOF_DEPLOYMENT.registry}`} target="_blank" rel="noreferrer">{shortTime(record.effectiveAt)} · OKX Explorer<Icon name="external" size={12} /><span className="gmd-sr-only"> (opens in a new tab)</span></a> : "—"}</dd></div>
     </dl>
-    {composition && figures.shares !== null && figures.shares > 0n && <div className="gmd-fund-holdings">
-      <h3>What the fund holds</h3>
-      <p>All {formatSharesShort(figures.shares)} USTX shares outstanding, looked through to the six xStocks at the latest OKX OnchainOS prices. In this demo no tokens are bought.</p>
-      <BasketTable composition={composition} sharesMicros={figures.shares} label="Look-through holdings of all USTX shares" />
-    </div>}
+  </section>;
+}
+
+/** Holdings, as on a fund factsheet: what all shares outstanding hold of each xStock. Before the first share, per share. */
+export function FundHoldings() {
+  const figures = useFundFigures();
+  const { data, loading } = useMarket();
+  const { composition } = useRecordComposition();
+  if (!composition || figures.shares === null || figures.shares <= 0n) return <Holdings composition={data ? compositionForRecord(data) : null} loading={loading} />;
+  return <section className="gmd-fund-holdings" aria-labelledby="holdings-title">
+    <header className="gmd-section-heading"><div><h2 id="holdings-title">Holdings</h2><p>All {formatSharesShort(figures.shares)} USTX shares, looked through to each xStock at OKX OnchainOS prices as of {shortTime(composition.asOf)}.</p></div><span className="gmd-count">6 assets</span></header>
+    <BasketTable composition={composition} sharesMicros={figures.shares} label="Fund holdings" />
+    <p className="gmd-caption">Equal weight at each quarterly rebalance; weights move with prices. In the demo no tokens are bought.</p>
   </section>;
 }

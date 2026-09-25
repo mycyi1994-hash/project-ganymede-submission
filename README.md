@@ -2,7 +2,7 @@
 
 Ganymede sells **USTX, the US Tech Basket**: one share holds Apple, Microsoft, NVIDIA, Amazon, Meta and Tesla through their xStocks on X Layer. You invest with demo dollars, see exactly which tokens your money put in the basket, and check every price yourself. Every five minutes Ganymede prices the xStocks through OKX OnchainOS, records the NAV, the shares outstanding and a SHA-256 fingerprint of the full composition on X Layer, and your browser reads that record directly and recalculates the NAV. The result can be downloaded as an evidence file and re-checked anywhere with one command.
 
-[Markets](https://ganymede-xlayer.gana003.workers.dev/) · [USTX](https://ganymede-xlayer.gana003.workers.dev/products/ustx) · [Verify](https://ganymede-xlayer.gana003.workers.dev/products/ustx/transparency) · [Portfolio](https://ganymede-xlayer.gana003.workers.dev/portfolio) · [For issuers](https://ganymede-xlayer.gana003.workers.dev/issuers) · [Developers & API](https://ganymede-xlayer.gana003.workers.dev/developers) · [Methodology](https://ganymede-xlayer.gana003.workers.dev/methodology) · [Limitations](https://ganymede-xlayer.gana003.workers.dev/limitations)
+[Markets](https://ganymede-xlayer.gana003.workers.dev/) · [USTX](https://ganymede-xlayer.gana003.workers.dev/products/ustx) · [Transparency](https://ganymede-xlayer.gana003.workers.dev/products/ustx/transparency) · [Portfolio](https://ganymede-xlayer.gana003.workers.dev/portfolio) · [For issuers](https://ganymede-xlayer.gana003.workers.dev/issuers) · [Docs & API](https://ganymede-xlayer.gana003.workers.dev/developers) · [Methodology](https://ganymede-xlayer.gana003.workers.dev/methodology) · [Risks](https://ganymede-xlayer.gana003.workers.dev/limitations)
 
 Investing uses demo dollars on X Layer Testnet records: no real money moves and no shares are issued on chain.
 
@@ -13,8 +13,8 @@ Investing uses demo dollars on X Layer Testnet records: no real money moves and 
 1. **Markets** shows USTX with its latest NAV, fund size, investors, return since launch, the NAV history and the weights of AAPLx, MSFTx, NVDAx, AMZNx, METAx and TSLAx. A status chip reports the check your browser has just run against X Layer.
 2. **Invest** on the USTX page. Every browser gets a private demo account with $10,000 in demo dollars. Choose an amount, review, and the order fills instantly at the NAV recorded on X Layer. The confirmation shows what went into your basket: the amount of each xStock your shares now hold and its value.
 3. **The fund overview** on the same page shows the fund size (shares outstanding × NAV, both recorded on X Layer), investors, return since the $100.00 launch on 23 September 2026, the key terms, 24-hour flows and what all shares hold of each xStock.
-4. **Portfolio** shows your demo account: total value, return, your USTX looked through to each xStock, and your orders. Below it, connect a wallet (OKX Wallet first) or paste any public address to value real xStock balances on X Layer mainnet at the verified prices, with a downloadable statement and a USTX-weighted basket calculator. The wallet part is read-only; nothing is signed or sent.
-5. **Verify** is the customer proof page, in the manner of an exchange's proof of reserves. It shows the result of the check your browser runs automatically, how every price is made (priced by OKX OnchainOS, recorded on X Layer, checked in your browser), the holdings, the latest record, recent records with OKX Explorer links and what verification covers.
+4. **Portfolio** shows your demo account: total value, return, your USTX looked through to each xStock, and your orders. Below it, connect a wallet (OKX Wallet first) or paste any public address to value real xStock balances on X Layer mainnet at the verified prices, with a downloadable statement. The header's "Connect OKX Wallet" connects the same way. The wallet part is read-only; nothing is signed or sent.
+5. **Transparency** is the customer proof page, in the manner of an exchange's proof of reserves. It shows the result of the check your browser runs automatically, how every price is made (priced by OKX OnchainOS, recorded on X Layer, checked in your browser), the holdings, the latest record, recent records with OKX Explorer links and what verification covers.
 6. **Developers → Verify it yourself** shows the checks behind it. Your browser reads the pinned registry on X Layer Testnet, hashes the original document and recalculates every holding. Each check is shown with its result.
 7. **Try to break it** on the developer page edits a copy of the document in your browser in three ways:
    - change one price: the row arithmetic and the fingerprint fail;
@@ -35,7 +35,7 @@ No sign-up, signature or transaction is needed.
 
 - **Public NAV API.** `GET /api/v1/ustx` returns the latest record read from X Layer at request time: NAV, shares outstanding, fingerprint, transaction and verification links. No key, CORS open to every origin.
 - **Embeddable badge.** `/embed/ustx` is an iframe any site or wallet can show. It verifies the NAV in the visitor's own browser before it says "Verified".
-- **Issuers.** [/issuers](https://ganymede-xlayer.gana003.workers.dev/issuers) explains how another tokenized-stock basket can launch on the same rails, with planned pricing and a roadmap. [/developers](https://ganymede-xlayer.gana003.workers.dev/developers) has the API, a viem example that reads the registry directly and the embed code.
+- **Issuers.** [/issuers](https://ganymede-xlayer.gana003.workers.dev/issuers) explains how another tokenized-stock basket can launch on the same rails, with plans and a contact route. [/developers](https://ganymede-xlayer.gana003.workers.dev/developers) has the API, a viem example that reads the registry directly and the embed code.
 
 ## What was built during the event
 
@@ -46,9 +46,9 @@ No sign-up, signature or transaction is needed.
 | Verification | Direct browser read and recalculation, a mainnet check of the six xStock contracts, the three-way tamper experiment, the evidence file and `verify:evidence` |
 | Investing | Demo accounts with $10,000 in demo dollars, instant orders at the recorded NAV, idempotent retries and a daily order cap; a confirmation that shows the tokens each order put in the basket; a portfolio that looks through to every xStock |
 | Fund | Fund overview with size, investors, return since launch and look-through holdings; the demo shares outstanding recorded on X Layer with every NAV |
-| Portfolio | Read-only valuation of any wallet's xStocks on X Layer mainnet at the verified prices, a downloadable statement and a USTX-weighted basket calculator |
+| Portfolio | Read-only valuation of any wallet's xStocks on X Layer mainnet at the verified prices and a downloadable statement |
 | Ecosystem | Public NAV API with open CORS, an embeddable self-verifying badge, issuer and developer pages |
-| Product | Markets, USTX, Portfolio and Verify screens built around the browser check |
+| Product | Markets, USTX, Portfolio and Transparency screens laid out like a live service: one testnet notice, network and OKX Wallet in the header, fund facts with the price oracle, factsheet holdings and chart ranges |
 | Hardening | Public reads never write, spoofable identity headers ignored, relayer retries reconcile before re-sending, upstream errors kept out of public responses |
 
 Commit-by-commit detail, with times and line counts: [docs/BUILD_PERIOD.md](docs/BUILD_PERIOD.md).
@@ -93,7 +93,7 @@ Ganymede's contribution is narrower. Any visitor can reproduce a published baske
 
 ## Business model and next steps (not built)
 
-Ganymede is built to become the verification and distribution layer for tokenized-stock baskets on X Layer. [/issuers](https://ganymede-xlayer.gana003.workers.dev/issuers) lists the planned pricing: a free sandbox (today's testnet product), a per-basket subscription for issuers publishing on X Layer mainnet, and a distribution fee on assets raised through licensed partners.
+Ganymede is built to become the verification and distribution layer for tokenized-stock baskets on X Layer. The intended pricing is a free sandbox (today's testnet product), a per-basket subscription for issuers publishing on X Layer mainnet, and a distribution fee on assets raised through licensed partners. The [issuer page](https://ganymede-xlayer.gana003.workers.dev/issuers) lists these plans with a contact route.
 
 1. Publish the registry on X Layer mainnet and keep every document in a public archive, so any past record can be verified in the interface.
 2. Add a second price source and a written policy for corporate actions and constituent changes.
@@ -123,7 +123,7 @@ See `.env.example` for setting names and [the engine reference](docs/ENGINE_REFE
 
 ## Source and release
 
-This public review snapshot corresponds to production source commit `f660dc3f528783f1afc167561b653ad6864bd9df`. Application code matches the recorded source; documentation may be newer. The original development history remains private, and public-hosting identifiers are adjusted. See [snapshot provenance](docs/BUILD_EVIDENCE.md). Cloudflare deployment messages identify the production source commit. The current release, its checks and its limits are in [the product release notes](docs/PRODUCT_RELEASE.md). [Release rules and identity model](docs/release-identity.md).
+This public review snapshot corresponds to production source commit `cb921f5f2e4221caddf55d54bb8232593fe3d386`. Application code matches the recorded source; documentation may be newer. The original development history remains private, and public-hosting identifiers are adjusted. See [snapshot provenance](docs/BUILD_EVIDENCE.md). Cloudflare deployment messages identify the production source commit. The current release, its checks and its limits are in [the product release notes](docs/PRODUCT_RELEASE.md). [Release rules and identity model](docs/release-identity.md).
 
 - [Dev Day submission notes](docs/OKX_DEV_DAY.md) and [build-period work](docs/BUILD_PERIOD.md)
 - [Asset credits](public/ASSET-CREDITS.md)

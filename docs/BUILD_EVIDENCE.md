@@ -1,6 +1,6 @@
 # Build provenance
 
-Production source revision: `f660dc3f528783f1afc167561b653ad6864bd9df`.
+Production source revision: `cb921f5f2e4221caddf55d54bb8232593fe3d386`.
 
 This is a source snapshot, not a claim that the entire project was newly built for this event. The original repository remains private. The entries below were exported from its Git history; reviewers can inspect current implementations and tests, and request original history access from the team if needed. No old secrets, local environment files or full private Git history are published.
 
@@ -160,5 +160,20 @@ Validation of the snapshot source:
   - at 1536 px and 125% zoom the strip's buttons were 29px with no clip-path left behind;
   - the proof page showed "NAV verified on X Layer" and the developer page's three checks passed;
   - axe reported no violations on six screens, with no horizontal overflow or page errors.
+
+These are point-in-time observations, not continuous availability or a security audit.
+
+
+## Service layout release
+
+Production source: cb921f5f2e4221caddf55d54bb8232593fe3d386. Worker version: 3a46801e-e6f9-47e0-af1c-8477f24bef71, deployed 2026-09-25. Relayer Worker version: cb38524c-cb75-4350-a9ee-a363f49a5c93, unchanged. This snapshot is exported from a5b0df09ba7a223c658969231324e45371597e1a, which adds only documentation to the production source.
+
+- The screens are laid out like a live service: one testnet notice inside the header with the network and a "Connect OKX Wallet" button; Markets without the pitch sections; on the USTX page only the order panel beside the chart, the price oracle and last NAV record in the fund facts, one factsheet-style holdings table and "About USTX"; demo-balance wording instead of repeated warnings; no basket calculator; issuer plans with contact instead of planned prices and a roadmap. The visual design is unchanged.
+
+Validation of the snapshot source:
+
+- In the development repository, the typecheck, clean build and 126 tests pass, and lint reports 0 errors.
+- The same tests pass in this public checkout after `npm ci`, and so do the relayer typecheck and 16 tests.
+- After the deployment, eleven public routes and three public APIs returned 200, the legacy routes redirected, and seven screens on desktop (1536 px, 125%) and mobile (390 px) had no axe violations, horizontal overflow or page errors.
 
 These are point-in-time observations, not continuous availability or a security audit.

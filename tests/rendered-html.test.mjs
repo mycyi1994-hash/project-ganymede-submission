@@ -20,20 +20,21 @@ test("Markets renders the actual product path without fabricated values or the v
   const html = visible(await response.text());
   assert.match(html, /US Tech Basket/);
   assert.match(html, />Invest </);
-  assert.match(html, /demo dollars/);
+  assert.match(html, /You are on X Layer Testnet\. Balances are demo funds with no real value\./);
+  assert.match(html, /Connect OKX Wallet/);
   assert.match(html, /NAV per share/);
   assert.match(html, /Priced by OKX OnchainOS/);
-  assert.doesNotMatch(html, /Try to break it|Recent investor activity/, "the tamper experiment and single orders are not on the customer page");
+  assert.doesNotMatch(html, /Try to break it|Recent investor activity|Built on X Layer and OKX|What you can do/, "no pitch or developer material on the customer page");
   assert.match(html, /href="\/products\/ustx#investment"/);
   assert.doesNotMatch(html, /Try verification|Try changing one price|<img\b[^>]*clearform-stack/);
   assert.doesNotMatch(html, /\$12,454|Example account/);
 });
 
 test("public product routes share navigation and select the right destination before hydration", async () => {
-  const expected = [["/", "Markets"], ["/portfolio", "Portfolio"], ["/products/ustx/transparency", "Verify"]];
+  const expected = [["/", "Markets"], ["/portfolio", "Portfolio"], ["/products/ustx/transparency", "Transparency"]];
   for (const [path, current, heading] of [
     ["/", "/", "US Tech Basket"],
-    ["/products/ustx", "/", "Terms &amp; approach"],
+    ["/products/ustx", "/", "About USTX"],
     ["/products/ustx/transparency", "/products/ustx/transparency", "Transparency"],
     ["/portfolio", "/portfolio", "Your xStocks on X Layer"],
     // The separate test share ledger stays reachable by address but is not a primary destination.
@@ -62,10 +63,11 @@ test("product pages offer clearly labelled demo investing next to the verificati
   }
   const product = visible(await (await render("/products/ustx")).text());
   assert.match(product, /Invest in USTX/);
-  assert.match(product, /Testnet demo · demo dollars, no real money/);
+  assert.match(product, /You are on X Layer Testnet/);
   assert.match(product, /No real money moves and no shares are issued on chain/);
-  assert.match(product, /View proof/);
+  assert.match(product, /Price oracle/);
   assert.match(product, /OKX OnchainOS/);
+  assert.doesNotMatch(product, /Testnet demo · demo dollars|Proof of NAV|model share/, "one testnet notice, customer wording");
   assert.match(product, /id="investment"/);
 });
 
@@ -142,8 +144,8 @@ test("Portfolio reads real xStocks read-only and offers the basket calculator", 
   assert.match(html, /Connect OKX Wallet/);
   assert.match(html, /Or view any public address/);
   assert.match(html, /nothing is signed or sent/);
-  assert.match(html, /Size a USTX-weighted basket/);
-  assert.match(html, /not an order or a quote/);
+  assert.match(html, /Your xStocks on X Layer/);
+  assert.doesNotMatch(html, /Size a USTX-weighted basket/);
   assert.doesNotMatch(html, /GMDCORE|testnet share records|Invest in USTX/);
 });
 
@@ -155,7 +157,6 @@ test("the product page shows fund figures and Markets shows the OKX and X Layer 
   assert.match(product, /Net flows, 24h/);
   assert.doesNotMatch(product, /Recent investor activity/);
   const markets = visible(await (await render("/")).text());
-  assert.match(markets, /Built on X Layer and OKX/);
   assert.match(markets, /OKX OnchainOS/);
   assert.match(markets, /href="\/issuers"/);
   assert.match(markets, /href="\/developers"/);
@@ -164,8 +165,9 @@ test("the product page shows fund figures and Markets shows the OKX and X Layer 
 test("issuer, developer and embed pages render for partners", async () => {
   const issuers = visible(await (await render("/issuers")).text());
   assert.match(issuers, /Launch a basket investors can verify/);
-  assert.match(issuers, /Planned pricing/);
-  assert.match(issuers, /Roadmap/);
+  assert.match(issuers, /Plans/);
+  assert.match(issuers, /Contact us/);
+  assert.doesNotMatch(issuers, /Roadmap|Planned/);
   const developers = visible(await (await render("/developers")).text());
   assert.match(developers, /\/api\/v1\/ustx/);
   assert.match(developers, /latestNav/);

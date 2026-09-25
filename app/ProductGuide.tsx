@@ -38,7 +38,6 @@ export default function ProductGuide({ kind }: { kind: keyof typeof guides }) {
     <div className="gmd-document-layout"><DocumentMenu current={kind} />
       <article className="gmd-document"><header><h1>{guide.title}</h1><p>{guide.intro}</p></header>
         {guide.sections.map(([title, copy]) => <section key={title}><h2>{title}</h2><p>{copy}</p></section>)}
-        <section id="paper-strategies"><h2>The separate paper strategy lab</h2><p>This earlier work predates the OKX Dev Day build period. CORE and YIELD are passive crypto model strategies; TECH and ALPHA use systematic active rules. The Lab holds sample allocations for this browser for 30 days. Clearing cookies or using another browser starts a separate paper portfolio. These simulations are separate from USTX; no real money moves.</p><Link className="gmd-inline-link" href="/lab#paper-strategy-lab">Explore Lab <Icon name="arrow" size={16} /></Link></section>
         <footer><p>This describes the current model and its data. It is not an offering document.</p><Link className="gmd-button" href="/products/ustx">Back to basket <Icon name="arrow" size={16} /></Link></footer>
       </article></div></ProductShell>;
 }

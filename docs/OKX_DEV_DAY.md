@@ -50,7 +50,7 @@ The registry also carries NAV records for the earlier paper strategies under a d
 
 ## Existing project and new work
 
-Ganymede began in July 2026 as a Korean-won crypto strategy engine with Upbit market data and settlement built for the GIWA Sepolia testnet. The last commit before the event was `7a33392` on 30 July. Reused from that codebase and not counted as new work: the strategy engine behind the separate paper Lab, the fixed-point helpers, the NAV registry and share-ledger contracts (redeployed to X Layer Testnet without changes) and the settlement relayer (extended for X Layer). Every commit of the build period, with times and line counts, is in [BUILD_PERIOD.md](BUILD_PERIOD.md). The main pieces:
+Ganymede began in July 2026 as a Korean-won crypto strategy engine with Upbit market data and settlement built for the GIWA Sepolia testnet. The last commit before the event was `7a33392` on 30 July. Reused from that codebase and not counted as new work: the strategy engine (its strategies run the separate paper Lab; its five-minute cycle and D1 state store also run the USTX step added in the build period), the fixed-point helpers, the NAV registry and share-ledger contracts (redeployed to X Layer Testnet without changes) and the settlement relayer (extended for X Layer). Every commit of the build period, with times and line counts, is in [BUILD_PERIOD.md](BUILD_PERIOD.md). The main pieces:
 
 | New work | Evidence commit |
 | --- | --- |

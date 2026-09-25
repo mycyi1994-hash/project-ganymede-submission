@@ -401,11 +401,11 @@ These are point-in-time observations, not continuous availability or a security 
 
 ## Submission tidy release
 
-Production source: ba59333137fdf4290e8ab1f05c784f92083df684. Worker version: ae1dae8a-29c8-4a30-90b8-bf39503cafb5, deployed 2026-09-25; prior 5225c560-1d20-48e7-9e52-a61ae7b79979. Relayer and keeper Workers unchanged. This snapshot is exported from 2e3789a687bdb1cd4e58976e119938600b40ecc8, which adds only documentation to the production source.
+Production source: ba59333137fdf4290e8ab1f05c784f92083df684. Worker version: ae1dae8a-29c8-4a30-90b8-bf39503cafb5, deployed 2026-09-25; prior 5225c560-1d20-48e7-9e52-a61ae7b79979. Relayer and keeper Workers unchanged. This snapshot is exported from a1f9e3ca495bddb15b38c3b681307529e980cb13, which adds only documentation to the production source.
 
 - The OKX Dev Day rules allow existing projects and ask them for the list of new work and its commits, so every statement that Ganymede existed before the event stays.
 - Files nothing used are removed: four July social images with the earlier "Ganymede Index" branding, three starter-template icons and the starter's D1 example. The package takes the project's name instead of the starter template's.
-- The reuse is stated exactly. USTX records its NAV to the pre-event NAV registry contract, redeployed to X Layer Testnet without changes, through the settlement relayer, which was extended for X Layer, and uses the same fixed-point helpers; the earlier strategy engine runs only the separate paper Lab. The README, BUILD_PERIOD.md and OKX_DEV_DAY.md say the same.
+- The reuse is stated exactly. USTX records its NAV to the pre-event NAV registry contract, redeployed to X Layer Testnet without changes, through the settlement relayer, which was extended for X Layer, and uses the same fixed-point helpers; the earlier engine's strategies run only the separate paper Lab, while its five-minute cycle and D1 state store also run the USTX step added in the build period. The README, BUILD_PERIOD.md and OKX_DEV_DAY.md say the same.
 
 Validation of the snapshot source:
 

@@ -57,9 +57,9 @@ Commit-by-commit detail, with times and line counts: [docs/BUILD_PERIOD.md](docs
 
 ## Project history
 
-Ganymede started in July 2026 as a Korean-won crypto strategy engine. Its paper portfolios are priced from Upbit market data, and its fund-share settlement was first built for the GIWA Sepolia testnet with a Dojang verified-address check. That code is still in the repository: the engine powers the separate paper Lab, which is not part of the submission's new work.
+Ganymede started in July 2026 as a Korean-won crypto strategy engine. Its paper portfolios are priced from Upbit market data, and its fund-share settlement was first built for the GIWA Sepolia testnet with a Dojang verified-address check. That code is still in the repository: its strategies power the separate paper Lab, which is not part of the submission's new work.
 
-For OKX Dev Day we moved settlement to X Layer and built the tokenized-stock product on top of that earlier rail. USTX records its NAV to the NAV registry contract from that rail, redeployed to X Layer Testnet without changes, through the settlement relayer, which we extended for X Layer; these reused parts are not counted as new work. The GMDCORE share-ledger contract deployed to X Layer comes from the same rail, so its verified source still describes GIWA settlement. The same X Layer registry also carries NAV records for the earlier paper strategies under a different product key. The USTX check reads only the USTX key.
+For OKX Dev Day we moved settlement to X Layer and built the tokenized-stock product on top of that earlier code. The engine's five-minute cycle runs the new USTX step, which records the NAV to the NAV registry contract from the earlier rail, redeployed to X Layer Testnet without changes, through the settlement relayer, which we extended for X Layer; these reused parts are not counted as new work. The GMDCORE share-ledger contract deployed to X Layer comes from the same rail, so its verified source still describes GIWA settlement. The same X Layer registry also carries NAV records for the earlier paper strategies under a different product key. The USTX check reads only the USTX key.
 
 ## OKX integration
 

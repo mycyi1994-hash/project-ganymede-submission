@@ -86,7 +86,8 @@ test("a huge Retry-After pauses pricing for at most an hour, and an older unboun
   const addresses = addressesOf();
   repo.rows.set(STATE_LATEST, JSON.stringify({ evaluatedAt: "2026-09-24T10:00:00.000Z", retryAt: "2099-10-21T07:28:00.000Z", status: "awaiting_prices", blockers: [], warnings: [] }));
   let priced = 0;
-  t.mock.method(globalThis, "fetch", async (...args) => { priced += 1; return pricesFor(addresses)(...args); });
+  // Counts price requests only; the cycle also reads wallet shares from X Layer Testnet.
+  t.mock.method(globalThis, "fetch", async (...args) => { if (!String(args[0]).includes("testrpc.xlayer.tech")) priced += 1; return pricesFor(addresses)(...args); });
   const result = await runXStocksCycle(configured(addresses), repo, settlementRecorder(() => ({ status: "confirmed", txHash: "0x1", error: null })), "2026-09-24T10:05:00.000Z");
   assert.equal(priced, 1, "the far-future wait did not stop pricing");
   assert.equal(result.navsPublished, 1);

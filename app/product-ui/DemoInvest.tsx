@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useState } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import { formatUsdMicros, formatUsdRounded } from "@/lib/nav-display";
 import { shortTime } from "@/lib/product-market";
 import { parseUsd } from "@/lib/xstocks/wallet";
@@ -9,9 +9,11 @@ import { DEMO_ORDER_EVENT, formatShares, parseShares } from "@/lib/demo/format";
 import { Icon } from "./Icons";
 import { useMarket } from "./MarketProvider";
 import { BasketList, BasketTable, useRecordComposition } from "./Basket";
+import { WalletInvest, useInjectedWallet } from "./WalletInvest";
 
 // Demo investing with demo dollars in a private browser session. No real money moves and no
-// shares are issued on chain; orders fill at the latest NAV recorded on X Layer.
+// shares are issued on chain; orders fill at the latest NAV recorded on X Layer. Investing from a
+// wallet on X Layer Testnet is in WalletInvest; the panel offers both.
 
 type Account = { cashMicros: string; sharesMicros: string; costMicros: string; ordersCount: number; exists: boolean };
 type Order = { id: string; side: "subscribe" | "redeem"; usdMicros: string; sharesMicros: string; navMicros: string; navEffectiveAt: string; navHoldingsHash: string; createdAt: string };
@@ -55,7 +57,8 @@ function useRecordedNav() {
   return record ? { navMicros: BigInt(record.navPerShareMicros), at: record.effectiveAt } : null;
 }
 
-export function InvestPanel() {
+/** Pays from the demo balance held for this browser; no wallet needed. */
+function DemoInvest({ tabs }: { tabs: ReactNode }) {
   const demo = useDemoAccount();
   const nav = useRecordedNav();
   const { composition, holdingsHash } = useRecordComposition();
@@ -89,8 +92,9 @@ export function InvestPanel() {
   }
 
   const heading = filled ? "Order filled" : review ? `Review ${side === "buy" ? "investment" : "redemption"}` : "Invest in USTX";
-  return <aside className="gmd-order-panel" aria-labelledby="invest-title">
+  return <>
     <div className="gmd-order-heading"><h2 id="invest-title">{heading}</h2><Icon name="wallet" /></div>
+    {!review && !filled && tabs}
     {demo.error ? <p className="gmd-inline-error" role="alert">{demo.error}</p> : !account ? <p className="gmd-caption" role="status">Opening your demo account…</p>
       : filled ? <div className="gmd-order-review" role="status">
         <span>{filled.side === "subscribe" ? "You bought" : "You redeemed"}</span>
@@ -151,7 +155,19 @@ export function InvestPanel() {
         <button type="button" className="gmd-button" disabled={Boolean(problem) || !nav} onClick={() => setReview(crypto.randomUUID())}>Review {side === "buy" ? "investment" : "redemption"} <Icon name="arrow" size={17} /></button>
         <p className="gmd-caption">Demo dollars only. No real money moves and no shares are issued on chain.</p>
       </>}
-  </aside>;
+  </>;
+}
+
+/** The order panel: pay from a wallet on X Layer Testnet, or from the demo balance without one. */
+export function InvestPanel() {
+  const provider = useInjectedWallet();
+  const [choice, setChoice] = useState<"wallet" | "demo" | null>(null);
+  const mode = choice ?? (provider ? "wallet" : "demo");
+  const tabs = <div className="gmd-segmented gmd-pay-with" role="group" aria-label="Pay with">
+    <button type="button" aria-pressed={mode === "wallet"} onClick={() => setChoice("wallet")}>Wallet</button>
+    <button type="button" aria-pressed={mode === "demo"} onClick={() => setChoice("demo")}>Demo balance</button>
+  </div>;
+  return <aside className="gmd-order-panel" aria-labelledby="invest-title">{mode === "wallet" ? <WalletInvest tabs={tabs} onUseDemo={() => setChoice("demo")} /> : <DemoInvest tabs={tabs} />}</aside>;
 }
 
 export function DemoPortfolio() {

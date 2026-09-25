@@ -193,7 +193,7 @@ test("the demo routes: a read-only account view, a session cookie, orders at the
   } finally { delete env.DB; delete env.NAV_REGISTRY_ADDRESS; sql.close(); }
 });
 
-test("the fund totals add up every account and name none of them", async () => {
+test("the fund totals add up every account and name none of them", async (t) => {
   const { db, sql } = database();
   try {
     const demo = new DemoLedger(db);
@@ -218,10 +218,21 @@ test("the fund totals add up every account and name none of them", async () => {
     assert.equal(await demoSharesOutstanding({ prepare() { throw new Error("no such table: demo_accounts"); } }), null);
     env.DB = db;
     db.readOnly = true;
+    // The fund contract on X Layer Testnet: 2 USTX in one wallet.
+    t.mock.method(globalThis, "fetch", async (_url, init) => {
+      const body = JSON.parse(init.body);
+      const data = body.params?.[0]?.data ?? "";
+      const result = { eth_chainId: "0x7a0", eth_blockNumber: "0x10" }[body.method] ?? `0x${(data.startsWith("0x18160ddd") ? 2_000_000n : 1n).toString(16).padStart(64, "0")}`;
+      return Response.json({ jsonrpc: "2.0", id: body.id, result });
+    });
     const response = await fundGET();
     assert.equal(response.status, 200);
     assert.equal(response.headers.get("cache-control"), "no-store");
-    assert.equal((await response.json()).sharesOutstandingMicros, total);
+    const body = await response.json();
+    assert.equal(body.sharesOutstandingMicros, (BigInt(total) + 2_000_000n).toString(), "wallets and demo balances");
+    assert.equal(body.investors, 3);
+    assert.deepEqual(body.demo, { sharesMicros: total, investors: 2 });
+    assert.deepEqual(body.wallets, { sharesMicros: "2000000", investors: 1, block: 16 });
   } finally { delete env.DB; sql.close(); }
 });
 

@@ -371,6 +371,10 @@
 .gmd-wallet-holdings,.gmd-plan { border: 1px solid var(--gmd-line); border-radius: 12px; background: #fff; padding: 24px; margin-top: 20px; }
 .gmd-app .gmd-wallet-holdings .gmd-section-heading { display: flex; justify-content: space-between; align-items: baseline; gap: 8px 12px; flex-wrap: wrap; margin-bottom: 12px; }
 .gmd-wallet-holdings .gmd-section-heading span { font-size: 13px; color: var(--gmd-copy); }
+.gmd-app .gmd-wallet-holdings .gmd-position-table { margin-top: 4px; }
+.gmd-inside-table { margin-top: 18px; }
+.gmd-app .gmd-wallet-holdings > .gmd-caption { margin-top: 14px; }
+.gmd-app .gmd-wallet-holdings > .gmd-caption a { text-decoration: underline; text-underline-offset: 3px; }
 .gmd-wallet-summary { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: flex-end; gap: 14px; margin-top: 16px; padding-top: 16px; border-top: 1px solid var(--gmd-line); }
 .gmd-wallet-summary span,.gmd-wallet-summary small { display: block; font-size: 12px; color: var(--gmd-copy); }
 .gmd-wallet-summary strong { display: block; font-size: 28px; margin-block: 4px; }
@@ -682,6 +686,32 @@
 .gmd-app .gmd-order-panel .gmd-segmented button { flex: 1; font-size: 14px; min-height: 36px; }
 .gmd-app .gmd-detail-aside .gmd-order-panel + .gmd-order-panel { margin-top: 16px; }
 .gmd-app .gmd-inline-error { margin-top: 14px; padding: 10px 12px; border-radius: 6px; background: #fbeeee; color: #8a2f2f; font-size: 14px; }
+/* Wallet investing on X Layer Testnet: pay-with tabs, wallet balances and transaction steps */
+.gmd-app .gmd-order-panel .gmd-pay-with { background: transparent; padding: 0; border-radius: 0; border-bottom: 1px solid var(--gmd-line); margin: -8px 0 20px; }
+.gmd-app .gmd-order-panel .gmd-pay-with button { border-radius: 0; min-height: 40px; font-weight: 600; color: var(--gmd-copy); border-bottom: 2px solid transparent; margin-bottom: -1px; }
+.gmd-app .gmd-order-panel .gmd-pay-with button[aria-pressed=true] { background: transparent; box-shadow: none; color: var(--gmd-ink); border-bottom-color: var(--gmd-accent); }
+.gmd-wallet-gate { display: flex; flex-direction: column; gap: 14px; }
+.gmd-app .gmd-wallet-gate p { font-size: 15px; color: var(--gmd-copy); }
+.gmd-app .gmd-wallet-gate .gmd-button { width: 100%; justify-content: center; }
+.gmd-wallet-balances { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.gmd-wallet-balances > div { display: flex; flex-direction: column; gap: 2px; padding: 12px 14px; border-radius: 8px; background: var(--gmd-bg); }
+.gmd-wallet-balances span { font-size: 12px; color: var(--gmd-copy); }
+.gmd-wallet-balances b { font-size: 17px; font-weight: 600; font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
+.gmd-wallet-balances small { font-size: 12px; color: var(--gmd-copy); }
+.gmd-wallet-claim { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-block: 12px 18px; font-size: 13px; color: var(--gmd-copy); }
+.gmd-wallet-claim .gmd-inline-error { flex-basis: 100%; margin-top: 4px; }
+.gmd-app .gmd-wallet-gas { display: flex; gap: 8px; align-items: flex-start; margin-bottom: 16px; padding: 10px 12px; border-radius: 6px; background: #f9f3e9; color: #73521f; font-size: 14px; }
+.gmd-app .gmd-wallet-gas a { text-decoration: underline; text-underline-offset: 3px; }
+.gmd-app .gmd-wallet-gas svg { flex-shrink: 0; margin-top: 3px; }
+.gmd-tx-steps { list-style: none; padding: 0; display: flex; flex-direction: column; gap: 14px; margin-bottom: 18px; }
+.gmd-tx-steps li { display: flex; gap: 12px; align-items: flex-start; }
+.gmd-tx-steps li > span { width: 26px; height: 26px; flex-shrink: 0; display: flex; align-items: center; justify-content: center; border-radius: 50%; border: 1px solid var(--gmd-line); font-size: 13px; font-weight: 600; color: var(--gmd-copy); }
+.gmd-tx-steps li.is-wallet > span,.gmd-tx-steps li.is-chain > span { border-color: var(--gmd-accent); color: var(--gmd-accent); }
+.gmd-tx-steps li.is-done > span { background: var(--gmd-accent); border-color: var(--gmd-accent); color: #fff; }
+.gmd-tx-steps li > div { display: flex; flex-direction: column; gap: 2px; font-size: 14px; }
+.gmd-tx-steps small { font-size: 13px; color: var(--gmd-copy); }
+.gmd-tx-steps a { font-size: 13px; }
+@media (prefers-reduced-motion: no-preference) { .gmd-tx-steps li.is-chain > span { animation: gmd-pulse 1.4s ease-in-out infinite; } }
 .gmd-app .gmd-demo-portfolio { margin-block: 8px 44px; }
 .gmd-app .gmd-demo-portfolio > .gmd-section-heading { align-items: flex-end; margin-bottom: 18px; }
 .gmd-app .gmd-demo-portfolio .gmd-section-heading p { margin-top: 6px; font-size: 14px; color: var(--gmd-copy); }

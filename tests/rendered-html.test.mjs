@@ -36,7 +36,7 @@ test("public product routes share navigation and select the right destination be
     ["/", "/", "US Tech Basket"],
     ["/products/ustx", "/", "About USTX"],
     ["/products/ustx/transparency", "/products/ustx/transparency", "Transparency"],
-    ["/portfolio", "/portfolio", "Your xStocks on X Layer"],
+    ["/portfolio", "/portfolio", "Your wallet on X Layer"],
     // The separate test share ledger stays reachable by address but is not a primary destination.
     ["/activity", null, "Your testnet share records"],
   ]) {
@@ -64,7 +64,10 @@ test("product pages offer clearly labelled demo investing next to the verificati
   const product = visible(await (await render("/products/ustx")).text());
   assert.match(product, /Invest in USTX/);
   assert.match(product, /You are on X Layer Testnet/);
-  assert.match(product, /No real money moves and no shares are issued on chain/);
+  assert.match(product, /no real money moves/);
+  assert.match(product, /aria-label="Pay with"/);
+  assert.match(product, /Demo balance/);
+  assert.match(product, /USTX on X Layer Testnet/, "the share token in the fund facts");
   assert.match(product, /Price oracle/);
   assert.match(product, /OKX OnchainOS/);
   assert.doesNotMatch(product, /Testnet demo · demo dollars|Proof of NAV|model share/, "one testnet notice, customer wording");
@@ -144,7 +147,7 @@ test("Portfolio reads real xStocks read-only and offers the basket calculator", 
   assert.match(html, /Connect OKX Wallet/);
   assert.match(html, /Or view any public address/);
   assert.match(html, /nothing is signed or sent/);
-  assert.match(html, /Your xStocks on X Layer/);
+  assert.match(html, /Your wallet on X Layer/);
   assert.doesNotMatch(html, /Size a USTX-weighted basket/);
   assert.doesNotMatch(html, /GMDCORE|testnet share records|Invest in USTX/);
 });
@@ -173,6 +176,9 @@ test("issuer, developer and embed pages render for partners", async () => {
   assert.match(developers, /latestNav/);
   assert.match(developers, /\/embed\/ustx/);
   assert.match(developers, /verify:evidence/);
+  assert.match(developers, /Invest from a wallet or a contract/);
+  assert.match(developers, /0x77eaeba1366bde7818da12d3cbdbea0a2ee97596/);
+  assert.doesNotMatch(developers, /never signs/, "OKX Wallet now signs orders on X Layer Testnet");
   const embed = await render("/embed/ustx");
   assert.equal(embed.status, 200);
   const badge = visible(await embed.text());

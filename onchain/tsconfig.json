@@ -15,7 +15,10 @@
     // The shared id module lives under the app package, which is ESM. Hardhat
     // runs CommonJS, so compile that one file as CJS.
     "moduleTypes": {
-      "../relayer/src/ids.ts": "cjs"
+      "../relayer/src/ids.ts": "cjs",
+      // The app's fund client, pinned against the compiled contracts in test/AppFundClient.test.ts.
+      "../lib/xstocks/fund.ts": "cjs",
+      "../lib/chains.ts": "cjs"
     }
   },
   "include": [
@@ -24,6 +27,7 @@
     "./hardhat.config.ts",
     // Only the id module — the rest of relayer/src targets the Workers runtime.
     "../relayer/src/ids.ts",
+    "../lib/xstocks/fund.ts",
     // hardhat-viem writes contract types here on `npm run build`.
     "./artifacts/**/*.d.ts"
   ]

@@ -22,6 +22,7 @@ import { fetchXStockQuotes, MAX_COOLDOWN_MS, onchainOsCredentials } from "./pric
 import { parseComposition } from "./proof";
 import { updateNavSeries } from "./series";
 import { demoSharesOutstanding } from "../demo/ledger";
+import { fundRpc, parseStoredWalletTotals, readFundTotals, STATE_WALLET_SHARES } from "./fund";
 
 export const STATE_BASKET = "xstocks:basket";
 export const STATE_LATEST = "xstocks:latest";
@@ -39,7 +40,8 @@ const COOLDOWN_TOLERANCE_MS = 60_000;
 export type Publication = {
   asOf: string;
   navPerShareMicros: string;
-  /** Demo shares held across all accounts when the NAV was taken; recorded beside it on X Layer. */
+  /** USTX outstanding when the NAV was taken: shares in wallets, issued by the fund contract, plus
+   *  shares held with demo balances. Recorded beside the NAV on X Layer. */
   sharesOutstandingMicros?: string;
   holdingsHash: string;
   canonical: string;
@@ -144,6 +146,23 @@ async function reconcileUnresolved(repo: EngineRepository, settlementClient: Set
   return asked;
 }
 
+/**
+ * USTX held in wallets, as issued by the fund contract on X Layer Testnet. When the chain cannot be
+ * read, the last value read stands in, with a warning; before any successful read, none.
+ */
+async function readWalletShares(repo: EngineRepository, now: string, warnings: string[]): Promise<string | null> {
+  try {
+    // Bounded, so a slow RPC delays the NAV publication by seconds at most.
+    const totals = await readFundTotals({ rpc: fundRpc({ signal: AbortSignal.timeout(10_000) }) });
+    await repo.setState(STATE_WALLET_SHARES, JSON.stringify({ sharesMicros: totals.sharesMicros.toString(), investors: totals.investors, block: totals.block, readAt: now }));
+    return totals.sharesMicros.toString();
+  } catch {
+    const last = parseStoredWalletTotals((await repo.getState(STATE_WALLET_SHARES))?.value);
+    if (last) warnings.push(`${XSTOCKS_PRODUCT.ticker} wallet shares could not be read on X Layer Testnet; this record uses the value read at ${last.readAt}.`);
+    return last?.sharesMicros ?? null;
+  }
+}
+
 export async function runXStocksCycle(env: EngineEnv, repo: EngineRepository, settlementClient: SettlementClient, now = new Date().toISOString()): Promise<XStocksCycleResult> {
   // Reconciling earlier attempts needs no prices, so it runs even during a provider cooldown.
   let settlementsQueued = await reconcileUnresolved(repo, settlementClient);
@@ -187,9 +206,9 @@ export async function runXStocksCycle(env: EngineEnv, repo: EngineRepository, se
       settlementsQueued += 1;
     }
 
-    const shares = await demoSharesOutstanding((repo as Partial<EngineRepository>).db);
-    if (shares === null) warnings.push(`${XSTOCKS_PRODUCT.ticker} shares outstanding could not be read; this record carries 0.`);
-    const sharesOutstandingMicros = shares ?? "0";
+    const [demoShares, walletShares] = await Promise.all([demoSharesOutstanding((repo as Partial<EngineRepository>).db), readWalletShares(repo, now, warnings)]);
+    if (demoShares === null) warnings.push(`${XSTOCKS_PRODUCT.ticker} demo-balance shares could not be read; this record carries wallet shares only.`);
+    const sharesOutstandingMicros = (BigInt(demoShares ?? "0") + BigInt(walletShares ?? "0")).toString();
     const request = navRequest({ asOf: now, navPerShareMicros: evaluation.composition.navPerShareMicros, holdingsHash: evaluation.holdingsHash, sharesOutstandingMicros });
     // Save the exact document before sending the transaction. Even if storage
     // fails after broadcast, the on-chain hash still has a recoverable document.

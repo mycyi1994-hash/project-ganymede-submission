@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { PROOF_DEPLOYMENT } from "@/lib/xstocks/proof";
+import { FUND_DEPLOYMENT } from "@/lib/xstocks/fund";
 import { compositionForRecord, shortTime } from "@/lib/product-market";
 import { formatUsdMicros } from "@/lib/nav-display";
 import { formatSharesShort } from "@/lib/demo/format";
@@ -48,9 +49,10 @@ export default function Transparency() {
       <div><dt>Network</dt><dd>X Layer Testnet</dd></div>
       <div><dt>Transaction</dt><dd>{tx ? <ExplorerLink href={tx} /> : "—"}</dd></div>
       <div><dt>NAV registry</dt><dd><ExplorerLink href={registryUrl} /></dd></div>
+      <div><dt>USTX token</dt><dd><ExplorerLink href={`${FUND_DEPLOYMENT.explorerUrl}/token/${FUND_DEPLOYMENT.fund}`} /></dd></div>
     </dl></aside></div>
     <section className="gmd-proof-history" aria-labelledby="history-title"><header className="gmd-section-heading"><h2 id="history-title">Recent records</h2><span>A new record every five minutes</span></header><div className="gmd-data-table-scroll"><table className="gmd-table"><thead><tr><th>Time</th><th>NAV per share</th><th>Transaction</th></tr></thead><tbody>{records.map(entry => { const link = txUrl(entry.txHash); return <tr key={entry.holdingsHash}><th scope="row">{shortTime(entry.asOf)}</th><td>{formatUsdMicros(entry.navPerShareMicros, 4)}</td><td>{link ? <ExplorerLink href={link} /> : "—"}</td></tr>; })}</tbody></table>{!records.length && <p className="gmd-caption">{loading ? "Loading records…" : "No recent records are available."}</p>}</div></section>
-    <section className="gmd-scope" aria-label="What verification covers"><div><h2>What verification covers</h2><ul><li>The NAV matches the record on X Layer.</li><li>The holdings add up exactly to that NAV.</li><li>The holdings are the ones recorded, unchanged since.</li></ul></div><div><h2>What it does not cover</h2><ul><li>Whether market prices are right. They come from OKX OnchainOS.</li><li>Custody. USTX is a demo fund, and no real assets are held.</li></ul></div></section>
+    <section className="gmd-scope" aria-label="What verification covers"><div><h2>What verification covers</h2><ul><li>The NAV matches the record on X Layer.</li><li>The holdings add up exactly to that NAV.</li><li>The holdings are the ones recorded, unchanged since.</li><li>USTX in wallets is issued only by investing at that NAV.</li></ul></div><div><h2>What it does not cover</h2><ul><li>Whether market prices are right. They come from OKX OnchainOS.</li><li>Custody. USTX is a demo fund bought with demo dollars, and no real assets are held.</li></ul></div></section>
     <div className="gmd-terms-links"><Link href="/developers#verify" prefetch={false}>The technical checks, for developers <Icon name="arrow" size={16} /></Link><Link href="/methodology" prefetch={false}>Methodology <Icon name="arrow" size={16} /></Link><Link href="/limitations" prefetch={false}>Limitations <Icon name="arrow" size={16} /></Link></div>
   </>;
 }

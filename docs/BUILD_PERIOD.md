@@ -20,11 +20,11 @@ Those modules still power the separate paper Lab. They are not part of the submi
 | Tokenized stocks | Six-xStock basket (USTX) priced through OKX OnchainOS on X Layer mainnet, with publication gates; NAV and document fingerprint published every five minutes | `0feca68`, `9562bdb`, `dc66eee` |
 | Verification | The browser reads the registry directly and recalculates the NAV; a three-way tamper experiment; a downloadable evidence file and the `verify:evidence` command | `27350f2`, `4641ddc`, `80a0316`, `11829e8` |
 | Product | Clearform redesign; Markets, USTX and Verify screens led by the browser check; read-only xStocks Portfolio at verified prices; NAV chart from publication receipts | `e5d1d8f`, `f4d67c1`, `ff04920`, `c0ce112`, `ebef0fa`, `d055246` |
-| Investing | Demo investing in USTX with demo dollars: private accounts, instant orders at the NAV recorded on X Layer, idempotent retries and a daily cap; order confirmations and a Portfolio that look through each holding to the six xStocks | `1327a6a`, `0c38037` |
+| Investing | Wallet investing on X Layer Testnet: a USTX share contract that issues and redeems only at the NAV in the registry, no-value demo dollars, and an order panel that runs approve and invest from OKX Wallet. Demo-balance investing with private accounts, instant orders at the recorded NAV, idempotent retries and a daily cap. Order confirmations and a Portfolio that look through each holding to the six xStocks | `1327a6a`, `0c38037`, `2fed796`, `bc3bf08` |
 | Fund and ecosystem | Fund overview with size, investors and return since launch; the shares outstanding recorded on X Layer with every NAV; a public NAV API with open CORS, an embeddable self-verifying badge, and issuer and developer pages | `0c38037`, `23d35d2` |
 | Hardening | Public reads without writes, identity header gate, relayer retry and nonce handling, paper-ledger integrity, sanitized public errors | `c98e7ea`, `387ec35`, `8cd427f`, `7b18cf9`, `124bebe` |
 
-From `7a33392` to `d0b9ade`: 204 files changed, 19657 insertions(+), 7370 deletions(-).
+From `7a33392` to `fdeeb16`: 218 files changed, 21531 insertions(+), 7372 deletions(-).
 
 ## Every commit in the build period (UTC)
 
@@ -119,4 +119,11 @@ From `7a33392` to `d0b9ade`: 204 files changed, 19657 insertions(+), 7370 deleti
 | 2026-09-25 01:05 | `f9ae8f7` | Describe the proof page, the developer checks and 24-hour flows in the docs | 4 | +58 / −35 |
 | 2026-09-25 01:27 | `f970e23` | Present Ganymede as a finished service rather than a submission | 11 | +112 / −102 |
 | 2026-09-25 01:29 | `cb921f5` | Keep the testnet notice inside the header landmark | 2 | +2 / −3 |
+| 2026-09-25 01:33 | `11dfc95` | Bring the build-period record up to the latest commit | 1 | +5 / −1 |
 | 2026-09-25 01:33 | `d0b9ade` | Describe the service layout in the docs and record the releases | 5 | +57 / −37 |
+| 2026-09-25 01:42 | `671b7c4` | Match the submission checklist to the service layout | 1 | +13 / −13 |
+| 2026-09-25 02:22 | `2fed796` | Add demo dollars and a USTX fund contract priced by the NAV registry | 7 | +689 / −0 |
+| 2026-09-25 02:24 | `7b334e4` | Record the demo dollar and USTX fund on X Layer Testnet | 5 | +110 / −0 |
+| 2026-09-25 03:04 | `bc3bf08` | Invest in USTX from a wallet on X Layer Testnet | 23 | +1064 / −49 |
+| 2026-09-25 03:07 | `10dee7a` | Describe wallet investing in the README, contract and submission docs | 5 | +60 / −37 |
+| 2026-09-25 03:30 | `c71da11` | Record the wallet investing release (f760cd9e) | 3 | +44 / −13 |

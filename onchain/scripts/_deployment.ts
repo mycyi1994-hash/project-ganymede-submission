@@ -51,6 +51,16 @@ export interface Deployment {
       constructorArgs: unknown[];
     };
     GanymedeNavRegistry: { address: string; constructorArgs: unknown[] };
+    // Wallet investing on X Layer Testnet (scripts/deploy-fund.ts), deployed later.
+    GanymedeDemoDollar?: { address: string; deployedAt: string; constructorArgs: unknown[] };
+    GanymedeBasketFund?: {
+      address: string;
+      deployedAt: string;
+      productId: string;
+      name: string;
+      symbol: string;
+      constructorArgs: unknown[];
+    };
   };
 }
 

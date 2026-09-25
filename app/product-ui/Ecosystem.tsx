@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { PROOF_DEPLOYMENT } from "@/lib/xstocks/proof";
 import { XSTOCKS_PRODUCT_KEY } from "@/lib/xstocks/onchain";
+import { FUND_DEPLOYMENT } from "@/lib/xstocks/fund";
 import { ProductShell } from "./ProductShell";
 import { DocumentMenu } from "./DocumentMenu";
 import { Icon } from "./Icons";
@@ -33,6 +34,24 @@ const [navPerShareMicros, sharesOutstandingMicros, holdingsHash, effectiveAt] = 
   args: ["${XSTOCKS_PRODUCT_KEY}"], // keccak256("us-tech-x")
 });`;
 
+const investExample = `import { parseAbi } from "viem";
+
+const fund = "${FUND_DEPLOYMENT.fund}";   // USTX shares, X Layer Testnet
+const dollar = "${FUND_DEPLOYMENT.dollar}"; // dUSD demo dollars, no value
+const abi = parseAbi([
+  "function claim()",
+  "function approve(address spender, uint256 value) returns (bool)",
+  "function previewInvest(uint256 dollars) view returns (uint256)",
+  "function invest(uint256 dollars, uint256 minShares) returns (uint256)",
+  "function redeem(uint256 shares, uint256 minDollars) returns (uint256)",
+]);
+
+const amount = 1_000_000_000n; // $1,000 in micros
+await wallet.writeContract({ address: dollar, abi, functionName: "claim" }); // 10,000 dUSD, once a day
+await wallet.writeContract({ address: dollar, abi, functionName: "approve", args: [fund, amount] });
+const shares = await client.readContract({ address: fund, abi, functionName: "previewInvest", args: [amount] });
+await wallet.writeContract({ address: fund, abi, functionName: "invest", args: [amount, shares * 99n / 100n] });`;
+
 const embedExample = `<iframe src="${SITE}/embed/ustx" title="USTX verified NAV"
   width="440" height="260" style="border:0" loading="lazy"></iframe>`;
 
@@ -55,6 +74,10 @@ export function DevelopersPage() {
           <Code label="TypeScript with viem">{viemExample}</Code>
           <a className="gmd-inline-link" href={`${PROOF_DEPLOYMENT.explorerUrl}/address/${PROOF_DEPLOYMENT.registry}`} target="_blank" rel="noreferrer">View the registry on the OKX explorer <Icon name="external" size={14} /></a>
         </section>
+        <section id="invest"><h2>Invest from a wallet or a contract</h2><p>USTX is a token on X Layer Testnet. Its contract reads the latest USTX record from the registry and issues shares at that NAV when a wallet invests demo dollars (dUSD, no value); redeeming burns shares and pays demo dollars at the same NAV. Orders need a record at most an hour old and at least $10, round down, and take a minimum-output limit. No key can issue shares any other way, and <code>investorCount()</code> counts the wallets holding USTX.</p>
+          <Code label="Invest with viem">{investExample}</Code>
+          <div className="gmd-terms-links"><a className="gmd-inline-link" href={`${FUND_DEPLOYMENT.explorerUrl}/token/${FUND_DEPLOYMENT.fund}`} target="_blank" rel="noreferrer">USTX token on the OKX explorer <Icon name="external" size={14} /></a><a className="gmd-inline-link" href={`${FUND_DEPLOYMENT.explorerUrl}/token/${FUND_DEPLOYMENT.dollar}`} target="_blank" rel="noreferrer">dUSD demo dollars <Icon name="external" size={14} /></a></div>
+        </section>
         <section id="embed"><h2>Embed the verified NAV badge</h2><p>Show the USTX NAV on your site, wallet or dashboard. The badge reads X Layer from the visitor’s browser, hashes the published document and recalculates the NAV before it says “Verified”.</p>
           <Code label="HTML">{embedExample}</Code>
           <div className="gmd-embed-preview"><span>Live preview</span><iframe src="/embed/ustx" title="USTX verified NAV badge preview" width="440" height="260" loading="lazy" /></div>
@@ -66,9 +89,9 @@ export function DevelopersPage() {
         <section id="okx"><h2>Built on the OKX stack</h2>
           <ul className="gmd-stack-list">
             <li><b>OKX OnchainOS Market API</b><span>Prices all six xStocks on X Layer every five minutes. The NAV is never published without them.</span></li>
-            <li><b>X Layer Testnet</b><span>Holds the NAV registry: every NAV, its composition fingerprint and the shares outstanding.</span></li>
+            <li><b>X Layer Testnet</b><span>Holds the NAV registry (every NAV, its composition fingerprint and the shares outstanding) and the USTX token, which issues shares only at the recorded NAV.</span></li>
             <li><b>X Layer mainnet</b><span>Where the xStocks live. Portfolio reads any wallet’s xStock balances directly from mainnet.</span></li>
-            <li><b>OKX Wallet</b><span>Connects first on Portfolio, read-only: it shares an address and never signs.</span></li>
+            <li><b>OKX Wallet</b><span>Invests and redeems USTX on X Layer Testnet from the USTX page, and shows its balances on Portfolio.</span></li>
             <li><b>OKX explorer</b><span>Every record, token and transaction links to the OKX X Layer explorer.</span></li>
           </ul>
         </section>
@@ -80,7 +103,7 @@ const steps = [
   ["Define the basket", "Choose the tokenized stocks on X Layer, their weights and the rebalancing schedule. Units per share are fixed at launch."],
   ["Price it with OKX OnchainOS", "Ganymede prices every constituent every five minutes and refuses to publish when a price is missing or stale."],
   ["Record it on X Layer", "Each NAV, the shares outstanding and a SHA-256 fingerprint of the full composition are written to the registry."],
-  ["Sell it, and let investors check", "Investors buy and redeem in the Ganymede app and verify every price in their own browser. Partners embed the badge or read the API."],
+  ["Sell it, and let investors check", "Investors buy and redeem from their own wallets at the recorded NAV and verify every price in their own browser. Partners embed the badge or read the API."],
 ] as const;
 
 const plans = [
@@ -96,7 +119,8 @@ export function IssuersPage() {
         <section id="why"><h2>Why it matters</h2><p>Tokenized stocks such as xStocks already trade on X Layer, but a basket built from them usually asks investors to trust the issuer’s price. Ganymede publishes the evidence with every price, so a wallet, an exchange or an investor can confirm the NAV without asking anyone. That makes a basket easier to list, easier to distribute and harder to misprice.</p></section>
         <section id="how"><h2>How it works</h2><ol className="gmd-steps">{steps.map(([title, copy], index) => <li key={title}><span>{index + 1}</span><div><b>{title}</b><p>{copy}</p></div></li>)}</ol></section>
         <section id="get"><h2>What you get</h2><ul className="gmd-stack-list">
-          <li><b>An investor app</b><span>Markets, a product page with fund figures, invest and redeem, and a portfolio that looks through to every token.</span></li>
+          <li><b>An investor app</b><span>Markets, a product page with fund figures, invest and redeem from a wallet, and a portfolio that looks through to every token.</span></li>
+          <li><b>A share token</b><span>A token on X Layer that issues and redeems shares only at the NAV in the registry, and counts its holders on chain.</span></li>
           <li><b>Verification built in</b><span>A transparency page with a tamper experiment, evidence files and an open-source verifier.</span></li>
           <li><b>Distribution tools</b><span>A public NAV API and a badge any partner can embed, both backed by the record on X Layer.</span></li>
           <li><b>Operations</b><span>Scheduled pricing, publication with idempotent retries, and rate-limit handling for the price provider.</span></li>

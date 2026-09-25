@@ -1,6 +1,6 @@
 # Build provenance
 
-Production source revision: `cb921f5f2e4221caddf55d54bb8232593fe3d386`.
+Production source revision: `10dee7aa57eb64a322090d0cd4a7b848ef14e19b`.
 
 This is a source snapshot, not a claim that the entire project was newly built for this event. The original repository remains private. The entries below were exported from its Git history; reviewers can inspect current implementations and tests, and request original history access from the team if needed. No old secrets, local environment files or full private Git history are published.
 
@@ -175,5 +175,28 @@ Validation of the snapshot source:
 - In the development repository, the typecheck, clean build and 126 tests pass, and lint reports 0 errors.
 - The same tests pass in this public checkout after `npm ci`, and so do the relayer typecheck and 16 tests.
 - After the deployment, eleven public routes and three public APIs returned 200, the legacy routes redirected, and seven screens on desktop (1536 px, 125%) and mobile (390 px) had no axe violations, horizontal overflow or page errors.
+
+These are point-in-time observations, not continuous availability or a security audit.
+
+
+## Wallet investing release
+
+Production source: 10dee7aa57eb64a322090d0cd4a7b848ef14e19b. Worker version: f760cd9e-bf95-47a0-8d4d-4a0fa4886c21, deployed 2026-09-25. Relayer Worker version: cb38524c-cb75-4350-a9ee-a363f49a5c93, unchanged. This snapshot is exported from 55cb87f573cc4bff5ce1fdbe1cb59b9a9720efac, which adds only documentation to the production source.
+
+- Two contracts on X Layer Testnet (chain 1952), deployed by the administrator key next to the NAV registry and recorded in `onchain/deployments/xlayer-testnet.json`.
+  - `GanymedeDemoDollar` (dUSD) `0xf07535080f74e8b0f571e58dfa600f47e72ea9bf`: no-value demo dollars. Anyone can claim 10,000 once a day, and only the fund contract can mint more.
+  - `GanymedeBasketFund` (USTX) `0x77eaeba1366bde7818da12d3cbdbea0a2ee97596`: issues and redeems shares only at the latest `us-tech-x` NAV in the registry. The NAV must be at most an hour old and orders at least $10. It rounds down both ways, takes a minimum-output limit and holds no assets. It counts holders on chain, and no key can issue shares directly.
+- The order panel offers Wallet next to Demo balance. OKX Wallet connects, switches to X Layer Testnet, claims demo dollars and runs approve and invest (or redeem) as transactions. The fill is read from the contract's event.
+- Each NAV record's shares outstanding, the fund size and the investor count add USTX held in wallets to demo-balance shares. Portfolio shows the wallet's USTX looked through to each xStock.
+
+Validation of the snapshot source:
+
+- In the development repository, the typecheck, clean build and 134 tests pass, lint reports 0 errors, and the 29 contract tests pass. The contract tests pin the app's hard-coded selectors and addresses to the compiled contracts and the deployment record.
+- The same tests pass in this public checkout after `npm ci`, and so do the relayer typecheck and 16 tests.
+- Before the deployment, a local build ran in Chromium with an injected test wallet signing real X Layer Testnet transactions. It went through connect, network switch, a rejected request, approve, invest, Portfolio and a full redemption. Afterwards the fund's supply and investor count were back to zero.
+- After the deployment:
+  - eleven public routes and three public APIs returned 200 and the legacy routes redirected;
+  - the first cycle read the wallet totals from the fund contract and recorded the NAV with no warning;
+  - seven screens on desktop and mobile, with and without a wallet, had no axe violations, horizontal overflow or page errors. On production the wallet was only connected and read; no transaction was sent.
 
 These are point-in-time observations, not continuous availability or a security audit.

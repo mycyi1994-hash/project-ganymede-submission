@@ -4,6 +4,7 @@ import { SettlementClient } from "@/lib/engine/settlement";
 import { XSTOCKS_CHAIN, XSTOCKS_PRODUCT } from "@/lib/xstocks/basket";
 import { STATE_CONFIRMED, STATE_HISTORY, type Publication } from "@/lib/xstocks/cycle";
 import { readLatestNav } from "@/lib/xstocks/onchain";
+import { FUND_DEPLOYMENT } from "@/lib/xstocks/fund";
 
 export const dynamic = "force-dynamic";
 
@@ -53,12 +54,22 @@ export async function GET(request: Request) {
         explorerUrl: transactionHash ? `${settlement.chain.explorerUrl}/tx/${transactionHash}` : `${settlement.chain.explorerUrl}/address/${registry.toLowerCase()}`,
       },
       pricing: { source: "OKX OnchainOS", chain: XSTOCKS_CHAIN.name, chainIndex: XSTOCKS_CHAIN.chainIndex, interval: "5 minutes" },
+      shares: {
+        token: FUND_DEPLOYMENT.fund,
+        symbol: "USTX",
+        decimals: 6,
+        network: FUND_DEPLOYMENT.name,
+        chainId: FUND_DEPLOYMENT.chainId,
+        rule: "invest() and redeem() fill at this registry's latest NAV when it is at most an hour old; nothing else issues shares.",
+        paidWith: { token: FUND_DEPLOYMENT.dollar, symbol: "dUSD", value: "none (testnet demo dollars)" },
+        explorerUrl: `${FUND_DEPLOYMENT.explorerUrl}/token/${FUND_DEPLOYMENT.fund}`,
+      },
       verify: {
         page: `${origin}/products/ustx/transparency`,
         documents: `${origin}/api/xstocks`,
         rule: "sha256 of the composition document equals holdingsHash, and the sum of token units × price equals perShareMicros.",
       },
-      environment: "X Layer Testnet record of a model basket. Demo investing only; not an offer.",
+      environment: "X Layer Testnet record of a model basket. Shares are bought with demo dollars that have no value; not an offer.",
     }, 200, "public, max-age=30");
   } catch (error) {
     console.error("Public NAV read failed", (error instanceof Error ? error.message : String(error)).replace(/https?:\/\/\S+/g, "[rpc]"));

@@ -1,0 +1,9 @@
+network               X Layer Testnet (chain 1952)
+address               0xf07535080f74e8b0f571e58dfa600f47e72ea9bf
+explorer              https://www.okx.com/web3/explorer/xlayer-test/address/0xf07535080f74e8b0f571e58dfa600f47e72ea9bf
+contract name         contracts/GanymedeDemoDollar.sol:GanymedeDemoDollar
+compiler              v0.8.28+commit.7893614a
+optimizer             enabled, 200 runs
+evm version           paris
+license               MIT
+constructor args      000000000000000000000000107633a3aa88c81d4c47d01992e089573e2e87c9

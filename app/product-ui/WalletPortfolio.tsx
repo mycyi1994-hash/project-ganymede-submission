@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { DemoPortfolio } from "./DemoInvest";
+import { WalletFundPosition } from "./WalletFund";
 import { parseComposition } from "@/lib/xstocks/proof";
 import { readBalances, tokenExplorerUrl, type WalletBalances } from "@/lib/xstocks/mainnet";
 import { buildStatement, formatUnits, valueWallet } from "@/lib/xstocks/wallet";
@@ -18,7 +19,7 @@ const percent = (bps: number) => `${(bps / 100).toFixed(2)}%`;
 function AddressBar() {
   const { address, source, busy, message, connect, watch, clearWatch } = useWalletAccount();
   const [input, setInput] = useState("");
-  if (address) return <section className="gmd-wallet-bar" aria-label="Address"><div className="gmd-wallet-address"><span>{source === "watch" ? "Viewing a public address" : "Connected wallet"}</span><code>{address}</code></div><button type="button" className="gmd-small-button" onClick={() => { clearWatch(); setInput(""); }}>Use another address</button><p className="gmd-caption">Read-only. Balances come straight from X Layer mainnet; nothing is signed or sent.</p></section>;
+  if (address) return <section className="gmd-wallet-bar" aria-label="Address"><div className="gmd-wallet-address"><span>{source === "watch" ? "Viewing a public address" : "Connected wallet"}</span><code>{address}</code></div><button type="button" className="gmd-small-button" onClick={() => { clearWatch(); setInput(""); }}>Use another address</button><p className="gmd-caption">Read-only here: balances come straight from X Layer, and nothing is signed or sent. Orders are placed on the USTX page.</p></section>;
   return <section className="gmd-wallet-bar" aria-label="Address"><button type="button" className="gmd-button" disabled={busy} onClick={() => void connect()}><Icon name="wallet" size={17} />{busy ? "Connecting…" : "Connect OKX Wallet"}</button><form className="gmd-wallet-form" onSubmit={event => { event.preventDefault(); watch(input); }}><label htmlFor="portfolio-address">Or view any public address</label><div><input id="portfolio-address" value={input} onChange={event => setInput(event.target.value)} placeholder="0x…" spellCheck={false} autoComplete="off" /><button type="submit" className="gmd-small-button">View</button></div></form><p role="status" className="gmd-wallet-message">{message}</p><p className="gmd-caption">Read-only. OKX Wallet, or any browser wallet, shares only a public address; nothing is signed or sent.</p></section>;
 }
 
@@ -68,8 +69,9 @@ export default function WalletPortfolio() {
   return <>
     <div className="gmd-page-heading"><div><h1>Portfolio</h1><p>Your USTX and your xStocks on X Layer, valued at OKX OnchainOS prices.</p></div><RecordCheckStatus /></div>
     <DemoPortfolio />
-    <header id="wallet" className="gmd-section-heading gmd-wallet-heading"><div><h2>Your xStocks on X Layer</h2><p>Connect OKX Wallet or view any public address to value real xStock balances. Read-only.</p></div></header>
+    <header id="wallet" className="gmd-section-heading gmd-wallet-heading"><div><h2>Your wallet on X Layer</h2><p>Connect OKX Wallet or view any public address: USTX on X Layer Testnet, and real xStocks on X Layer mainnet valued at OKX OnchainOS prices.</p></div></header>
     <AddressBar />
+    {address && <WalletFundPosition address={address} />}
     {address && <section className="gmd-wallet-holdings" aria-labelledby="holdings-title" aria-live="polite"><header className="gmd-section-heading"><h2 id="holdings-title">xStock holdings</h2><span>{current ? `Block ${current.blockNumber.toLocaleString("en-US")} · ${shortTime(current.blockTime)} · X Layer mainnet` : failure ? "Not read" : "Reading balances…"}</span></header>
       {failure ? <div className="gmd-data-notice" role="status"><Icon name="info" /><span>{failure}</span><button onClick={() => setAttempt(value => value + 1)}>Try again</button></div>
         : !current ? <p className="gmd-caption">Reading the six xStock balances at the latest block…</p>

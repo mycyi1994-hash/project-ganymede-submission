@@ -19,6 +19,8 @@ import { loadDeployment, railFor } from "./_deployment";
 const CONTRACTS = {
   GanymedeFundShare: "contracts/GanymedeFundShare.sol:GanymedeFundShare",
   GanymedeNavRegistry: "contracts/GanymedeNavRegistry.sol:GanymedeNavRegistry",
+  GanymedeDemoDollar: "contracts/GanymedeDemoDollar.sol:GanymedeDemoDollar",
+  GanymedeBasketFund: "contracts/GanymedeBasketFund.sol:GanymedeBasketFund",
 } as const;
 
 async function main() {
@@ -33,6 +35,7 @@ async function main() {
     const artifact = await hre.artifacts.readArtifact(fullyQualifiedName);
     const constructor = artifact.abi.find((item: { type: string }) => item.type === "constructor") as { inputs: AbiParameter[] } | undefined;
     const record = deployment.contracts[name];
+    if (!record) continue; // not deployed on this rail
     const encodedArgs = constructor
       ? encodeAbiParameters(constructor.inputs, record.constructorArgs as never[]).slice(2)
       : "";

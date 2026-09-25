@@ -10,7 +10,7 @@ sources stay in `contracts/`.
 cd onchain
 npm install
 npm run build   # compile
-npm test        # 14 tests, no network needed
+npm test        # 29 tests, no network needed
 ```
 
 ## Keys
@@ -56,6 +56,18 @@ the `.env` lines for the application.
 One NAV registry serves all four products — the product id is a `bytes32` key.
 The share ledger carries one fund's name and symbol, so it is deployed for
 `GMD CORE` first; the other three follow the same pattern when needed.
+
+## Deploy wallet investing (USTX on X Layer Testnet)
+
+```bash
+npm run deploy:fund
+```
+
+Deploys `GanymedeDemoDollar` and `GanymedeBasketFund` next to the recorded NAV
+registry, makes the fund the demo dollar's minter, reads the wiring back and adds
+both to `deployments/xlayer-testnet.json`. The app pins the two addresses in
+`lib/xstocks/fund.ts`; `test/AppFundClient.test.ts` checks the pin and the
+app's hard-coded selectors against the compiled contracts.
 
 ## Verify the sources
 

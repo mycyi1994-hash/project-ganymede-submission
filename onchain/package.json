@@ -7,6 +7,7 @@
     "build": "hardhat compile",
     "test": "hardhat test",
     "deploy": "hardhat run scripts/deploy.ts --network xlayerTestnet",
+    "deploy:fund": "hardhat run scripts/deploy-fund.ts --network xlayerTestnet",
     "allowlist": "hardhat run scripts/allowlist.ts --network xlayerTestnet",
     "status": "hardhat run scripts/status.ts --network xlayerTestnet",
     "deploy:giwa": "hardhat run scripts/deploy.ts --network giwaSepolia",

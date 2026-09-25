@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { evaluateBasket, constituentsWithAddresses, XSTOCKS_CONSTITUENTS } from "../lib/xstocks/basket.ts";
-import { compositionForRecord, currentWeights, publicationHistory, decodeMarketSnapshot } from "../lib/product-market.ts";
+import { compositionForRecord, constituentFigures, currentWeights, formatCountdown, navAtFixing, nextRecordAt, publicationHistory, decodeMarketSnapshot } from "../lib/product-market.ts";
 
 async function fixture() {
   const now = "2026-09-24T07:00:00.456Z";
@@ -57,4 +57,46 @@ test("malformed API values fail loading instead of rendering an invented zero", 
   assert.throws(() => decodeMarketSnapshot({ product: { id: "other" } }));
   assert.throws(() => decodeMarketSnapshot({ ...data, history: [null] }));
   assert.throws(() => decodeMarketSnapshot({ ...data, latest: { ...data.latest, warnings: null } }));
+});
+
+test("each constituent's fixing price comes back from its units, and its change is measured against it", async () => {
+  const data = await fixture();
+  const composition = compositionForRecord(data);
+  const points = publicationHistory(data);
+  // The basket was fixed at this record: the record's own NAV is the NAV at the fixing.
+  assert.equal(navAtFixing(composition, points), BigInt(points[0].micros));
+  const figures = constituentFigures(composition, navAtFixing(composition, points));
+  assert.deepEqual(figures.map(item => item.symbol), composition.holdings.map(item => item.symbol));
+  for (const item of figures) {
+    const difference = item.fixingPriceMicros - item.priceMicros;
+    assert.ok((difference < 0n ? -difference : difference) <= 100n, `${item.symbol} fixed at its own price`);
+    assert.equal(Math.round(item.changePercent * 100), 0);
+    assert.equal(item.targetPercent, 100 / 6);
+    assert.equal(item.unitsWad, BigInt(composition.holdings.find(holding => holding.symbol === item.symbol).unitsWad));
+  }
+  // Ten percent higher prices on the same units read as ten percent up; their value per share follows.
+  const higher = { ...composition, holdings: composition.holdings.map(holding => ({ ...holding, priceMicros: String(BigInt(holding.priceMicros) * 11n / 10n), valueMicros: String(BigInt(holding.valueMicros) * 11n / 10n) })) };
+  for (const item of constituentFigures(higher, 100_000_000n)) assert.ok(Math.abs(item.changePercent - 10) < 0.01, `${item.symbol}: ${item.changePercent}`);
+  // Without the NAV at the fixing there is no fixing price, and no invented change.
+  assert.ok(constituentFigures(composition, null).every(item => item.fixingPriceMicros === null && item.changePercent === null));
+});
+
+test("the NAV at the fixing is the record at that second, the inception NAV before any record, or unknown", async () => {
+  const data = await fixture();
+  const composition = compositionForRecord(data);
+  const later = [{ at: "2026-09-24T08:00:00.000Z", micros: "101000000", hash: "" }];
+  assert.equal(navAtFixing(composition, later), 100_000_000n, "fixed before the first record: the inception NAV");
+  assert.equal(navAtFixing({ ...composition, basketFixedAt: "2026-09-24T09:00:00.000Z" }, later), null, "fixed after the records shown, with none at that second");
+  assert.equal(navAtFixing(composition, []), null);
+  assert.equal(navAtFixing({ ...composition, basketFixedAt: "not a time" }, later), null);
+});
+
+test("the next NAV record is due on the next five-minute boundary, counted down to the second", () => {
+  assert.equal(nextRecordAt("2026-09-25T11:25:08.000Z"), Date.parse("2026-09-25T11:30:00.000Z"));
+  assert.equal(nextRecordAt("2026-09-25T11:30:00.000Z"), Date.parse("2026-09-25T11:35:00.000Z"));
+  assert.equal(nextRecordAt("not a time"), 0);
+  assert.equal(formatCountdown(299_500), "5:00");
+  assert.equal(formatCountdown(61_001), "1:02");
+  assert.equal(formatCountdown(9_000), "0:09");
+  assert.equal(formatCountdown(-5_000), "0:00");
 });

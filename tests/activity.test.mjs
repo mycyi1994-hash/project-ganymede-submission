@@ -6,8 +6,8 @@ import { env } from "cloudflare:workers";
 import { FUND_DEPLOYMENT, FUND_EVENTS, POOL_EVENTS, fundRpc } from "../lib/xstocks/fund.ts";
 import { LENDING_EVENTS } from "../lib/xstocks/lending.ts";
 import {
-  ACTIVITY_EVENTS, ACTIVITY_FIRST_BLOCK, ACTIVITY_INDEX_MARGIN, ACTIVITY_KEEP, ACTIVITY_LIMIT, activityDay, activityDayJson, activityJson, mergeActivity,
-  parseActivityDay, parseActivityIndex, readActivityTail, scanActivity, serializeActivityIndex, updateActivityIndex, withNewerRows,
+  ACTIVITY_EVENTS, ACTIVITY_FIRST_BLOCK, ACTIVITY_HIGHLIGHTS, ACTIVITY_INDEX_MARGIN, ACTIVITY_KEEP, ACTIVITY_LIMIT, LARGE_ORDER_MICROS, activityDay, activityDayJson, activityFromJson, activityJson, isHighlight, mergeActivity,
+  parseActivityDay, parseActivityIndex, parseHighlights, readActivityTail, scanActivity, serializeActivityIndex, updateActivityIndex, withNewerRows,
 } from "../lib/xstocks/activity.ts";
 import { ACTIVITY_CRON, STATE_MARKET_ACTIVITY, runActivityIndex } from "../lib/xstocks/activity-index.ts";
 import { GET, OPTIONS } from "../app/api/v1/ustx/activity/route.ts";
@@ -290,6 +290,11 @@ test("the scheduled run keeps the index, and the public API serves it to any ori
   assert.match(served.environment, /no value/);
   assert.deepEqual(served.day, { complete: true, since: new Date((TIME + 400 - 86_400) * 1000).toISOString(), trades: 3, volumeMicros: "1195924920", arbitrages: 1, earnedMicros: "4375505", loans: 2 });
   assert.deepEqual(parseActivityIndex(served)?.rows.map(row => row.kind), ["liquidate", "borrow", "arbitrage", "buy", "invest"]);
+  // Marked on the NAV chart: the arbitrage and orders of $1,000 or more, with their explorer links.
+  assert.deepEqual(served.highlights, served.rows.filter(row => isHighlight(activityFromJson(row))));
+  assert.ok(served.highlights.some(row => row.kind === "arbitrage"));
+  assert.ok(served.highlights.every(row => row.kind === "arbitrage" || BigInt(row.dollarsMicros) >= LARGE_ORDER_MICROS));
+  assert.deepEqual(parseHighlights(served.highlights).map(row => row.hash), served.highlights.map(row => row.hash));
   assert.equal((await OPTIONS()).status, 204);
 });
 
@@ -307,4 +312,18 @@ test("the Worker runs market activity on its own cron, apart from the NAV cycle"
   await Promise.all(pending);
   assert.deepEqual(sql.prepare("SELECT key FROM engine_state").all().map(row => row.key), [STATE_MARKET_ACTIVITY], "only the activity index; no engine cycle ran");
   assert.equal(parseActivityIndex(sql.prepare("SELECT value FROM engine_state").get().value)?.rows.length, 5);
+});
+
+test("the NAV chart marks every arbitrage and orders of $1,000 or more, and nothing from a malformed list", () => {
+  const row = (kind, dollars, block) => ({ kind, hash: tx(block), block: F + block, logIndex: 0, at: new Date((TIME + block) * 1000).toISOString(), account: ALICE, dollarsMicros: dollars, sharesMicros: 1_000_000n, navMicros: 100_000_000n, dollarsOutMicros: null, boughtInPool: kind === "arbitrage" ? true : null, borrower: null });
+  assert.equal(isHighlight(row("arbitrage", 1_030_000n, 1)), true, "an arbitrage of any size");
+  assert.equal(isHighlight(row("invest", LARGE_ORDER_MICROS, 2)), true);
+  assert.equal(isHighlight(row("sell", LARGE_ORDER_MICROS - 1n, 3)), false);
+  assert.equal(isHighlight(row("borrow", 5_000_000_000n, 4)), false, "loans are not orders");
+  const served = [row("buy", 2_000_000_000n, 5), row("arbitrage", 145_924_920n, 6)].map(activityJson);
+  assert.deepEqual(parseHighlights(served).map(item => item.kind), ["arbitrage", "buy"], "newest first");
+  assert.deepEqual(parseHighlights([...served, { kind: "buy" }]), []);
+  assert.deepEqual(parseHighlights(Array.from({ length: ACTIVITY_HIGHLIGHTS + 1 }, (_, i) => activityJson(row("arbitrage", 1n, i + 10)))), []);
+  assert.deepEqual(parseHighlights(undefined), []);
+  assert.deepEqual(parseHighlights([activityJson(row("repay", 5_000_000_000n, 7))]), [], "a served row that is not marked is dropped");
 });

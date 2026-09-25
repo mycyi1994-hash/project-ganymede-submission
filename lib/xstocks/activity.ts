@@ -309,6 +309,27 @@ export function withNewerRows(day: ActivityDay, newer: MarketActivity[]): Activi
   };
 }
 
+/** Orders of this size or more are marked on the NAV chart, as is every arbitrage. */
+export const LARGE_ORDER_MICROS = 1_000_000_000n;
+/** At most this many marked rows are served. */
+export const ACTIVITY_HIGHLIGHTS = 60;
+const ORDER_KINDS = new Set<ActivityKind>(["invest", "redeem", "buy", "sell"]);
+
+/** A row worth marking on the NAV chart: the keeper's arbitrage, or an order of $1,000 or more. */
+export function isHighlight(row: MarketActivity): boolean {
+  return row.kind === "arbitrage" || (ORDER_KINDS.has(row.kind) && row.dollarsMicros !== null && row.dollarsMicros >= LARGE_ORDER_MICROS);
+}
+
+/** Served marked rows, checked and newest first; empty when missing or malformed. */
+export function parseHighlights(value: unknown): MarketActivity[] {
+  try {
+    if (!Array.isArray(value) || value.length > ACTIVITY_HIGHLIGHTS) return [];
+    return value.map(activityFromJson).filter(isHighlight).sort(newestFirst);
+  } catch {
+    return [];
+  }
+}
+
 export type ActivityDayJson = { complete: boolean; since: string; trades: number; volumeMicros: string; arbitrages: number; earnedMicros: string; loans: number };
 export const activityDayJson = (day: ActivityDay): ActivityDayJson => ({ ...day, volumeMicros: day.volumeMicros.toString(), earnedMicros: day.earnedMicros.toString() });
 

@@ -7,8 +7,9 @@ import { shortTime } from "@/lib/product-market";
 import { DEMO_ORDER_EVENT, formatShares } from "@/lib/demo/format";
 import { FUND_DEPLOYMENT, dollarsFor, fundErrorMessage, fundExplorer, readFundAccount, type FundAccount } from "@/lib/xstocks/fund";
 import { formatWadPercent, lendingPosition, readLending, type LendingAccount, type LendingMarket } from "@/lib/xstocks/lending";
-import { Icon } from "./Icons";
+import { Icon, Skeleton } from "./Icons";
 import { BasketTable, useRecordComposition } from "./Basket";
+import { LoanHealth } from "./Lending";
 
 /**
  * USTX held by an address on X Layer Testnet, read from the fund contract, with any USTX it has
@@ -47,7 +48,7 @@ export function WalletFundPosition({ address }: { address: string }) {
   return <section className="gmd-wallet-holdings" aria-labelledby="wallet-ustx-title" aria-live="polite">
     <header className="gmd-section-heading"><h2 id="wallet-ustx-title">USTX in this wallet</h2><span>{account ? `Block ${account.block.toLocaleString("en-US")} · X Layer Testnet` : error ? "Not read" : "Reading…"}</span></header>
     {error ? <div className="gmd-data-notice" role="status"><Icon name="info" /><span>{error}</span><button onClick={() => setAttempt(count => count + 1)}>Try again</button></div>
-      : !account ? <p className="gmd-caption">Reading USTX and demo dollars on X Layer Testnet…</p>
+      : !account ? <div className="gmd-position-table is-loading" role="status"><span className="gmd-sr-only">Reading USTX and demo dollars on X Layer Testnet…</span><div className="gmd-position-row" aria-hidden="true"><div className="gmd-position-name"><Skeleton className="is-symbol" /><div><Skeleton width={120} /><Skeleton width={90} /></div></div>{[0, 1, 2].map(item => <div key={item}><Skeleton width={80} /><Skeleton width={60} /></div>)}</div></div>
       : <>
         <div className="gmd-position-table">
           <div className="gmd-position-row is-head"><span>Basket</span><span>Shares</span><span>Value</span><span>Demo dollars</span><span>Actions</span></div>
@@ -62,13 +63,13 @@ export function WalletFundPosition({ address }: { address: string }) {
             <div className="gmd-position-name"><span className="gmd-mini-monogram">G</span><div><b>US Tech Basket</b><small>USTX · collateral in the lending market</small></div></div>
             <div><span className="gmd-mobile-label">Shares</span><b>{formatShares(collateral)}</b><small>{nav !== null ? `${formatUsdMicros(nav, 4)} / share` : ""}</small></div>
             <div><span className="gmd-mobile-label">Value</span><b>{position ? formatUsdRounded(position.valueMicros) : "—"}</b><small>{position ? `Borrow limit ${formatUsdMicros(position.borrowLimitMicros, 2)}` : ""}</small></div>
-            <div><span className="gmd-mobile-label">Loan</span><b>{formatUsdMicros(debt, 2)}</b><small>{debt > 0n && position ? `borrowed · ${formatWadPercent(position.loanToValueWad)} of its value, liquidated above 65%` : "No loan"}</small></div>
+            <div><span className="gmd-mobile-label">Loan</span><b>{formatUsdMicros(debt, 2)}</b><small>{debt > 0n && position ? `borrowed · ${formatWadPercent(position.loanToValueWad)} of its value, liquidated above 65%` : "No loan"}</small>{debt > 0n && position && <LoanHealth loanToValueWad={position.loanToValueWad} compact />}</div>
             <div className="gmd-position-actions"><Link className="gmd-small-button" prefetch={false} href="/products/ustx#borrow">Manage</Link></div>
           </div>}
         </div>
         {loan && loan.suppliedMicros > 0n && lending && <p className="gmd-caption">This wallet also lends {formatUsdMicros(loan.suppliedMicros, 2)} of demo dollars in the lending market, earning {formatWadPercent(lending.market.supplyRateWad)} a year. <Link prefetch={false} href="/products/ustx#borrow">Manage lending</Link></p>}
         {owned > 0n && composition && <div className="gmd-inside-table">
-          <BasketTable composition={composition} sharesMicros={owned} label={collateral > 0n ? "The USTX in this wallet and posted as collateral, looked through to each xStock" : "The USTX in this wallet, looked through to each xStock"} />
+          <BasketTable composition={composition} sharesMicros={owned} label={collateral > 0n ? "The USTX in this wallet and posted as collateral, looked through to each xStock" : "The USTX in this wallet, looked through to each xStock"} chart />
         </div>}
         <p className="gmd-caption">{owned === 0n ? <>Invest from your wallet on the <Link prefetch={false} href="/products/ustx#investment">USTX page</Link>. </> : null}Every order is a transaction on X Layer Testnet. <a href={fundExplorer.address(address)} target="_blank" rel="noreferrer">See this wallet’s transactions on the OKX explorer<span className="gmd-sr-only"> (opens in a new tab)</span></a>, or the <a href={fundExplorer.token(FUND_DEPLOYMENT.fund)} target="_blank" rel="noreferrer">USTX token<span className="gmd-sr-only"> (opens in a new tab)</span></a>.</p>
       </>}

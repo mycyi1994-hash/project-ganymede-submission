@@ -9,7 +9,7 @@ import {
   LENDING_ALL, LENDING_TERMS, formatWadPercent, lendingCalls, lendingErrorMessage, lendingFill, lendingPosition, readLending,
   type LendingAccount, type LendingAction, type LendingMarket,
 } from "@/lib/xstocks/lending";
-import { Icon } from "./Icons";
+import { Icon, Skeleton } from "./Icons";
 import { useWalletAccount } from "./WalletAccount";
 import { TxLink, sendFromWallet, switchToTestnet, useInjectedWallet, useWalletChain } from "./WalletInvest";
 
@@ -33,6 +33,28 @@ const DONE: Record<LendingAction, string> = {
 };
 
 const min = (a: bigint, b: bigint) => (a < b ? a : b);
+
+const LIMIT = Number(LENDING_TERMS.borrowFactorWad * 100n / 10n ** 18n);
+const LIQUIDATION = Number(LENDING_TERMS.liquidationThresholdWad * 100n / 10n ** 18n);
+/** The health bar runs to 80%, past the 65% liquidation line. */
+const HEALTH_SCALE = 80;
+
+/** A loan against its collateral: the 50% borrow limit and the 65% liquidation line, marked on one bar. */
+export function LoanHealth({ loanToValueWad, compact = false }: { loanToValueWad: bigint; compact?: boolean }) {
+  const ltv = Number(loanToValueWad * 10_000n / 10n ** 18n) / 100;
+  const state = ltv >= LIQUIDATION ? "is-danger" : ltv > LIMIT ? "is-caution" : "is-safe";
+  const label = ltv >= LIQUIDATION ? "Can be liquidated" : ltv > LIMIT ? "Above the borrow limit" : "Healthy";
+  const at = (percent: number) => `${percent / HEALTH_SCALE * 100}%`;
+  return <div className={`gmd-loan-health ${state}${compact ? " is-compact" : ""}`}>
+    {!compact && <div className="gmd-loan-health-head"><span><Icon name={state === "is-safe" ? "check" : "info"} size={15} />{label}</span><b>{formatWadPercent(loanToValueWad)} loan to value</b></div>}
+    <div className="gmd-loan-health-track" role="meter" aria-label="Loan to value" aria-valuemin={0} aria-valuemax={HEALTH_SCALE} aria-valuenow={Math.min(HEALTH_SCALE, ltv)} aria-valuetext={`${formatWadPercent(loanToValueWad)}, ${label.toLowerCase()}. Borrow limit ${LIMIT}%, liquidation above ${LIQUIDATION}%.`}>
+      <i style={{ width: at(Math.min(HEALTH_SCALE, ltv)) }} />
+      <em style={{ left: at(LIMIT) }} />
+      <em className="is-liquidation" style={{ left: at(LIQUIDATION) }} />
+    </div>
+    <div className="gmd-loan-health-scale" aria-hidden="true"><span>0%</span><span style={{ left: at(LIMIT) }}>{LIMIT}%{compact ? "" : " limit"}</span><span style={{ left: at(LIQUIDATION) }}>{LIQUIDATION}%{compact ? "" : " liquidation"}</span></div>
+  </div>;
+}
 /** Six-decimal micros as plain input text: 1250.5, never 1,250.500000. */
 const plain = (micros: bigint) => {
   const fraction = (micros % 1_000_000n).toString().padStart(6, "0").replace(/0+$/, "");
@@ -195,6 +217,7 @@ export function LendingSection() {
   }
 
   const usd = (micros: bigint) => formatUsdMicros(micros, 2);
+  const wait = (width: number) => readFailure ? "—" : <Skeleton width={width} />;
   const status = !market ? "Loading…" : market.paused ? "Paused" : "Live on X Layer Testnet";
 
   let wallet;
@@ -226,6 +249,7 @@ export function LendingSection() {
         <div><dt>Lent</dt><dd>{usd(account.suppliedMicros)}{account.suppliedMicros > 0n && market ? ` at ${formatWadPercent(market.supplyRateWad)} a year` : ""}</dd></div>
         <div><dt>In your wallet</dt><dd>{formatShares(account.sharesMicros)} USTX · {usd(account.dollarsMicros)}</dd></div>
       </dl>
+      {position && account.debtMicros > 0n && <LoanHealth loanToValueWad={position.loanToValueWad} />}
       {phase === "done" && done && <p ref={doneRef} tabIndex={-1} className="gmd-lending-done" role="status"><Icon name="check" size={16} /><span>{DONE[done.action]} {inShares(done.action) ? `${formatShares(done.micros)} USTX` : usd(done.micros)}. <TxLink hash={done.hash} /></span></p>}
       {account.gasWei === 0n && <p className="gmd-wallet-gas" role="status"><Icon name="info" size={16} /><span>You need test OKB to pay network fees. <a href={FUND_DEPLOYMENT.faucetUrl} target="_blank" rel="noreferrer">Get test OKB<span className="gmd-sr-only"> (opens in a new tab)</span></a></span></p>}
       <div className="gmd-lending-actions" role="group" aria-label="Lending action">
@@ -245,11 +269,11 @@ export function LendingSection() {
   return <section id="borrow" className="gmd-fund gmd-lending" aria-labelledby="lending-title">
     <header className="gmd-section-heading"><div><h2 id="lending-title">Borrow against USTX</h2><p>Post USTX as collateral and borrow demo dollars, or lend them and earn what borrowers pay.</p></div><span className="gmd-badge">{status}</span></header>
     {readFailure && !market && <p className="gmd-inline-error" role="status">The lending market could not be read right now. <button type="button" className="gmd-text-button" onClick={() => setReload(value => value + 1)}>Try again</button></p>}
-    <div className="gmd-fund-grid">
-      <article><span>Available to borrow</span><strong>{market ? usd(market.cashMicros) : "—"}</strong><small>Demo dollars in the market</small></article>
-      <article><span>Borrowed</span><strong>{market ? usd(market.borrowedMicros) : "—"}</strong><small>{market ? `${formatWadPercent(market.utilizationWad)} of ${usd(market.suppliedMicros)} lent` : "Loading…"}</small></article>
-      <article><span>Borrow rate</span><strong>{market ? formatWadPercent(market.borrowRateWad) : "—"}</strong><small>A year, rising with use</small></article>
-      <article><span>Lending rate</span><strong>{market ? formatWadPercent(market.supplyRateWad) : "—"}</strong><small>A year, paid by borrowers</small></article>
+    <div className="gmd-fund-grid" aria-busy={!market && !readFailure}>
+      <article><span>Available to borrow</span><strong>{market ? usd(market.cashMicros) : wait(92)}</strong><small>Demo dollars in the market</small></article>
+      <article><span>Borrowed</span><strong>{market ? usd(market.borrowedMicros) : wait(80)}</strong><small>{market ? `${formatWadPercent(market.utilizationWad)} of ${usd(market.suppliedMicros)} lent` : readFailure ? "Unavailable" : <Skeleton width="70%" />}</small></article>
+      <article><span>Borrow rate</span><strong>{market ? formatWadPercent(market.borrowRateWad) : wait(56)}</strong><small>A year, rising with use</small></article>
+      <article><span>Lending rate</span><strong>{market ? formatWadPercent(market.supplyRateWad) : wait(56)}</strong><small>A year, paid by borrowers</small></article>
     </div>
     <div className="gmd-lending-body">
       <dl className="gmd-fund-facts gmd-lending-terms">

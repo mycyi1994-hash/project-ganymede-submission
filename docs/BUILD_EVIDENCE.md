@@ -1,6 +1,6 @@
 # Build provenance
 
-Production source revision: `6e3e143b5e29c69404ec234893e89275e59f95c0`.
+Production source revision: `a20712fbc950aaf06c1f19b5f7a259be0b400f15`.
 
 This is a source snapshot, not a claim that the entire project was newly built for this event. The original repository remains private. The entries below were exported from its Git history; reviewers can inspect current implementations and tests, and request original history access from the team if needed. No old secrets, local environment files or full private Git history are published.
 
@@ -375,6 +375,26 @@ Validation of the snapshot source:
 - In the development repository, the typecheck, clean build and 156 tests pass, lint reports 0 errors, and the 62 contract tests pass.
 - On a local build, a throwaway test wallet bought $20 of USTX in the pool and sold it back; within seconds of each fill the 24-hour trade count and volume rose by that trade, on the USTX page and on Markets.
 - After the deployment, the main public routes and APIs returned 200 and the legacy routes redirected. Seven screens on desktop and mobile, with and without a wallet, had no axe violations.
+- The same tests pass in this public checkout after `npm ci`, and so do the relayer typecheck and 28 tests.
+
+These are point-in-time observations, not continuous availability or a security audit.
+
+## Product detail release
+
+Production source: a20712fbc950aaf06c1f19b5f7a259be0b400f15. Worker version: 5225c560-1d20-48e7-9e52-a61ae7b79979, deployed 2026-09-25; prior 90840b50-7f9d-4d8a-ab70-c9040b9f61f2. Relayer and keeper Workers unchanged. This snapshot is exported from 206120625a3fb53efde0b92cc39b232f0e55b92e, which adds only documentation to the production source.
+
+- Each xStock row shows its OKX price, its change since the units were fixed and its weight against the equal-weight target, and opens a detail panel (a sheet on phones): the tokens in a share and in the whole fund, its part of the NAV, its fixing price, and its token contract on X Layer mainnet. The fixing price is recovered from the units, which were fixed as the NAV at the fixing times the weight over the price.
+- The NAV counts down to the next five-minute record, reads the market again once it is due, and flashes green or red when a new record arrives; reduced motion turns the animation off.
+- The fund overview shows the pool's price against the NAV on one gauge with the pool's 0.3% fee band. Borrow and Portfolio mark a loan against its 50% borrow limit and 65% liquidation line.
+- The NAV chart has a crosshair tooltip and marks the keeper's arbitrage and orders of $1,000 or more. `GET /api/v1/ustx/activity` serves them as `highlights`, read only from the stored index.
+- First reads show placeholders; refreshes keep what is shown. Portfolio shows the value in each xStock as a donut with a full legend.
+- The six asset colours now pass a colour-blind separation check as a ring, and every chart names each asset in text.
+
+Validation of the snapshot source:
+
+- In the development repository, the typecheck, clean build and 160 tests pass, lint reports 0 errors, and the 62 contract tests pass.
+- On a local build reading the production market data, seven screens on desktop and mobile, with and without a wallet, had no axe violations, nor did the open detail panel; placeholders gave way to data, and a simulated new record flashed the NAV.
+- After the deployment, the main public routes and APIs returned 200 and the legacy routes redirected. The same seven screens, the open detail panel and Portfolio for a public test address had no axe violations.
 - The same tests pass in this public checkout after `npm ci`, and so do the relayer typecheck and 28 tests.
 
 These are point-in-time observations, not continuous availability or a security audit.

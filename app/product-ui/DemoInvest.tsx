@@ -6,7 +6,7 @@ import { formatUsdMicros, formatUsdRounded } from "@/lib/nav-display";
 import { shortTime } from "@/lib/product-market";
 import { parseUsd } from "@/lib/xstocks/wallet";
 import { DEMO_ORDER_EVENT, formatShares, parseShares } from "@/lib/demo/format";
-import { Icon } from "./Icons";
+import { Icon, Skeleton } from "./Icons";
 import { useMarket } from "./MarketProvider";
 import { BasketList, BasketTable, useRecordComposition } from "./Basket";
 import { WalletInvest, useInjectedWallet } from "./WalletInvest";
@@ -193,7 +193,7 @@ export function DemoPortfolio() {
   }
   return <section className="gmd-demo-portfolio" aria-labelledby="demo-title">
     <header className="gmd-section-heading"><div><h2 id="demo-title">Your investments</h2><p>Held with your demo balance in this browser.</p></div><Link prefetch={false} className="gmd-button" href="/products/ustx#investment">Invest <Icon name="arrow" size={16} /></Link></header>
-    {demo.error ? <p className="gmd-inline-error" role="alert">{demo.error}</p> : !account ? <p className="gmd-caption" role="status">Opening your demo account…</p> : <>
+    {demo.error ? <p className="gmd-inline-error" role="alert">{demo.error}</p> : !account ? <div className="gmd-portfolio-summary is-loading" role="status"><span className="gmd-sr-only">Opening your demo account…</span><div aria-hidden="true"><Skeleton width={90} /><Skeleton className="is-hero" /><Skeleton width="72%" /></div><div className="gmd-loading-facts" aria-hidden="true">{[0, 1, 2].map(item => <span key={item}><Skeleton width={96} /><Skeleton width={120} /></span>)}</div></div> : <>
       <div className="gmd-portfolio-summary">
         <div><span className="gmd-label">Total value</span><strong className="gmd-value">{value === null ? "—" : formatUsdRounded(cash + value)}</strong><p>{nav ? `USTX at ${formatUsdMicros(nav.navMicros, 4)} per share, priced by OKX OnchainOS and recorded on X Layer at ${shortTime(nav.at)}` : "Waiting for the latest recorded NAV…"}</p></div>
         <dl>
@@ -214,7 +214,7 @@ export function DemoPortfolio() {
       </div>
       {shares > 0n && <section className="gmd-inside" aria-labelledby="inside-title">
         <header className="gmd-section-heading"><div><h3 id="inside-title">Inside your USTX</h3><p>Your {formatShares(shares)} shares, looked through to the six xStocks.</p></div></header>
-        {composition ? <BasketTable composition={composition} sharesMicros={shares} label="Your USTX looked through to each xStock" /> : <p className="gmd-caption">Waiting for the latest record to show what your shares hold…</p>}
+        {composition ? <BasketTable composition={composition} sharesMicros={shares} label="Your USTX looked through to each xStock" chart /> : <p className="gmd-caption">Waiting for the latest record to show what your shares hold…</p>}
         <p className="gmd-caption">Each USTX share holds fixed token amounts of each xStock until the next quarterly rebalance. Values use the latest OKX OnchainOS prices recorded on X Layer.</p>
       </section>}
       <div className="gmd-demo-activity">

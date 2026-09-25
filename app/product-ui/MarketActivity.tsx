@@ -1,17 +1,17 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useRef, useState } from "react";
+import { createContext, useContext, useEffect, useRef, useState, type ReactNode } from "react";
 import { DEMO_ORDER_EVENT, formatSharesShort } from "@/lib/demo/format";
 import { formatUsdMicros, formatUsdRounded } from "@/lib/nav-display";
 import { relativeTime, shortTime } from "@/lib/product-market";
 import {
-  ACTIVITY_FIRST_BLOCK, ACTIVITY_LIMIT, mergeActivity, parseActivityDay, parseActivityIndex, readActivityTail, withNewerRows,
+  ACTIVITY_FIRST_BLOCK, ACTIVITY_HIGHLIGHTS, ACTIVITY_LIMIT, isHighlight, mergeActivity, parseActivityDay, parseActivityIndex, parseHighlights, readActivityTail, withNewerRows,
   type ActivityDay, type ActivityKind, type MarketActivity,
 } from "@/lib/xstocks/activity";
 import { FUND_DEPLOYMENT, fundExplorer, fundRpc, pricePerShare } from "@/lib/xstocks/fund";
 import { useMarket } from "./MarketProvider";
-import { Icon } from "./Icons";
+import { Icon, Skeleton } from "./Icons";
 import { useWalletAccount } from "./WalletAccount";
 
 // Market activity for USTX on X Layer Testnet: orders at the fund, trades in the pool, the keeper's
@@ -21,28 +21,31 @@ import { useWalletAccount } from "./WalletAccount";
 
 const SHOWN = 8;
 
-type Loaded = { rows: MarketActivity[]; day: ActivityDay | null; head: number; complete: boolean; readAt: number };
+type Loaded = { rows: MarketActivity[]; highlights: MarketActivity[]; day: ActivityDay | null; head: number; complete: boolean; readAt: number };
+type Activity = { loaded: Loaded | null; failed: boolean; retry: () => void };
 
-function useMarketActivity() {
+function useActivityLoader(): Activity {
   const [state, setState] = useState<{ loaded: Loaded | null; failed: boolean }>({ loaded: null, failed: false });
   const [minBlock, setMinBlock] = useState(0);
   const [reload, setReload] = useState(0);
   // Rows and the last block this page has read, so each refresh reads only newer blocks.
-  const seen = useRef<{ rows: MarketActivity[]; head: number }>({ rows: [], head: 0 });
+  const seen = useRef<{ rows: MarketActivity[]; highlights: MarketActivity[]; head: number }>({ rows: [], highlights: [], head: 0 });
   useEffect(() => {
     const controller = new AbortController();
     (async () => {
       const body = await fetch("/api/v1/ustx/activity", { cache: "no-store", signal: controller.signal })
-        .then(response => response.ok ? response.json() as Promise<{ day?: unknown }> : null)
+        .then(response => response.ok ? response.json() as Promise<{ day?: unknown; highlights?: unknown }> : null)
         .catch(() => null);
       const served = parseActivityIndex(body);
       const servedDay = served ? parseActivityDay(body?.day) : null;
       const tail = await readActivityTail(served, fundRpc({ signal: controller.signal }), { after: seen.current.head || undefined, minBlock });
       const rows = mergeActivity(seen.current.rows, tail.rows);
-      seen.current = { rows, head: Math.max(seen.current.head, tail.head) };
+      // Marked on the NAV chart: the served arbitrages and large orders, and any this page read since.
+      const highlights = mergeActivity(seen.current.highlights, [...parseHighlights(body?.highlights), ...rows.filter(isHighlight)], ACTIVITY_HIGHLIGHTS);
+      seen.current = { rows, highlights, head: Math.max(seen.current.head, tail.head) };
       // The served figures count up to the served block; rows this page read since are added.
       const day = served && servedDay ? withNewerRows(servedDay, rows.filter(row => row.block > served.toBlock)) : null;
-      return { rows, day, head: seen.current.head, complete: served !== null && (served.fromBlock <= ACTIVITY_FIRST_BLOCK || served.rows.length >= ACTIVITY_LIMIT), readAt: Date.now() };
+      return { rows, highlights, day, head: seen.current.head, complete: served !== null && (served.fromBlock <= ACTIVITY_FIRST_BLOCK || served.rows.length >= ACTIVITY_LIMIT), readAt: Date.now() };
     })()
       .then(loaded => { if (!controller.signal.aborted) setState({ loaded, failed: false }); })
       .catch(() => { if (!controller.signal.aborted) setState(previous => ({ ...previous, failed: true })); });
@@ -60,6 +63,27 @@ function useMarketActivity() {
     return () => { window.clearInterval(timer); window.removeEventListener(DEMO_ORDER_EVENT, onOrder); };
   }, []);
   return { ...state, retry: () => setReload(value => value + 1) };
+}
+
+const ActivityContext = createContext<Activity | null>(null);
+
+/** Reads the market activity once for a screen: its lists and the NAV chart's markers share it. */
+export function ActivityProvider({ children }: { children: ReactNode }) {
+  return <ActivityContext.Provider value={useActivityLoader()}>{children}</ActivityContext.Provider>;
+}
+
+function useMarketActivity(): Activity {
+  const value = useContext(ActivityContext);
+  if (!value) throw new Error("ActivityProvider is required");
+  return value;
+}
+
+export type ChartEvent = { key: string; at: string; kind: "arbitrage" | "order"; title: string; detail: string; amount: string };
+
+/** The keeper's arbitrage and orders of $1,000 or more, for the NAV chart; none outside a provider. */
+export function useChartEvents(): ChartEvent[] {
+  const highlights = useContext(ActivityContext)?.loaded?.highlights ?? [];
+  return highlights.map(row => ({ key: `${row.hash}:${row.logIndex}`, at: row.at, kind: row.kind === "arbitrage" ? "arbitrage" : "order", ...describe(row) }));
 }
 
 const usd = (micros: bigint | null) => micros === null ? "—" : formatUsdMicros(micros, 2);
@@ -117,6 +141,15 @@ function ActivityList({ rows, clock, mine }: { rows: MarketActivity[]; clock: nu
   })}</ul>;
 }
 
+/** Placeholder rows and figures while the first read of the activity is on its way. */
+function ActivityLoading({ rows, figures = true }: { rows: number; figures?: boolean }) {
+  return <div className="gmd-activity-loading" role="status">
+    <span className="gmd-sr-only">Reading market activity from X Layer Testnet…</span>
+    {figures && <div className="gmd-activity-day is-loading" aria-hidden="true">{[0, 1, 2, 3].map(item => <div key={item}><Skeleton width={84} /><Skeleton width={64} className="is-large" /><Skeleton width="80%" /></div>)}</div>}
+    <ul className="gmd-activity-list is-loading" aria-hidden="true">{Array.from({ length: rows }, (_, item) => <li key={item}><span><Skeleton className="is-symbol" /><span><Skeleton width="56%" /><Skeleton width="78%" /></span><span><Skeleton width={58} /><Skeleton width={42} /></span></span></li>)}</ul>
+  </div>;
+}
+
 /** The last 24 hours in four figures. */
 function DayFigures({ day }: { day: ActivityDay }) {
   return <>
@@ -147,7 +180,7 @@ export function MarketActivitySection() {
   return <section id="activity" className="gmd-fund gmd-market-activity" aria-labelledby="activity-title">
     <header className="gmd-section-heading"><div><h2 id="activity-title">Market activity</h2><p>Orders at the fund and in the pool, arbitrage and loans, as recorded on X Layer Testnet.</p></div><span className="gmd-badge">Updated every minute</span></header>
     {loaded?.day && <DayFigures day={loaded.day} />}
-    {!loaded ? failed ? <p className="gmd-inline-error" role="status">Market activity could not be read right now. <button type="button" className="gmd-text-button" onClick={retry}>Try again</button></p> : <p className="gmd-caption" role="status">Reading market activity from X Layer Testnet…</p>
+    {!loaded ? failed ? <p className="gmd-inline-error" role="status">Market activity could not be read right now. <button type="button" className="gmd-text-button" onClick={retry}>Try again</button></p> : <ActivityLoading rows={SHOWN} />
       : rows.length === 0 ? <p className="gmd-empty-note">No trades yet. Orders, pool trades and loans appear here as they are recorded.</p>
       : <ActivityList rows={expanded ? rows : rows.slice(0, SHOWN)} clock={clock} mine={mine} />}
     {rows.length > SHOWN && <button type="button" className="gmd-text-button" aria-expanded={expanded} onClick={() => setExpanded(value => !value)}>{expanded ? "Show fewer" : `Show all ${rows.length}`}</button>}
@@ -163,7 +196,7 @@ export function MarketPulse() {
   return <section className="gmd-market-pulse" aria-labelledby="pulse-title">
     <header className="gmd-section-heading"><div><h2 id="pulse-title">Market activity</h2><p>The latest orders, arbitrage and loans in USTX on X Layer Testnet.</p></div><Link prefetch={false} href="/products/ustx#activity">View all <Icon name="arrow" size={16} /></Link></header>
     {loaded?.day && <DayFigures day={loaded.day} />}
-    {!loaded ? <p className="gmd-caption" role="status">Reading market activity from X Layer Testnet…</p>
+    {!loaded ? <ActivityLoading rows={4} />
       : loaded.rows.length === 0 ? <p className="gmd-empty-note">No trades yet. Orders, pool trades and loans appear here as they are recorded.</p>
       : <ActivityList rows={loaded.rows.slice(0, 4)} clock={clock} mine={mine} />}
   </section>;

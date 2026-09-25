@@ -1,5 +1,5 @@
 import { parseComposition } from "./xstocks/proof";
-import type { Composition } from "./xstocks/basket";
+import { XSTOCKS_PRODUCT, type Composition } from "./xstocks/basket";
 import type { OnchainNav } from "./xstocks/onchain";
 
 export type MarketPublication = { asOf: string; navPerShareMicros: string; holdingsHash: string; canonical: string; status: string; txHash: string | null; error?: string | null };
@@ -76,6 +76,68 @@ export function currentWeights(composition: Composition | null): Map<string, num
   if (!composition) return new Map();
   const total = composition.holdings.reduce((sum, h) => sum + BigInt(h.valueMicros), 0n);
   return new Map(composition.holdings.map(h => [h.symbol, total > 0n ? Number(BigInt(h.valueMicros) * 1_000_000n / total) / 10_000 : 0]));
+}
+
+/**
+ * The NAV per share when the basket's units were fixed: the record published at that second, or the
+ * inception NAV when the basket was fixed at launch, before the first record. Null if neither is known.
+ */
+export function navAtFixing(composition: Composition, points: HistoryPoint[]): bigint | null {
+  const fixed = Math.floor(Date.parse(composition.basketFixedAt) / 1000);
+  if (!Number.isFinite(fixed)) return null;
+  const record = points.find(point => Math.floor(Date.parse(point.at) / 1000) === fixed);
+  if (record) return BigInt(record.micros);
+  return points.length && fixed <= Math.floor(Date.parse(points[0].at) / 1000) ? XSTOCKS_PRODUCT.inceptionNavMicros : null;
+}
+
+export type ConstituentFigures = {
+  symbol: string;
+  address: string;
+  priceMicros: bigint;
+  priceTime: string;
+  /** Token units in one USTX share, 1e-18 fixed point. */
+  unitsWad: bigint;
+  /** What those units are worth at the price: this asset's part of the NAV per share. */
+  valueMicros: bigint;
+  /** Its share of the NAV now, and the equal-weight target the units were fixed to, in percent. */
+  weightPercent: number;
+  targetPercent: number;
+  /** The price the units were fixed at, and the change since; null without the NAV at the fixing. */
+  fixingPriceMicros: bigint | null;
+  changePercent: number | null;
+};
+
+const WAD = 10n ** 18n;
+
+/**
+ * Each holding of the composition as a customer reads it. Units were fixed as
+ * navAtFixing × weight / price, so the fixing price is navAtFixing × weight / units.
+ */
+export function constituentFigures(composition: Composition, fixingNavMicros: bigint | null): ConstituentFigures[] {
+  const weights = currentWeights(composition);
+  return composition.holdings.map(holding => {
+    const unitsWad = BigInt(holding.unitsWad);
+    const priceMicros = BigInt(holding.priceMicros);
+    const fixingPriceMicros = fixingNavMicros !== null && unitsWad > 0n ? fixingNavMicros * BigInt(holding.weightBps) * WAD / (10_000n * unitsWad) : null;
+    const changePercent = fixingPriceMicros !== null && fixingPriceMicros > 0n ? Number((priceMicros - fixingPriceMicros) * 1_000_000n / fixingPriceMicros) / 10_000 : null;
+    return {
+      symbol: holding.symbol, address: holding.address, priceMicros, priceTime: holding.priceTime, unitsWad, valueMicros: BigInt(holding.valueMicros),
+      // Equal weight: basis points round to 1667 or 1666 each, the target is a sixth.
+      weightPercent: weights.get(holding.symbol) ?? 0, targetPercent: 100 / composition.holdings.length, fixingPriceMicros, changePercent,
+    };
+  });
+}
+
+/** The next five-minute boundary after `at`, when the scheduled job records the next NAV. */
+export function nextRecordAt(at: string, periodMs = 300_000): number {
+  const time = Date.parse(at);
+  return Number.isFinite(time) ? (Math.floor(time / periodMs) + 1) * periodMs : 0;
+}
+
+/** "4:05" for a wait in milliseconds, rounded up to the second; never negative. */
+export function formatCountdown(ms: number): string {
+  const seconds = Math.max(0, Math.ceil(ms / 1000));
+  return `${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(2, "0")}`;
 }
 
 export function shortTime(value: string | null | undefined): string {

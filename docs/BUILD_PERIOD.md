@@ -19,7 +19,7 @@ Those modules still power the separate paper Lab. They are not part of the submi
 | X Layer | Moved the settlement rail from GIWA Sepolia to X Layer Testnet; deployed the registry, share ledger and relayer; exported sources for explorer verification | `8b9b2ab`, `4cb6dc9`, `c3016cf`, `a8ea5f2` |
 | Tokenized stocks | Six-xStock basket (USTX) priced through OKX OnchainOS on X Layer mainnet, with publication gates; NAV and document fingerprint published every five minutes | `0feca68`, `9562bdb`, `dc66eee` |
 | Verification | The browser reads the registry directly and recalculates the NAV; a three-way tamper experiment; a downloadable evidence file and the `verify:evidence` command | `27350f2`, `4641ddc`, `80a0316`, `11829e8` |
-| Product | Clearform redesign; Markets, USTX and Verify screens led by the browser check; read-only xStocks Portfolio at verified prices; NAV chart from publication receipts | `e5d1d8f`, `f4d67c1`, `ff04920`, `c0ce112`, `ebef0fa`, `d055246` |
+| Product | Clearform redesign; Markets, USTX and Verify screens led by the browser check; read-only xStocks Portfolio at verified prices; NAV chart from publication receipts; a detail panel for each xStock, a live countdown to the next NAV record, the pool's price against the NAV on a fee-band gauge, a loan health bar, chart tooltips with arbitrage and large-order markers, and a Portfolio allocation donut | `e5d1d8f`, `f4d67c1`, `ff04920`, `c0ce112`, `ebef0fa`, `d055246`, `6671a26` |
 | Investing | Wallet investing on X Layer Testnet: a USTX share contract that issues and redeems only at the NAV in the registry, no-value demo dollars, and an order panel that runs approve and invest from OKX Wallet. Demo-balance investing with private accounts, instant orders at the recorded NAV, idempotent retries and a daily cap. Order confirmations and a Portfolio that look through each holding to the six xStocks | `1327a6a`, `0c38037`, `2fed796`, `bc3bf08` |
 | Lending | A demo-dollar lending market that takes USTX as collateral at the recorded NAV, with a jump-rate curve and liquidations that the fund's redemption at NAV pays out; tested, run against the live contracts on a local fork, deployed and activated on X Layer Testnet, with a Borrow section on the USTX page that deposits USTX, borrows, repays, withdraws and lends from OKX Wallet, and the collateral and loan on Portfolio | `8706a43`, `97a2fee`, `0d989a7`, `89181c8` |
 | NAV feed | The USTX NAV in the Chainlink `AggregatorV3Interface` on X Layer Testnet, shown on the developer page and in the public API; all five X Layer Testnet contracts source-verified on the OKX explorer and Sourcify | `beff92f`, `b11493b`, `e36c7a3` |
@@ -27,7 +27,7 @@ Those modules still power the separate paper Lab. They are not part of the submi
 | Fund and ecosystem | Fund overview with size, investors and return since launch; the shares outstanding recorded on X Layer with every NAV; a public NAV API with open CORS, an embeddable self-verifying badge, and issuer and developer pages | `0c38037`, `23d35d2` |
 | Hardening | Public reads without writes, identity header gate, relayer retry and nonce handling, paper-ledger integrity, sanitized public errors | `c98e7ea`, `387ec35`, `8cd427f`, `7b18cf9`, `124bebe` |
 
-From `7a33392` to `9bf7247`: 249 files changed, 26999 insertions(+), 7376 deletions(-).
+From `7a33392` to `b31e2d0`: 250 files changed, 27636 insertions(+), 7376 deletions(-).
 
 ## Every commit in the build period (UTC)
 
@@ -166,3 +166,8 @@ From `7a33392` to `9bf7247`: 249 files changed, 26999 insertions(+), 7376 deleti
 | 2026-09-25 09:35 | `f0062c5` | Record the market activity release afb8f68a | 1 | +23 / −5 |
 | 2026-09-25 10:29 | `6e3e143` | Show the market's last 24 hours and latest trades on Markets | 11 | +284 / −73 |
 | 2026-09-25 10:35 | `9bf7247` | Record the Markets activity release 90840b50 | 1 | +19 / −5 |
+| 2026-09-25 10:35 | `f0cd5ab` | Regenerate the build-period commit list with the Markets activity card | 1 | +4 / −1 |
+| 2026-09-25 10:49 | `3aafc81` | Prepare the submission form answers, video script and final check | 1 | +136 / −187 |
+| 2026-09-25 11:59 | `6671a26` | Detail panels, a live NAV and clearer charts across the product | 17 | +778 / −112 |
+| 2026-09-25 12:00 | `a20712f` | Describe the activity API's chart highlights for developers | 2 | +2 / −2 |
+| 2026-09-25 12:10 | `b31e2d0` | Record the product detail release and describe it in the README | 3 | +29 / −10 |

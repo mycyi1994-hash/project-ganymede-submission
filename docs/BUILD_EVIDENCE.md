@@ -1,6 +1,6 @@
 # Build provenance
 
-Production source revision: `e36c7a3a925a793c4ea380d510f6fc73258fa6df`.
+Production source revision: `1e2693b518a1a272cefa07d47d174a2b45baeb7e`.
 
 This is a source snapshot, not a claim that the entire project was newly built for this event. The original repository remains private. The entries below were exported from its Git history; reviewers can inspect current implementations and tests, and request original history access from the team if needed. No old secrets, local environment files or full private Git history are published.
 
@@ -219,5 +219,25 @@ Validation of the snapshot source:
 - The same tests pass in this public checkout after `npm ci`, and so do the relayer typecheck and 16 tests.
 - After the deployment, the main public routes and APIs returned 200 and the legacy routes redirected. The feed appeared on `/developers` and in `/api/v1/ustx`. Seven screens on desktop and mobile, with and without a wallet, had no axe violations, horizontal overflow or page errors.
 - The first cycle after the deployment recorded the NAV effective 2026-09-25 04:46:17 UTC ($99.772334), and the feed's `latestRoundData` returned that value with that time as its round.
+
+These are point-in-time observations, not continuous availability or a security audit.
+
+
+## USTX market release
+
+Production source: 1e2693b518a1a272cefa07d47d174a2b45baeb7e. Worker version: f460620d-8c77-4584-81d0-92abbf44e748, deployed 2026-09-25. Relayer Worker version: cb38524c-cb75-4350-a9ee-a363f49a5c93, unchanged. This snapshot is exported from 8373527ebb88b1079a922de0b793ab522ed4dcc8, which adds only documentation to the production source.
+
+- Two contracts on X Layer Testnet (chain 1952), deployed by the administrator key and recorded in `onchain/deployments/xlayer-testnet.json` with their creation transactions.
+  - `GanymedeUstxPool` `0x286f5e7ffdbc30db12665d7a3854217d7cd05cc1`: a constant-product USTX/dUSD pool with a 0.3% fee to liquidity providers. It was seeded at the NAV with 50.1174 USTX and $5,000 of demo dollars, and opened at $99.765748 against a NAV of $99.765749.
+  - `GanymedeNavArbitrage` `0xaeba15aa92d6f3109e2b992f18933e1abe2fa3d9`: closes the pool's gap to the NAV through the fund in one transaction. Below the NAV it buys in the pool and redeems at the fund; above it, it invests at the fund and sells in the pool. It reverts unless the caller gets back more than it put in.
+  - Both match exactly on Sourcify (creation and runtime bytecode).
+- A live arbitrage with a throwaway test wallet: a seller pushed the pool 17.3% below the NAV, then `buyAndRedeem` put in $447.82 and got back $491.80 (transaction `0x3c604c934a1ef7576a173e0b513c419ad89376f1c6bea17464f8c5afbb9f6c2e`), leaving the pool 0.27% below the NAV, inside the fee.
+- The USTX fund overview shows the pool's market price and its premium or discount to the NAV. The developer page gains "Trade USTX on X Layer", and `GET /api/v1/ustx` returns the pool and arbitrage addresses.
+
+Validation of the snapshot source:
+
+- In the development repository, the typecheck, clean build and 135 tests pass, lint reports 0 errors, and the 60 contract tests pass. Deliberate breaks of 11 pool and arbitrage rules each made the contract tests fail.
+- The same tests pass in this public checkout after `npm ci`, and so do the relayer typecheck and 16 tests.
+- After the deployment, the main public routes and APIs returned 200 and the legacy routes redirected. The USTX page's market price read "$99.49 · 0.27% below NAV". Seven screens on desktop and mobile, with and without a wallet, had no axe violations, horizontal overflow or page errors. The first cycle after the deployment recorded the NAV at 05:16 UTC with the pool's USTX in the shares outstanding.
 
 These are point-in-time observations, not continuous availability or a security audit.

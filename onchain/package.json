@@ -9,6 +9,7 @@
     "deploy": "hardhat run scripts/deploy.ts --network xlayerTestnet",
     "deploy:fund": "hardhat run scripts/deploy-fund.ts --network xlayerTestnet",
     "deploy:feed": "hardhat run scripts/deploy-feed.ts --network xlayerTestnet",
+    "deploy:pool": "hardhat run scripts/deploy-pool.ts --network xlayerTestnet",
     "deploy:lending": "hardhat run scripts/deploy-lending.ts --network xlayerTestnet",
     "fork:lending": "hardhat run scripts/fork-lending.ts",
     "allowlist": "hardhat run scripts/allowlist.ts --network xlayerTestnet",

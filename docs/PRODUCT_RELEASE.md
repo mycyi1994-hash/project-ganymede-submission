@@ -10,18 +10,18 @@ USTX와 GMDCORE는 다른 대상이다. USTX는 모델 바스켓이다. 지갑 �
 
 ## 전체 화면
 
-현재 운영 소스 `e36c7a3` 기준이다. 모든 화면 위에 테스트넷 안내 한 줄이 있고, 헤더에 네트워크 표시와 "Connect OKX Wallet"이 있다. 메뉴는 Markets / Portfolio / Transparency다. 이전 배포별 변경은 아래 배포 절에 있다.
+현재 운영 소스 `1e2693b` 기준이다. 모든 화면 위에 테스트넷 안내 한 줄이 있고, 헤더에 네트워크 표시와 "Connect OKX Wallet"이 있다. 메뉴는 Markets / Portfolio / Transparency다. 이전 배포별 변경은 아래 배포 절에 있다.
 
 | 경로 | 완료한 동선 |
 | --- | --- |
 | `/` | Markets: USTX 최신 NAV("Priced by OKX OnchainOS")·펀드 규모·투자자 수·24시간 순유입·NAV 차트(24H/7D/All과 기간 수익률)·구성 비중·브라우저 검증 상태 → Invest |
-| `/products/ustx` | 오른쪽 투자 패널: Wallet 탭(OKX Wallet 연결 → X Layer Testnet 전환 → dUSD 받기 → 승인·투자 또는 환매, 단계별 진행과 OKX 탐색기 링크)과 Demo balance 탭(데모 잔고로 매수·환매). 체결 후 "Added to your basket" 종목별 토큰 수량·금액, 펀드 개요(규모·발행 좌수·투자자·24시간 순유입·수익률·핵심 조건·가격 오라클 OKX OnchainOS·마지막 NAV 기록과 OKX 탐색기), 보유 종목(전체 지분 기준 한 표), About USTX |
+| `/products/ustx` | 오른쪽 투자 패널: Wallet 탭(OKX Wallet 연결 → X Layer Testnet 전환 → dUSD 받기 → 승인·투자 또는 환매, 단계별 진행과 OKX 탐색기 링크)과 Demo balance 탭(데모 잔고로 매수·환매). 체결 후 "Added to your basket" 종목별 토큰 수량·금액, 펀드 개요(규모·발행 좌수·투자자·24시간 순유입·수익률·핵심 조건·USTX/dUSD 풀의 시장가격과 NAV 대비 괴리율·가격 오라클 OKX OnchainOS·마지막 NAV 기록과 OKX 탐색기), 보유 종목(전체 지분 기준 한 표), About USTX |
 | `/products/ustx/transparency` | Verify(고객용 증명 페이지, 거래소의 준비금 증명 형식): 브라우저 자동 검증 결과, 가격 산정 3단계(OKX OnchainOS → X Layer 기록 → 브라우저 확인), 구성 종목과 OKX 가격, 최신 기록(발행 좌수·OKX 탐색기), 최근 기록, 확인 범위와 비범위 |
 | `/portfolio` | 내 투자(총평가액·현금·투자원금·수익률, 보유 USTX, "Inside your USTX" 종목별 들여다보기, 최근 주문, 데모 잔고 초기화) → OKX Wallet 연결 또는 공개 주소 입력 → 그 지갑의 USTX(X Layer Testnet)와 종목별 들여다보기 → X Layer 메인넷 xStocks 6종 잔고(한 블록 기준) → 검증된 기록의 가격으로 평가·명세서 내려받기. 지갑 부분은 읽기 전용 |
 | `/issuers` | 발행사용: 필요성, 4단계 작동 방식, 제공 기능, 플랜(Sandbox 무료, Issuer·Distribution은 문의), GitHub 문의. 푸터에서 연결 |
-| `/developers` | 공개 NAV API 예시, 지갑·컨트랙트에서 투자하기(USTX·dUSD 주소와 viem 예시), 컨트랙트에서 NAV 읽기(Chainlink `AggregatorV3Interface` 가격 피드 주소와 Solidity 예시), viem으로 X Layer 레지스트리 직접 읽기, 임베드 배지 코드와 실시간 미리보기, "Verify it yourself"(3가지 확인 결과, xStock 계약 6개 확인, 변조 실험 3종, 증거 파일 내려받기와 재확인 명령, 원문 문서), 사용한 OKX 스택 |
+| `/developers` | 공개 NAV API 예시, 지갑·컨트랙트에서 투자하기(USTX·dUSD 주소와 viem 예시), 컨트랙트에서 NAV 읽기(Chainlink `AggregatorV3Interface` 가격 피드 주소와 Solidity 예시), X Layer에서 USTX 거래(풀·차익거래 주소, viem 예시, 실제 차익거래 거래), viem으로 X Layer 레지스트리 직접 읽기, 임베드 배지 코드와 실시간 미리보기, "Verify it yourself"(3가지 확인 결과, xStock 계약 6개 확인, 변조 실험 3종, 증거 파일 내려받기와 재확인 명령, 원문 문서), 사용한 OKX 스택 |
 | `/embed/ustx` | 다른 사이트가 iframe으로 넣는 배지. 방문자 브라우저가 X Layer를 직접 읽고 문서 해시·NAV를 대조한 뒤 "Verified in your browser"를 표시 |
-| `/api/v1/ustx` | 최신 USTX 기록(NAV·발행 좌수·지문·거래 해시)을 요청 시점에 X Layer에서 읽어 반환하고, USTX 지분 토큰, dUSD, 가격 피드 주소를 함께 준다. CORS `*`, 30초 캐시, 읽기 전용 |
+| `/api/v1/ustx` | 최신 USTX 기록(NAV·발행 좌수·지문·거래 해시)을 요청 시점에 X Layer에서 읽어 반환하고, USTX 지분 토큰, dUSD, 가격 피드, 풀·차익거래 주소를 함께 준다. CORS `*`, 30초 캐시, 읽기 전용 |
 | `/api/demo/account`, `/api/demo/orders`, `/api/demo/reset`, `/api/demo/fund` | 데모 계정 조회(읽기 전용, 쿠키만 발급)·주문·초기화, 펀드 합계(지갑 USTX + 데모 잔고 지분, 투자자 수 포함)와 데모 잔고 주문의 24시간 유입(개별 주문은 공개하지 않음, 읽기 전용) |
 | `/activity` | GMDCORE 테스트넷 장부의 공개 주소 잔액·지분 이전 로그 → 거래 상세. 메뉴에는 없음 |
 | `/activity/[hash]` | 성공 receipt의 해당 CORE 계약 Transfer만 표시. 미존재·실패·다른 계약은 완료 처리하지 않음 |
@@ -49,7 +49,7 @@ USTX와 GMDCORE는 다른 대상이다. USTX는 모델 바스켓이다. 지갑 �
 
 대상은 기존 `ganymede-xlayer` Worker와 기존 D1이다. 새 DB 테이블이나 운영 자동화는 만들지 않는다. 9/25 지갑 투자 배포에서 테스트넷 계약 2개(dUSD, USTX)를 추가했다. 환경 변수·비밀 값과 5분 일정은 유지한다. 
 - 현재 애플리케이션 소스: `10dee7a` (지갑 투자, `main` `405d04e` 포함). 그 전 소스는 `cb921f5`(서비스형 화면 배치, `f970e23`·`f660dc3` 포함)이고, `f660dc3`은 고객용 증명 페이지·OKX 출처 표기·비중 막대 수정으로 `23d35d2`를 포함한다. `23d35d2`는 접근성 수정이고 `0c38037`을 포함한다.
-- 현재 Worker 버전: `6f647815-4665-40fd-b098-9146546f512d`. 이전 버전은 `f760cd9e-bf95-47a0-8d4d-4a0fa4886c21`, 그 전은 `3a46801e-e6f9-47e0-af1c-8477f24bef71`.
+- 현재 Worker 버전: `f460620d-8c77-4584-81d0-92abbf44e748`. 이전 버전은 `6f647815-4665-40fd-b098-9146546f512d`, 그 전은 `f760cd9e-bf95-47a0-8d4d-4a0fa4886c21`.
 - 운영 주소: https://ganymede-xlayer.gana003.workers.dev
 - 최초 통합 배포: `ff04920` → `bb33af8d-0c01-4c7e-ac20-0853854bfb74`. 직전 운영 버전 `b287ab71-66f9-45d0-8854-3ee28626f2c0`의 소스 `df6c41e`를 포함했다. 두 배포 모두 직전 활성 버전을 재확인하고 게시했다.
 - 원격 저장소 브랜치: `codex/product-redesign-1-3`. 애플리케이션과 이 배포 기록을 푸시했다. 이 브랜치는 PR #4로 `main`에 통합됐다.
@@ -218,3 +218,24 @@ USTX와 GMDCORE는 다른 대상이다. USTX는 모델 바스켓이다. 지갑 �
     - 데스크톱(1440px)과 모바일(390px), 지갑 있음·없음으로 7개 화면 모두 axe 위반 0건, 가로 넘침과 페이지 오류가 없었다.
     - 샘플 확인이며 연속 무장애 증명이 아니다.
   - 필요 시 `f760cd9e`로 되돌릴 수 있다. 피드 컨트랙트는 체인에 남아 계속 동작한다.
+- 2026-09-25 USTX 시장 배포: `1e2693b` → `f460620d-8c77-4584-81d0-92abbf44e748`. 직전 버전은 `6f647815`(`e36c7a3`)이다. 사용자가 풀 배포를 승인했고, 운영 배포는 묻지 않고 하라고 했다.
+  - 컨트랙트(X Layer Testnet, 관리자 키로 배포, `onchain/deployments/xlayer-testnet.json`)
+    - `GanymedeUstxPool`(USTX/dUSD 상수곱 풀, 수수료 0.3%) `0x286f5e7ffdbc30db12665d7a3854217d7cd05cc1`. 관리자 지갑이 데모 달러 10,000을 받아 $5,000을 NAV로 투자하고, 받은 50.1174 USTX와 같은 가치의 데모 달러로 유동성을 넣었다(거래 `0x817304cf7026e580e2f231ee01f4f15d8f29eca05fd807c6452b28382d7d30a0`). 풀 가격 $99.765748, NAV $99.765749로 열렸다.
+    - `GanymedeNavArbitrage` `0xaeba15aa92d6f3109e2b992f18933e1abe2fa3d9`. 풀이 NAV보다 싸면 풀에서 사서 펀드에 환매하고, 비싸면 펀드에서 사서 풀에 판다. 거래 하나로 하며, 호출자가 넣은 금액 이상을 돌려받지 못하면 되돌린다.
+    - 두 컨트랙트 모두 Sourcify에서 생성·런타임 바이트코드가 완전 일치했다. OKX 탐색기 업로드는 사용자 몫으로 남아 있다.
+    - 테스트 지갑으로 실제 차익거래를 했다. 판매자가 5.01174 USTX를 풀에 팔아 가격이 NAV보다 17.3% 낮아졌고, `buyAndRedeem`이 $447.82를 넣어 $491.80을 돌려받았다(거래 `0x3c604c934a1ef7576a173e0b513c419ad89376f1c6bea17464f8c5afbb9f6c2e`). 풀은 NAV보다 0.27% 낮은 수준, 즉 수수료 안으로 돌아왔다.
+  - 바뀐 점
+    - USTX 펀드 개요에 "Market price"(풀 가격, NAV 대비 괴리율, 탐색기 링크)를 넣었다. 한 블록에서 풀 잔고와 NAV를 함께 읽는다.
+    - `/developers`에 "Trade USTX on X Layer"(설명, viem 예시, 풀과 실제 차익거래 링크)를 넣었다. `/api/v1/ustx`가 `market`(풀·차익거래 주소)을 준다.
+    - 풀도 USTX 보유자이므로 투자자 설명을 "wallets"에서 "holders"로 바꿨다. 펀드 규모와 NAV 기록의 발행 좌수에는 풀이 가진 USTX가 들어간다.
+  - 배포 전
+    - 활성 버전이 `6f647815`(`e36c7a3`)임을 확인했다. 소스가 현재 `main`(`4545c2c`)을 포함한다.
+    - 앱 검사 135개, 컨트랙트 검사 60개가 통과했고 lint 오류는 0이다(경고 10개는 main과 같다).
+    - 깨끗한 빌드, 기존 D1과 `*/5` 일정, `--keep-vars`로 배포했다.
+  - 배포 후 운영 확인
+    - 주요 11개 화면과 공개 API 2개가 200을 반환하고, 이전 4개 경로가 새 화면으로 이동했다.
+    - USTX 화면의 시장가격 줄이 "$99.49 · 0.27% below NAV · USTX/dUSD pool"로 나왔다. `/developers`의 시장 절과 `/api/v1/ustx`의 `market`을 확인했다.
+    - 데스크톱(1440px)과 모바일(390px), 지갑 있음·없음으로 7개 화면 모두 axe 위반 0건, 가로 넘침과 페이지 오류가 없었다.
+    - 배포 뒤 첫 기록(05:16 UTC)이 확정됐고, 발행 좌수 130.419139에 풀의 USTX가 들어 있다.
+    - 샘플 확인이며 연속 무장애 증명이 아니다.
+  - 필요 시 `6f647815`로 되돌릴 수 있다. 풀과 차익거래 컨트랙트는 체인에 남아 계속 동작한다.

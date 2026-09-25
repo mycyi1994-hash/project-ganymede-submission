@@ -70,6 +70,15 @@ export interface Deployment {
       description: string;
       constructorArgs: unknown[];
     };
+    // The USTX secondary market (scripts/deploy-pool.ts).
+    GanymedeUstxPool?: {
+      address: string;
+      deployedAt: string;
+      deploymentTransaction: string;
+      seedTransaction: string;
+      constructorArgs: unknown[];
+    };
+    GanymedeNavArbitrage?: { address: string; deployedAt: string; deploymentTransaction: string; constructorArgs: unknown[] };
     // Lending against USTX (scripts/deploy-lending.ts). Written and tested; not deployed.
     GanymedeLendingMarket?: { address: string; deployedAt: string; constructorArgs: unknown[] };
   };

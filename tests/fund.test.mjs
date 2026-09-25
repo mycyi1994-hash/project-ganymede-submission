@@ -1,8 +1,8 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import {
-  FUND_DEPLOYMENT, FUND_EVENTS, FUND_SELECTORS, STATE_WALLET_SHARES, dollarsFor, fundCalls, fundErrorMessage, fundFill, fundRpc,
-  parseStoredWalletTotals, readFundAccount, readFundTotals, sharesFor, simulateFundCall, waitForFundReceipt, withSlippage,
+  FUND_DEPLOYMENT, FUND_EVENTS, FUND_SELECTORS, POOL_SELECTORS, STATE_WALLET_SHARES, describePremium, dollarsFor, fundCalls, fundErrorMessage, fundFill, fundRpc,
+  parseStoredWalletTotals, readFundAccount, readFundTotals, readPoolMarket, sharesFor, simulateFundCall, waitForFundReceipt, withSlippage,
 } from "../lib/xstocks/fund.ts";
 import { combineFund } from "../lib/demo/api.ts";
 import { runXStocksCycle } from "../lib/xstocks/cycle.ts";
@@ -32,6 +32,7 @@ function chain(state) {
       case "eth_call": {
         const selector = first.data.slice(0, 10);
         if (state.revert?.[selector]) return fail("execution reverted", state.revert[selector]);
+        if (first.to === FUND_DEPLOYMENT.pool && selector === POOL_SELECTORS.getReserves) return answer(`0x${word(state.poolShares ?? 0)}${word(state.poolDollars ?? 0)}`);
         if (first.to === FUND_DEPLOYMENT.dollar) return answer(`0x${word({ [FUND_SELECTORS.balanceOf]: state.dollars, [FUND_SELECTORS.allowance]: state.allowance, [FUND_SELECTORS.nextClaimAt]: state.nextClaimAt }[selector] ?? 0)}`);
         if (selector === FUND_SELECTORS.currentNav) return answer(`0x${word(state.nav)}${word(state.navAt)}`);
         return answer(`0x${word({ [FUND_SELECTORS.balanceOf]: state.shares, [FUND_SELECTORS.totalSupply]: state.supply, [FUND_SELECTORS.investorCount]: state.investors }[selector] ?? 0)}`);
@@ -81,6 +82,19 @@ test("fund totals come from the contract; a dry run surfaces the revert reason",
   const { rpc } = chain({ block: 7, supply: 2_005_480n, investors: 1n, revert: { [FUND_SELECTORS.invest]: "0x8199f5f3" } });
   assert.deepEqual(await readFundTotals({ rpc }), { block: 7, sharesMicros: 2_005_480n, investors: 1 });
   await assert.rejects(simulateFundCall(ALICE, fundCalls.invest(10_000_000n, 1n), { rpc }), (error) => fundErrorMessage(error).includes("NAV changed"));
+});
+
+test("the pool's market price is read at one block and set against the NAV", async () => {
+  const { rpc } = chain({ block: 9, poolShares: 50_000_000n, poolDollars: 4_986_500_000n, nav: 100_000_000n, navAt: 1_790_000_000n });
+  const market = await readPoolMarket({ rpc });
+  assert.deepEqual(market, { block: 9, sharesMicros: 50_000_000n, dollarsMicros: 4_986_500_000n, priceMicros: 99_730_000n, navMicros: 100_000_000n, premiumPpm: -2_700n });
+  assert.equal(describePremium(market.premiumPpm), "0.27% below NAV");
+  assert.equal(describePremium(1_500n), "0.15% above NAV");
+  assert.equal(describePremium(-49n), "at the NAV");
+  // Without a usable NAV the price still shows, with no gap.
+  const stale = await readPoolMarket({ rpc: chain({ block: 9, poolShares: 50_000_000n, poolDollars: 4_986_500_000n, revert: { [FUND_SELECTORS.currentNav]: "0x220d4d06" + word(1_790_000_000n) } }).rpc });
+  assert.equal(stale.priceMicros, 99_730_000n);
+  assert.equal(stale.premiumPpm, null);
 });
 
 test("a mined order is read back from the fund's event", async () => {

@@ -63,6 +63,7 @@ test("the public NAV API serves the X Layer record to any origin and never write
     assert.equal(body.shares.paidWith.symbol, "dUSD");
     assert.equal(body.feed.address, "0x292c56c5290cc7b73e3ee33c2c2688eb3e04c3c8");
     assert.equal(body.feed.decimals, 8);
+    assert.equal(body.market.pool, "0x286f5e7ffdbc30db12665d7a3854217d7cd05cc1");
     const preflight = OPTIONS();
     assert.equal(preflight.status, 204);
     assert.match(preflight.headers.get("access-control-allow-methods"), /GET/);

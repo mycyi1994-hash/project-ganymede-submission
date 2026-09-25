@@ -22,6 +22,8 @@ const CONTRACTS = {
   GanymedeDemoDollar: "contracts/GanymedeDemoDollar.sol:GanymedeDemoDollar",
   GanymedeBasketFund: "contracts/GanymedeBasketFund.sol:GanymedeBasketFund",
   GanymedeNavFeed: "contracts/GanymedeNavFeed.sol:GanymedeNavFeed",
+  GanymedeUstxPool: "contracts/GanymedeUstxPool.sol:GanymedeUstxPool",
+  GanymedeNavArbitrage: "contracts/GanymedeNavArbitrage.sol:GanymedeNavArbitrage",
   GanymedeLendingMarket: "contracts/GanymedeLendingMarket.sol:GanymedeLendingMarket",
 } as const;
 

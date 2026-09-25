@@ -67,6 +67,27 @@ function ustxInUsd() view returns (uint256) {
   return uint256(answer);
 }`;
 
+const marketExample = `import { parseAbi } from "viem";
+
+const pool = "${FUND_DEPLOYMENT.pool}";      // USTX/dUSD pool
+const arbitrage = "${FUND_DEPLOYMENT.arbitrage}"; // one-transaction NAV arbitrage
+const abi = parseAbi([
+  "function premiumBps() view returns (int256)",
+  "function quote() view returns (bool buyInPool, uint256 dollarsIn, uint256 dollarsOut)",
+  "function buyAndRedeem(uint256 dollarsIn, uint256 minProfit) returns (uint256)",
+  "function investAndSell(uint256 dollarsIn, uint256 minProfit) returns (uint256)",
+]);
+
+const premium = await client.readContract({ address: pool, abi, functionName: "premiumBps" }); // -27n: 0.27% below NAV
+const [buyInPool, dollarsIn, dollarsOut] = await client.readContract({ address: arbitrage, abi, functionName: "quote" });
+if (dollarsIn > 0n) {
+  // Approve dUSD to the arbitrage contract first. It reverts unless you get back at least dollarsIn + minProfit.
+  await wallet.writeContract({ address: arbitrage, abi, functionName: buyInPool ? "buyAndRedeem" : "investAndSell", args: [dollarsIn, (dollarsOut - dollarsIn) / 2n] });
+}`;
+
+// A live arbitrage on X Layer Testnet: the pool was 17.3% below the NAV and closed to 0.27% below.
+const ARBITRAGE_TX = "0x3c604c934a1ef7576a173e0b513c419ad89376f1c6bea17464f8c5afbb9f6c2e";
+
 const embedExample = `<iframe src="${SITE}/embed/ustx" title="USTX verified NAV"
   width="440" height="260" style="border:0" loading="lazy"></iframe>`;
 
@@ -97,6 +118,10 @@ export function DevelopersPage() {
           <Code label="Read the feed in Solidity">{feedExample}</Code>
           <div className="gmd-terms-links"><a className="gmd-inline-link" href={`${FUND_DEPLOYMENT.explorerUrl}/address/${FUND_DEPLOYMENT.feed}`} target="_blank" rel="noreferrer">USTX / USD feed on the OKX explorer <Icon name="external" size={14} /></a></div>
         </section>
+        <section id="market"><h2>Trade USTX on X Layer</h2><p>USTX also trades on a USTX/dUSD pool on X Layer Testnet: a constant-product market with a 0.3% fee to liquidity providers. Its price moves only with trades, so it drifts from the NAV as the NAV moves. <code>GanymedeNavArbitrage</code> closes the gap in one transaction, the way ETF creation and redemption keep a fund near its NAV. Below the NAV it buys USTX in the pool and redeems it at the fund; above the NAV it invests at the fund and sells the new USTX in the pool. It reverts unless the caller gets back more than it put in, and <code>quote()</code> returns the size that captures most of the gap.</p>
+          <Code label="Close the gap with viem">{marketExample}</Code>
+          <div className="gmd-terms-links"><a className="gmd-inline-link" href={`${FUND_DEPLOYMENT.explorerUrl}/address/${FUND_DEPLOYMENT.pool}`} target="_blank" rel="noreferrer">USTX/dUSD pool on the OKX explorer <Icon name="external" size={14} /></a><a className="gmd-inline-link" href={`${FUND_DEPLOYMENT.explorerUrl}/tx/${ARBITRAGE_TX}`} target="_blank" rel="noreferrer">An arbitrage on X Layer Testnet <Icon name="external" size={14} /></a></div>
+        </section>
         <section id="embed"><h2>Embed the verified NAV badge</h2><p>Show the USTX NAV on your site, wallet or dashboard. The badge reads X Layer from the visitor’s browser, hashes the published document and recalculates the NAV before it says “Verified”.</p>
           <Code label="HTML">{embedExample}</Code>
           <div className="gmd-embed-preview"><span>Live preview</span><iframe src="/embed/ustx" title="USTX verified NAV badge preview" width="440" height="260" loading="lazy" /></div>
@@ -108,7 +133,7 @@ export function DevelopersPage() {
         <section id="okx"><h2>Built on the OKX stack</h2>
           <ul className="gmd-stack-list">
             <li><b>OKX OnchainOS Market API</b><span>Prices all six xStocks on X Layer every five minutes. The NAV is never published without them.</span></li>
-            <li><b>X Layer Testnet</b><span>Holds the NAV registry (every NAV, its composition fingerprint and the shares outstanding), the USTX token, which issues shares only at the recorded NAV, and a feed that serves that NAV to other contracts in the Chainlink interface.</span></li>
+            <li><b>X Layer Testnet</b><span>Holds the NAV registry (every NAV, its composition fingerprint and the shares outstanding), the USTX token, which issues shares only at the recorded NAV, a feed that serves that NAV to other contracts in the Chainlink interface, and a USTX/dUSD pool whose gap to the NAV any wallet can close in one transaction.</span></li>
             <li><b>X Layer mainnet</b><span>Where the xStocks live. Portfolio reads any wallet’s xStock balances directly from mainnet.</span></li>
             <li><b>OKX Wallet</b><span>Invests and redeems USTX on X Layer Testnet from the USTX page, and shows its balances on Portfolio.</span></li>
             <li><b>OKX explorer</b><span>Every record, token and transaction links to the OKX X Layer explorer.</span></li>

@@ -57,6 +57,23 @@
         "0x7fd4bda948705c478ec63926a4cdececd33422c85c3e35f414251992b48c2a20",
         "USTX / USD"
       ]
+    },
+    "GanymedeUstxPool": {
+      "address": "0x286f5e7ffdbc30db12665d7a3854217d7cd05cc1",
+      "deployedAt": "2026-09-25T05:08:14.539Z",
+      "deploymentTransaction": "0x52df62d5a2f662c50202b303c1b2afcd7f4b5fc0b2ed414bcb202af04a970239",
+      "seedTransaction": "0x817304cf7026e580e2f231ee01f4f15d8f29eca05fd807c6452b28382d7d30a0",
+      "constructorArgs": [
+        "0x77eaeba1366bde7818da12d3cbdbea0a2ee97596"
+      ]
+    },
+    "GanymedeNavArbitrage": {
+      "address": "0xaeba15aa92d6f3109e2b992f18933e1abe2fa3d9",
+      "deployedAt": "2026-09-25T05:08:20.684Z",
+      "deploymentTransaction": "0xc90e3f33579bd9bece698a2d1c7441457475430367c6a38e2a92fafcefbadfc7",
+      "constructorArgs": [
+        "0x286f5e7ffdbc30db12665d7a3854217d7cd05cc1"
+      ]
     }
   }
 }

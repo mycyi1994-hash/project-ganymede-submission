@@ -1,0 +1,9 @@
+network               X Layer Testnet (chain 1952)
+address               0x286f5e7ffdbc30db12665d7a3854217d7cd05cc1
+explorer              https://www.okx.com/web3/explorer/xlayer-test/address/0x286f5e7ffdbc30db12665d7a3854217d7cd05cc1
+contract name         contracts/GanymedeUstxPool.sol:GanymedeUstxPool
+compiler              v0.8.28+commit.7893614a
+optimizer             enabled, 200 runs
+evm version           paris
+license               MIT
+constructor args      00000000000000000000000077eaeba1366bde7818da12d3cbdbea0a2ee97596

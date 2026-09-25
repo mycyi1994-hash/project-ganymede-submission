@@ -3,10 +3,10 @@
 import { useEffect, useState } from "react";
 import { fundValueMicros } from "@/lib/demo/basket";
 import { DEMO_ORDER_EVENT, formatSharesShort } from "@/lib/demo/format";
-import { formatUsdRounded } from "@/lib/nav-display";
+import { formatUsdMicros, formatUsdRounded } from "@/lib/nav-display";
 import { compositionForRecord, publicationHistory, shortTime, signedPercent, sinceFirstRecord } from "@/lib/product-market";
 import { PROOF_DEPLOYMENT } from "@/lib/xstocks/proof";
-import { FUND_DEPLOYMENT } from "@/lib/xstocks/fund";
+import { FUND_DEPLOYMENT, describePremium, fundExplorer, readPoolMarket, type PoolMarket } from "@/lib/xstocks/fund";
 import { useMarket } from "./MarketProvider";
 import { BasketTable, useRecordComposition } from "./Basket";
 import { Icon } from "./Icons";
@@ -52,6 +52,22 @@ function useDemoFund() {
   return state;
 }
 
+/** The USTX/dUSD pool's price read from X Layer Testnet, refreshing every minute and after an order. */
+function usePoolMarket() {
+  const [state, setState] = useState<{ market: PoolMarket | null; failed: boolean }>({ market: null, failed: false });
+  useEffect(() => {
+    let cancelled = false;
+    const load = () => readPoolMarket()
+      .then(market => { if (!cancelled) setState({ market, failed: false }); })
+      .catch(() => { if (!cancelled) setState(previous => ({ ...previous, failed: true })); });
+    void load();
+    const timer = window.setInterval(() => { if (!document.hidden) void load(); }, 60_000);
+    window.addEventListener(DEMO_ORDER_EVENT, load);
+    return () => { cancelled = true; window.clearInterval(timer); window.removeEventListener(DEMO_ORDER_EVENT, load); };
+  }, []);
+  return state;
+}
+
 function useFundFigures() {
   const { data } = useMarket();
   const demo = useDemoFund();
@@ -83,6 +99,7 @@ export function FundStats() {
 /** The fund overview on the USTX page: figures and key facts. */
 export function FundOverview() {
   const figures = useFundFigures();
+  const pool = usePoolMarket();
   const { data } = useMarket();
   const { fund, since, record } = figures;
   const entry = record ? [data?.latest?.publication, ...(data?.history ?? [])].find(item => item?.holdingsHash.toLowerCase() === record.holdingsHash.toLowerCase()) : null;
@@ -94,7 +111,7 @@ export function FundOverview() {
     {unavailable && <p className="gmd-inline-error" role="status">Fund figures are unavailable right now. The NAV and verification are not affected.</p>}
     <div className="gmd-fund-grid">
       <article><span>Fund size</span><strong>{figures.size === null ? "—" : formatUsdRounded(figures.size)}</strong><small>{figures.shares === null ? "Loading…" : figures.onChain && record ? `${formatSharesShort(figures.shares)} shares outstanding, recorded on X Layer at ${shortTime(record.effectiveAt)}` : `${formatSharesShort(figures.shares)} shares outstanding; recorded on X Layer with the next NAV`}</small></article>
-      <article><span>Investors</span><strong>{fund ? fund.investors.toLocaleString("en-US") : "—"}</strong><small>{!fund ? "Loading…" : fund.wallets && fund.demo ? `${fund.wallets.investors.toLocaleString("en-US")} ${fund.wallets.investors === 1 ? "wallet" : "wallets"} on X Layer · ${fund.demo.investors.toLocaleString("en-US")} with demo balances` : "Accounts holding USTX"}</small></article>
+      <article><span>Investors</span><strong>{fund ? fund.investors.toLocaleString("en-US") : "—"}</strong><small>{!fund ? "Loading…" : fund.wallets && fund.demo ? `${fund.wallets.investors.toLocaleString("en-US")} ${fund.wallets.investors === 1 ? "holder" : "holders"} on X Layer · ${fund.demo.investors.toLocaleString("en-US")} with demo balances` : "Accounts holding USTX"}</small></article>
       <article><span>Net flows, 24h</span><strong className={net === null || net === 0n ? "" : net > 0n ? "gmd-positive" : "gmd-negative"}>{net === null ? "—" : `${net > 0n ? "+" : ""}${formatUsdRounded(net)}`}</strong><small>{fund ? `${formatUsdRounded(fund.last24h.investedMicros)} in · ${formatUsdRounded(fund.last24h.redeemedMicros)} out · ${fund.last24h.orders.toLocaleString("en-US")} ${fund.last24h.orders === 1 ? "order" : "orders"} with demo balances` : "Loading…"}</small></article>
       <article><span>Since launch</span><strong className={tone(since?.percent)}>{since ? signedPercent(since.percent) : "—"}</strong><small>{since ? `From ${formatUsdRounded(since.first.micros)} on ${day(since.first.at)}` : "Loading…"}</small></article>
     </div>
@@ -103,6 +120,7 @@ export function FundOverview() {
       <div><dt>Minimum investment</dt><dd>$10</dd></div>
       <div><dt>Management fee</dt><dd>0.00%</dd></div>
       <div><dt>Dealing</dt><dd>Instant, at the latest NAV on X Layer</dd></div>
+      <div><dt>Market price</dt><dd>{pool.market && pool.market.priceMicros > 0n ? <a className="gmd-inline-tx" href={fundExplorer.address(FUND_DEPLOYMENT.pool)} target="_blank" rel="noreferrer">{formatUsdMicros(pool.market.priceMicros, 2)}{pool.market.premiumPpm !== null ? ` · ${describePremium(pool.market.premiumPpm)}` : ""} · USTX/dUSD pool<Icon name="external" size={12} /><span className="gmd-sr-only"> (opens in a new tab)</span></a> : pool.failed ? "Unavailable right now" : "—"}</dd></div>
       <div><dt>Base currency</dt><dd>USD</dd></div>
       <div><dt>Rebalancing</dt><dd>Quarterly, back to equal weight</dd></div>
       <div><dt>Price oracle</dt><dd>OKX OnchainOS, every 5 minutes</dd></div>

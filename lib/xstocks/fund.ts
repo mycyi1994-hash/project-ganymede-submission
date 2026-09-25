@@ -14,6 +14,9 @@ export const FUND_DEPLOYMENT = {
   dollar: "0xf07535080f74e8b0f571e58dfa600f47e72ea9bf",
   // GanymedeNavFeed: the same registry record in the Chainlink AggregatorV3Interface, for other contracts.
   feed: "0x292c56c5290cc7b73e3ee33c2c2688eb3e04c3c8",
+  // GanymedeUstxPool (the USTX/dUSD market) and GanymedeNavArbitrage, which closes its gap to the NAV.
+  pool: "0x286f5e7ffdbc30db12665d7a3854217d7cd05cc1",
+  arbitrage: "0xaeba15aa92d6f3109e2b992f18933e1abe2fa3d9",
   faucetUrl: "https://web3.okx.com/xlayer/faucet",
 } as const;
 
@@ -33,6 +36,10 @@ export const FUND_SELECTORS = {
   totalSupply: "0x18160ddd",
   investorCount: "0xd7e64c00",
   currentNav: "0xc5c25216",
+} as const;
+
+export const POOL_SELECTORS = {
+  getReserves: "0x0902f1ac",
 } as const;
 
 export const FUND_EVENTS = {
@@ -167,6 +174,41 @@ export async function readFundAccount(account: string, options: { rpc?: Rpc; min
     ]);
     return { block, gasWei: gas, dollarsMicros: dollars, allowanceMicros: allowance, nextClaimAt: Number(nextClaim), sharesMicros: shares, nav };
   });
+}
+
+export type PoolMarket = {
+  block: number;
+  sharesMicros: bigint;
+  dollarsMicros: bigint;
+  /** Mid price in demo-dollar micros per USTX, before the 0.3% fee; 0 while the pool is empty. */
+  priceMicros: bigint;
+  navMicros: bigint | null;
+  /** The mid price against the NAV in parts per million (-2700 is 0.27% below); null without both. */
+  premiumPpm: bigint | null;
+};
+
+/** The USTX pool's reserves, mid price and gap to the NAV, read at one block. */
+export async function readPoolMarket(options: { rpc?: Rpc } = {}): Promise<PoolMarket> {
+  const rpc = options.rpc ?? fundRpc();
+  const block = await readBlock(rpc);
+  const tag = hexBlock(block);
+  return atBlock(async () => {
+    const [[shares, dollars], nav] = await Promise.all([
+      call(rpc, FUND_DEPLOYMENT.pool, POOL_SELECTORS.getReserves, tag).then(value => words(value, 2)),
+      readNav(rpc, tag),
+    ]);
+    const priceMicros = shares > 0n ? dollars * 1_000_000n / shares : 0n;
+    const premiumPpm = nav.navMicros && priceMicros > 0n ? (priceMicros - nav.navMicros) * 1_000_000n / nav.navMicros : null;
+    return { block, sharesMicros: shares, dollarsMicros: dollars, priceMicros, navMicros: nav.navMicros, premiumPpm };
+  });
+}
+
+/** "0.27% below NAV", "0.15% above NAV", or "at the NAV" within half a basis point. */
+export function describePremium(premiumPpm: bigint): string {
+  const size = premiumPpm < 0n ? -premiumPpm : premiumPpm;
+  if (size < 50n) return "at the NAV";
+  const percent = `${size / 10_000n}.${(size % 10_000n / 100n).toString().padStart(2, "0")}%`;
+  return `${percent} ${premiumPpm < 0n ? "below" : "above"} NAV`;
 }
 
 export type FundTotals = { block: number; sharesMicros: bigint; investors: number };

@@ -74,6 +74,14 @@ export async function GET(request: Request) {
         rule: "latestRoundData() answers this registry's latest NAV with 8 decimals; roundId and updatedAt are its effective time.",
         explorerUrl: `${FUND_DEPLOYMENT.explorerUrl}/address/${FUND_DEPLOYMENT.feed}`,
       },
+      market: {
+        pool: FUND_DEPLOYMENT.pool,
+        arbitrage: FUND_DEPLOYMENT.arbitrage,
+        network: FUND_DEPLOYMENT.name,
+        chainId: FUND_DEPLOYMENT.chainId,
+        rule: "A constant-product USTX/dUSD pool with a 0.3% fee; premiumBps() gives its gap to the NAV, and the arbitrage contract closes it through the fund in one transaction.",
+        explorerUrl: `${FUND_DEPLOYMENT.explorerUrl}/address/${FUND_DEPLOYMENT.pool}`,
+      },
       verify: {
         page: `${origin}/products/ustx/transparency`,
         documents: `${origin}/api/xstocks`,

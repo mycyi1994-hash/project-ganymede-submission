@@ -3,7 +3,7 @@ import hre from "hardhat";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { keccak256, toBytes, toEventSelector, toFunctionSelector, type AbiItem } from "viem";
-import { FUND_DEPLOYMENT, FUND_ERRORS, FUND_EVENTS, FUND_SELECTORS } from "../../lib/xstocks/fund";
+import { FUND_DEPLOYMENT, FUND_ERRORS, FUND_EVENTS, FUND_SELECTORS, POOL_SELECTORS } from "../../lib/xstocks/fund";
 
 // The app carries no keccak, so lib/xstocks/fund.ts hard-codes selectors and addresses.
 // These checks tie them to the compiled contracts and to the deployment record.
@@ -23,6 +23,9 @@ describe("App fund client", () => {
     expect(FUND_SELECTORS.invest).to.equal(toFunctionSelector("invest(uint256,uint256)"));
     expect(FUND_SELECTORS.redeem).to.equal(toFunctionSelector("redeem(uint256,uint256)"));
     expect(FUND_SELECTORS.approve).to.equal(toFunctionSelector("approve(address,uint256)"));
+    const pool = (await hre.artifacts.readArtifact("GanymedeUstxPool")).abi as readonly AbiItem[];
+    const poolSelectors = new Set(pool.filter(item => item.type === "function").map(item => toFunctionSelector(item as never)));
+    for (const [name, selector] of Object.entries(POOL_SELECTORS)) expect(poolSelectors.has(selector), name).to.equal(true);
   });
 
   it("decodes the fund's events and errors", async () => {
@@ -42,6 +45,8 @@ describe("App fund client", () => {
     expect(FUND_DEPLOYMENT.fund).to.equal(record.contracts.GanymedeBasketFund.address);
     expect(FUND_DEPLOYMENT.dollar).to.equal(record.contracts.GanymedeDemoDollar.address);
     expect(FUND_DEPLOYMENT.feed).to.equal(record.contracts.GanymedeNavFeed.address);
+    expect(FUND_DEPLOYMENT.pool).to.equal(record.contracts.GanymedeUstxPool.address);
+    expect(FUND_DEPLOYMENT.arbitrage).to.equal(record.contracts.GanymedeNavArbitrage.address);
     expect(FUND_DEPLOYMENT.chainId).to.equal(record.chainId);
   });
 });

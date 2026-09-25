@@ -27,7 +27,7 @@ Those modules still power the separate paper Lab. They are not part of the submi
 | Fund and ecosystem | Fund overview with size, investors and return since launch; the shares outstanding recorded on X Layer with every NAV; a public NAV API with open CORS, an embeddable self-verifying badge, and issuer and developer pages | `0c38037`, `23d35d2` |
 | Hardening | Public reads without writes, identity header gate, relayer retry and nonce handling, paper-ledger integrity, sanitized public errors | `c98e7ea`, `387ec35`, `8cd427f`, `7b18cf9`, `124bebe` |
 
-From `7a33392` to `f0062c5`: 249 files changed, 26771 insertions(+), 7376 deletions(-).
+From `7a33392` to `9bf7247`: 249 files changed, 26999 insertions(+), 7376 deletions(-).
 
 ## Every commit in the build period (UTC)
 
@@ -162,4 +162,7 @@ From `7a33392` to `f0062c5`: 249 files changed, 26771 insertions(+), 7376 deleti
 | 2026-09-25 08:44 | `3fa7b45` | Record the Portfolio lending releases 5f124eee and 15ae856c | 3 | +17 / −5 |
 | 2026-09-25 08:44 | `f73d095` | Regenerate the build-period commit list with Portfolio lending | 1 | +6 / −2 |
 | 2026-09-25 09:27 | `852d53e` | Show USTX market activity from the contracts' events | 17 | +857 / −10 |
+| 2026-09-25 09:35 | `a5d7c37` | Regenerate the build-period commit list with market activity | 1 | +4 / −1 |
 | 2026-09-25 09:35 | `f0062c5` | Record the market activity release afb8f68a | 1 | +23 / −5 |
+| 2026-09-25 10:29 | `6e3e143` | Show the market's last 24 hours and latest trades on Markets | 11 | +284 / −73 |
+| 2026-09-25 10:35 | `9bf7247` | Record the Markets activity release 90840b50 | 1 | +19 / −5 |

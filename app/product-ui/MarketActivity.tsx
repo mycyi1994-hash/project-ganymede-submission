@@ -1,22 +1,27 @@
 "use client";
 
+import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
 import { DEMO_ORDER_EVENT, formatSharesShort } from "@/lib/demo/format";
-import { formatUsdMicros } from "@/lib/nav-display";
-import { relativeTime } from "@/lib/product-market";
-import { ACTIVITY_FIRST_BLOCK, ACTIVITY_LIMIT, mergeActivity, parseActivityIndex, readActivityTail, type ActivityKind, type MarketActivity } from "@/lib/xstocks/activity";
+import { formatUsdMicros, formatUsdRounded } from "@/lib/nav-display";
+import { relativeTime, shortTime } from "@/lib/product-market";
+import {
+  ACTIVITY_FIRST_BLOCK, ACTIVITY_LIMIT, mergeActivity, parseActivityDay, parseActivityIndex, readActivityTail, withNewerRows,
+  type ActivityDay, type ActivityKind, type MarketActivity,
+} from "@/lib/xstocks/activity";
 import { FUND_DEPLOYMENT, fundExplorer, fundRpc, pricePerShare } from "@/lib/xstocks/fund";
 import { useMarket } from "./MarketProvider";
 import { Icon } from "./Icons";
 import { useWalletAccount } from "./WalletAccount";
 
 // Market activity for USTX on X Layer Testnet: orders at the fund, trades in the pool, the keeper's
-// arbitrage and the lending market. The app's scheduled job keeps the latest rows
-// (GET /api/v1/ustx/activity); this page reads the blocks since, every minute and after an order here.
+// arbitrage and the lending market, on the USTX page and in brief on Markets. The app's scheduled job
+// keeps the latest rows and their 24-hour figures (GET /api/v1/ustx/activity); a page reads the
+// blocks since, every minute and after an order here, and adds them to both.
 
 const SHOWN = 8;
 
-type Loaded = { rows: MarketActivity[]; head: number; complete: boolean; readAt: number };
+type Loaded = { rows: MarketActivity[]; day: ActivityDay | null; head: number; complete: boolean; readAt: number };
 
 function useMarketActivity() {
   const [state, setState] = useState<{ loaded: Loaded | null; failed: boolean }>({ loaded: null, failed: false });
@@ -27,14 +32,17 @@ function useMarketActivity() {
   useEffect(() => {
     const controller = new AbortController();
     (async () => {
-      const served = await fetch("/api/v1/ustx/activity", { cache: "no-store", signal: controller.signal })
-        .then(response => response.ok ? response.json() : null)
-        .then(body => parseActivityIndex(body))
+      const body = await fetch("/api/v1/ustx/activity", { cache: "no-store", signal: controller.signal })
+        .then(response => response.ok ? response.json() as Promise<{ day?: unknown }> : null)
         .catch(() => null);
+      const served = parseActivityIndex(body);
+      const servedDay = served ? parseActivityDay(body?.day) : null;
       const tail = await readActivityTail(served, fundRpc({ signal: controller.signal }), { after: seen.current.head || undefined, minBlock });
       const rows = mergeActivity(seen.current.rows, tail.rows);
       seen.current = { rows, head: Math.max(seen.current.head, tail.head) };
-      return { rows, head: seen.current.head, complete: served !== null && (served.fromBlock <= ACTIVITY_FIRST_BLOCK || served.rows.length >= ACTIVITY_LIMIT), readAt: Date.now() };
+      // The served figures count up to the served block; rows this page read since are added.
+      const day = served && servedDay ? withNewerRows(servedDay, rows.filter(row => row.block > served.toBlock)) : null;
+      return { rows, day, head: seen.current.head, complete: served !== null && (served.fromBlock <= ACTIVITY_FIRST_BLOCK || served.rows.length >= ACTIVITY_LIMIT), readAt: Date.now() };
     })()
       .then(loaded => { if (!controller.signal.aborted) setState({ loaded, failed: false }); })
       .catch(() => { if (!controller.signal.aborted) setState(previous => ({ ...previous, failed: true })); });
@@ -55,6 +63,8 @@ function useMarketActivity() {
 }
 
 const usd = (micros: bigint | null) => micros === null ? "—" : formatUsdMicros(micros, 2);
+/** Earnings of under a cent keep four decimals, so they do not read as $0.00. */
+const earnedUsd = (micros: bigint) => formatUsdMicros(micros, micros > 0n && micros < 10_000n ? 4 : 2);
 const ustx = (micros: bigint | null) => micros === null ? "—" : `${formatSharesShort(micros, 4)} USTX`;
 const short = (address: string) => `${address.slice(0, 6)}…${address.slice(-4)}`;
 
@@ -75,7 +85,7 @@ function describe(row: MarketActivity): { title: string; detail: string; amount:
     case "removeLiquidity": return { title: "Removed pool liquidity", detail: `With ${ustx(row.sharesMicros)}`, amount: usd(row.dollarsMicros) };
     case "arbitrage": {
       const profit = row.dollarsOutMicros !== null && row.dollarsMicros !== null && row.dollarsOutMicros > row.dollarsMicros ? row.dollarsOutMicros - row.dollarsMicros : 0n;
-      const earned = `earned ${formatUsdMicros(profit, profit > 0n && profit < 10_000n ? 4 : 2)}`;
+      const earned = `earned ${earnedUsd(profit)}`;
       return {
         title: "Closed the gap to the NAV",
         detail: row.boughtInPool ? `Bought ${ustx(row.sharesMicros)} in the pool, redeemed at the fund, ${earned}` : `Invested at the fund, sold ${ustx(row.sharesMicros)} in the pool, ${earned}`,
@@ -92,32 +102,69 @@ function describe(row: MarketActivity): { title: string; detail: string; amount:
   }
 }
 
-export function MarketActivitySection() {
-  const { loaded, failed, retry } = useMarketActivity();
+/** The rows, each linked to its transaction on the OKX explorer. */
+function ActivityList({ rows, clock, mine }: { rows: MarketActivity[]; clock: number; mine: string | null }) {
+  const who = (account: string) => account === mine ? "You" : account === FUND_DEPLOYMENT.keeper ? "Arbitrage keeper" : short(account);
+  return <ul className="gmd-activity-list" aria-label="Latest market activity">{rows.map(row => {
+    const text = describe(row);
+    return <li key={`${row.hash}:${row.logIndex}`}><a href={fundExplorer.tx(row.hash)} target="_blank" rel="noreferrer">
+      <span className={`gmd-transaction-symbol is-${row.kind}`}><Icon name={ICONS[row.kind]} size={18} /></span>
+      <span><b>{text.title}</b><small>{text.detail} · {who(row.account)}</small></span>
+      {/* A block stamped a moment ahead of this device's clock reads as just now. */}
+      <span><b>{text.amount}</b><small><time dateTime={row.at}>{relativeTime(row.at, Math.max(clock, Date.parse(row.at)))}</time></small></span>
+      <Icon name="external" size={14} /><span className="gmd-sr-only"> (opens in a new tab)</span>
+    </a></li>;
+  })}</ul>;
+}
+
+/** The last 24 hours in four figures. */
+function DayFigures({ day }: { day: ActivityDay }) {
+  return <>
+    <dl className="gmd-activity-day" aria-label="Market activity, last 24 hours">
+      <div><dt>Volume, 24h</dt><dd><strong>{formatUsdRounded(day.volumeMicros)}</strong><small>Orders at the fund and in the pool</small></dd></div>
+      <div><dt>Trades, 24h</dt><dd><strong>{day.trades.toLocaleString("en-US")}</strong><small>At the NAV, in the pool and arbitrage</small></dd></div>
+      <div><dt>Arbitrage, 24h</dt><dd><strong>{day.arbitrages.toLocaleString("en-US")}</strong><small>{day.earnedMicros > 0n ? `Earned ${earnedUsd(day.earnedMicros)} closing gaps to the NAV` : "Keeps the pool at the NAV"}</small></dd></div>
+      <div><dt>Loan actions, 24h</dt><dd><strong>{day.loans.toLocaleString("en-US")}</strong><small>Collateral, loans and lending</small></dd></div>
+    </dl>
+    {!day.complete && <p className="gmd-caption">Counted since {shortTime(day.since)}. Earlier activity is still being read from X Layer Testnet.</p>}
+  </>;
+}
+
+/** The page clock, the connected wallet and the loaded activity, shared by both views. */
+function useActivityView() {
+  const activity = useMarketActivity();
   const { now } = useMarket();
   const { address, source } = useWalletAccount();
+  // Rows read after the page's clock last ticked are timed from when they were read.
+  const clock = Math.max(now, activity.loaded?.readAt ?? 0);
+  return { ...activity, clock, mine: source === "wallet" && address ? address.toLowerCase() : null };
+}
+
+export function MarketActivitySection() {
+  const { loaded, failed, retry, clock, mine } = useActivityView();
   const [expanded, setExpanded] = useState(false);
-  const mine = source === "wallet" && address ? address.toLowerCase() : null;
   const rows = loaded?.rows ?? [];
-  // Rows read after the page's clock last ticked are timed from when they were read; a block
-  // stamped a moment ahead of this device's clock reads as just now.
-  const clock = Math.max(now, loaded?.readAt ?? 0);
-  const shown = expanded ? rows : rows.slice(0, SHOWN);
-  const who = (account: string) => account === mine ? "You" : account === FUND_DEPLOYMENT.keeper ? "Arbitrage keeper" : short(account);
   return <section id="activity" className="gmd-fund gmd-market-activity" aria-labelledby="activity-title">
     <header className="gmd-section-heading"><div><h2 id="activity-title">Market activity</h2><p>Orders at the fund and in the pool, arbitrage and loans, as recorded on X Layer Testnet.</p></div><span className="gmd-badge">Updated every minute</span></header>
+    {loaded?.day && <DayFigures day={loaded.day} />}
     {!loaded ? failed ? <p className="gmd-inline-error" role="status">Market activity could not be read right now. <button type="button" className="gmd-text-button" onClick={retry}>Try again</button></p> : <p className="gmd-caption" role="status">Reading market activity from X Layer Testnet…</p>
       : rows.length === 0 ? <p className="gmd-empty-note">No trades yet. Orders, pool trades and loans appear here as they are recorded.</p>
-      : <ul aria-label="Latest market activity">{shown.map(row => {
-        const text = describe(row);
-        return <li key={`${row.hash}:${row.logIndex}`}><a href={fundExplorer.tx(row.hash)} target="_blank" rel="noreferrer">
-          <span className={`gmd-transaction-symbol is-${row.kind}`}><Icon name={ICONS[row.kind]} size={18} /></span>
-          <span><b>{text.title}</b><small>{text.detail} · {who(row.account)}</small></span>
-          <span><b>{text.amount}</b><small><time dateTime={row.at}>{relativeTime(row.at, Math.max(clock, Date.parse(row.at)))}</time></small></span>
-          <Icon name="external" size={14} /><span className="gmd-sr-only"> (opens in a new tab)</span>
-        </a></li>;
-      })}</ul>}
+      : <ActivityList rows={expanded ? rows : rows.slice(0, SHOWN)} clock={clock} mine={mine} />}
     {rows.length > SHOWN && <button type="button" className="gmd-text-button" aria-expanded={expanded} onClick={() => setExpanded(value => !value)}>{expanded ? "Show fewer" : `Show all ${rows.length}`}</button>}
     <p className="gmd-caption">{loaded && !loaded.complete ? "Earlier activity appears as it is read from X Layer Testnet. " : ""}Each row opens its transaction on the OKX explorer. Demo dollars and USTX have no value.</p>
+  </section>;
+}
+
+/** Markets: the last 24 hours and the latest four rows, with the full list on the USTX page. */
+export function MarketPulse() {
+  const { loaded, failed, clock, mine } = useActivityView();
+  // Markets stays as it was when the chain cannot be read; the USTX page says why.
+  if (failed && !loaded) return null;
+  return <section className="gmd-market-pulse" aria-labelledby="pulse-title">
+    <header className="gmd-section-heading"><div><h2 id="pulse-title">Market activity</h2><p>The latest orders, arbitrage and loans in USTX on X Layer Testnet.</p></div><Link prefetch={false} href="/products/ustx#activity">View all <Icon name="arrow" size={16} /></Link></header>
+    {loaded?.day && <DayFigures day={loaded.day} />}
+    {!loaded ? <p className="gmd-caption" role="status">Reading market activity from X Layer Testnet…</p>
+      : loaded.rows.length === 0 ? <p className="gmd-empty-note">No trades yet. Orders, pool trades and loans appear here as they are recorded.</p>
+      : <ActivityList rows={loaded.rows.slice(0, 4)} clock={clock} mine={mine} />}
   </section>;
 }

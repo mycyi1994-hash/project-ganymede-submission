@@ -6,8 +6,8 @@ import { env } from "cloudflare:workers";
 import { FUND_DEPLOYMENT, FUND_EVENTS, POOL_EVENTS, fundRpc } from "../lib/xstocks/fund.ts";
 import { LENDING_EVENTS } from "../lib/xstocks/lending.ts";
 import {
-  ACTIVITY_EVENTS, ACTIVITY_FIRST_BLOCK, ACTIVITY_INDEX_MARGIN, ACTIVITY_LIMIT, activityJson, mergeActivity, parseActivityIndex, readActivityTail, scanActivity,
-  serializeActivityIndex, updateActivityIndex,
+  ACTIVITY_EVENTS, ACTIVITY_FIRST_BLOCK, ACTIVITY_INDEX_MARGIN, ACTIVITY_KEEP, ACTIVITY_LIMIT, activityDay, activityDayJson, activityJson, mergeActivity,
+  parseActivityDay, parseActivityIndex, readActivityTail, scanActivity, serializeActivityIndex, updateActivityIndex, withNewerRows,
 } from "../lib/xstocks/activity.ts";
 import { ACTIVITY_CRON, STATE_MARKET_ACTIVITY, runActivityIndex } from "../lib/xstocks/activity-index.ts";
 import { GET, OPTIONS } from "../app/api/v1/ustx/activity/route.ts";
@@ -138,10 +138,63 @@ test("each run reads the new blocks first, then history back to the fund's deplo
   assert.deepEqual(network.ranges(), []);
   // With the rows full, history is no longer read.
   const row = { kind: "borrow", hash: tx(9), block: F + 1, logIndex: 0, at: new Date(TIME * 1000).toISOString(), account: ALICE, dollarsMicros: USD, sharesMicros: null, navMicros: null, dollarsOutMicros: null, boughtInPool: null, borrower: null };
-  const full = Array.from({ length: ACTIVITY_LIMIT }, (_, n) => ({ ...row, hash: tx(100 + n), block: safe - n }));
+  const full = Array.from({ length: ACTIVITY_KEEP }, (_, n) => ({ ...row, hash: tx(100 + n), block: safe - n }));
   network.calls.length = 0;
-  await updateActivityIndex({ fromBlock: safe - 500, toBlock: safe, rows: full }, network.rpc, { chunks: 3 });
+  await updateActivityIndex({ fromBlock: safe - 500, toBlock: safe, keep: ACTIVITY_KEEP, rows: full }, network.rpc, { chunks: 3 });
   assert.deepEqual(network.ranges(), []);
+});
+
+test("an index never claims blocks whose rows it dropped", async () => {
+  const row = { kind: "borrow", hash: tx(9), block: F + 1, logIndex: 0, at: new Date(TIME * 1000).toISOString(), account: ALICE, dollarsMicros: USD, sharesMicros: null, navMicros: null, dollarsOutMicros: null, boughtInPool: null, borrower: null };
+  const stored = (count) => JSON.stringify({ fromBlock: F + 100, toBlock: F + 2_000, rows: Array.from({ length: count }, (_, n) => activityJson({ ...row, hash: tx(100 + n), block: F + 1_039 - n })) });
+  // Stored before rows were kept by the day, with the 40 it kept then: its oldest may have been
+  // dropped, so it reads again from its oldest kept block down.
+  let network = chain({ head: F + 2_000 + ACTIVITY_INDEX_MARGIN });
+  const truncated = parseActivityIndex(stored(ACTIVITY_LIMIT));
+  assert.equal(truncated.keep, ACTIVITY_LIMIT);
+  let index = await updateActivityIndex(truncated, network.rpc, { chunks: 3 });
+  assert.deepEqual(network.ranges(), [[F + 701, F + 800], [F + 801, F + 900], [F + 901, F + 1_000]]);
+  assert.deepEqual([index.fromBlock, index.keep, index.rows.length], [F + 701, ACTIVITY_KEEP, ACTIVITY_LIMIT]);
+  // One that never filled dropped nothing and carries on from where it was.
+  network = chain({ head: F + 2_000 + ACTIVITY_INDEX_MARGIN });
+  index = await updateActivityIndex(parseActivityIndex(stored(ACTIVITY_LIMIT - 1)), network.rpc, { chunks: 3 });
+  assert.deepEqual(network.ranges(), [[F, F + 99]]);
+  assert.equal(index.fromBlock, F);
+  // A new event past a full index drops the oldest row, and the range starts after the new oldest.
+  const full = Array.from({ length: ACTIVITY_KEEP }, (_, n) => ({ ...row, hash: tx(100 + n), block: F + 5_000 - n }));
+  network = chain({ head: F + 5_001 + ACTIVITY_INDEX_MARGIN, logs: [log(fund, [FUND_EVENTS.invested, topic(BOB)], [20n * USD, 200_000n, 100n * USD, TIME], { block: F + 5_001, index: 0, hash: tx(900) })] });
+  index = await updateActivityIndex({ fromBlock: F + 4_000, toBlock: F + 5_000, keep: ACTIVITY_KEEP, rows: full }, network.rpc, { chunks: 3 });
+  assert.deepEqual([index.rows.length, index.rows[0].block, index.rows.at(-1).block, index.fromBlock], [ACTIVITY_KEEP, F + 5_001, F + 4_802, F + 4_803]);
+  assert.deepEqual(network.ranges(), [[F + 5_001, F + 5_001]], "a full index reads no history");
+});
+
+test("the last 24 hours count trades, their volume, arbitrage and loans", async () => {
+  const rows = await scanActivity(chain({ head: F + 400, logs: MARKET }).rpc, F, F + 350);
+  const at = (block) => (TIME + block - F) * 1000;
+  // Every event since the deployment is held, so the day is complete: an investment, a pool buy and
+  // an arbitrage are trades; the loan and the liquidation are loan actions.
+  const day = activityDay({ fromBlock: F, toBlock: F + 350, keep: ACTIVITY_KEEP, rows }, at(F + 400));
+  assert.deepEqual(day, {
+    complete: true, since: new Date(at(F + 400) - 86_400_000).toISOString(),
+    trades: 3, volumeMicros: 1_000n * USD + 50n * USD + 145_924_920n, arbitrages: 1, earnedMicros: 150_300_425n - 145_924_920n, loans: 2,
+  });
+  // A day later only what happened since counts.
+  const later = activityDay({ fromBlock: F, toBlock: F + 350, keep: ACTIVITY_KEEP, rows }, at(F + 150) + 86_400_000);
+  assert.deepEqual([later.complete, later.trades, later.loans], [true, 2, 2]);
+  // Still reading history, and no row a day old: the count starts at the oldest row and says so.
+  const partial = activityDay({ fromBlock: F + 5, toBlock: F + 350, keep: ACTIVITY_KEEP, rows }, at(F + 400));
+  assert.deepEqual([partial.complete, partial.since, partial.trades], [false, new Date(at(F + 10)).toISOString(), 3]);
+  // Full, with its oldest row over a day old: complete.
+  assert.equal(activityDay({ fromBlock: F + 5, toBlock: F + 350, keep: rows.length, rows }, at(F + 150) + 86_400_000).complete, true);
+  // Rows a page read after the served block are added.
+  const sale = { ...rows[3], kind: "sell", hash: tx(50), block: F + 500, at: new Date(at(F + 500)).toISOString(), dollarsMicros: 20n * USD };
+  const more = withNewerRows(day, [sale]);
+  assert.deepEqual([more.trades, more.volumeMicros, more.loans], [4, day.volumeMicros + 20n * USD, 2]);
+  // Served figures are checked before they are used.
+  assert.deepEqual(parseActivityDay(JSON.parse(JSON.stringify(activityDayJson(day)))), day);
+  for (const broken of [null, {}, { ...activityDayJson(day), trades: -1 }, { ...activityDayJson(day), volumeMicros: 5 }, { ...activityDayJson(day), since: "soon" }, { ...activityDayJson(day), complete: "yes" }]) {
+    assert.equal(parseActivityDay(broken), null, JSON.stringify(broken));
+  }
 });
 
 test("rows merge by event, newest first, and stop at the limit", () => {
@@ -176,7 +229,7 @@ test("a page reads only the blocks after the served rows, at most a thousand", a
 
 test("a stored or served index is checked before it is used", async () => {
   const rows = await scanActivity(chain({ head: F + 400, logs: MARKET }).rpc, F, F + 350);
-  const index = { fromBlock: F, toBlock: F + 350, rows };
+  const index = { fromBlock: F, toBlock: F + 350, keep: ACTIVITY_KEEP, rows };
   const text = serializeActivityIndex(index);
   assert.deepEqual(parseActivityIndex(text), index);
   assert.deepEqual(parseActivityIndex(JSON.parse(text)), index, "a served body parses the same way");
@@ -184,10 +237,10 @@ test("a stored or served index is checked before it is used", async () => {
   for (const broken of [null, undefined, "", "{", "[]", { ...body, rows: undefined }, { ...body, fromBlock: F + 400 }, { ...body, toBlock: -1 },
     { ...body, rows: [{ ...body.rows[0], kind: "mint" }] }, { ...body, rows: [{ ...body.rows[0], hash: "0x12" }] },
     { ...body, rows: [{ ...body.rows[0], dollarsMicros: 10 }] }, { ...body, rows: [{ ...body.rows[0], borrower: undefined }] },
-    { ...body, rows: Array.from({ length: ACTIVITY_LIMIT + 1 }, () => body.rows[0]) }]) {
+    { ...body, keep: 0 }, { ...body, rows: Array.from({ length: ACTIVITY_KEEP + 1 }, () => body.rows[0]) }]) {
     assert.equal(parseActivityIndex(typeof broken === "object" && broken !== null ? JSON.stringify(broken) : broken), null, JSON.stringify(broken)?.slice(0, 80));
   }
-  assert.deepEqual(parseActivityIndex({ fromBlock: 10, toBlock: 9, rows: [] }), { fromBlock: 10, toBlock: 9, rows: [] }, "an index before its first read");
+  assert.deepEqual(parseActivityIndex({ fromBlock: 10, toBlock: 9, rows: [] }), { fromBlock: 10, toBlock: 9, keep: ACTIVITY_LIMIT, rows: [] }, "an index stored before rows were kept by the day, before its first read");
   assert.equal(activityJson(rows[2]).dollarsOutMicros, "150300425");
 });
 
@@ -224,6 +277,7 @@ test("the scheduled run keeps the index, and the public API serves it to any ori
 
   db.readOnly = true;
   t.mock.method(globalThis, "fetch", async () => { throw new Error("the API reads only the stored index"); });
+  t.mock.timers.enable({ apis: ["Date"], now: (TIME + 400) * 1000 });
   const response = await GET();
   assert.equal(response.status, 200);
   assert.equal(response.headers.get("access-control-allow-origin"), "*");
@@ -234,6 +288,7 @@ test("the scheduled run keeps the index, and the public API serves it to any ori
   assert.equal(served.rows.length, 5);
   assert.deepEqual(served.rows[2], { ...activityJson((await scanActivity(chain({ head: F + 400, logs: MARKET }).rpc, F, F + 400))[2]), explorerUrl: `${FUND_DEPLOYMENT.explorerUrl}/tx/${tx(3)}` });
   assert.match(served.environment, /no value/);
+  assert.deepEqual(served.day, { complete: true, since: new Date((TIME + 400 - 86_400) * 1000).toISOString(), trades: 3, volumeMicros: "1195924920", arbitrages: 1, earnedMicros: "4375505", loans: 2 });
   assert.deepEqual(parseActivityIndex(served)?.rows.map(row => row.kind), ["liquidate", "borrow", "arbitrage", "buy", "invest"]);
   assert.equal((await OPTIONS()).status, 204);
 });

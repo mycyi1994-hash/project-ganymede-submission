@@ -169,6 +169,9 @@ test("the product page shows fund figures and Markets shows the OKX and X Layer 
   assert.match(product, /Reading market activity from X Layer Testnet/);
   const markets = visible(await (await render("/")).text());
   assert.match(markets, /OKX OnchainOS/);
+  // Markets shows the latest activity in brief and links to the full list on the USTX page.
+  assert.match(markets, /<section class="gmd-market-pulse" aria-labelledby="pulse-title">/);
+  assert.match(markets, /href="\/products\/ustx#activity"/);
   assert.match(markets, /href="\/issuers"/);
   assert.match(markets, /href="\/developers"/);
 });

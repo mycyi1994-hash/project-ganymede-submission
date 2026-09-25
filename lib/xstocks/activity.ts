@@ -11,8 +11,10 @@ import { LENDING_EVENTS } from "./lending";
 
 /** GanymedeBasketFund's deployment block on X Layer Testnet: no market event is older. */
 export const ACTIVITY_FIRST_BLOCK = 41_844_113;
-/** Rows kept and served, newest first. */
+/** Rows served and shown, newest first. */
 export const ACTIVITY_LIMIT = 40;
+/** Rows the scheduled job keeps: more than a day of activity, which the 24-hour figures count. */
+export const ACTIVITY_KEEP = 200;
 /** The most blocks a page reads itself past the served rows: ten requests. */
 export const ACTIVITY_TAIL_BLOCKS = 1_000;
 const CHUNK_BLOCKS = 100;
@@ -209,8 +211,11 @@ export function mergeActivity(rows: MarketActivity[], more: MarketActivity[], li
   return [...byEvent.values()].sort(newestFirst).slice(0, limit);
 }
 
-/** What the scheduled job keeps: the rows of blocks `fromBlock` to `toBlock`, all of them read. */
-export type ActivityIndex = { fromBlock: number; toBlock: number; rows: MarketActivity[] };
+/**
+ * What the scheduled job keeps: every event of blocks `fromBlock` to `toBlock`, newest first, at most
+ * `keep` of them. When rows are dropped for room, `fromBlock` moves up past the oldest kept.
+ */
+export type ActivityIndex = { fromBlock: number; toBlock: number; keep: number; rows: MarketActivity[] };
 /** Blocks the job stays behind the RPC's latest, so a node still indexing it cannot be read short. */
 export const ACTIVITY_INDEX_MARGIN = 5;
 /** Requests of 100 blocks one scheduled run may make: new blocks first, then history. */
@@ -226,20 +231,86 @@ const INDEX_ATTEMPTS = 3;
 export async function updateActivityIndex(index: ActivityIndex | null, rpc: Rpc, options: { chunks?: number } = {}): Promise<ActivityIndex> {
   const head = (await readBlock(rpc)) - ACTIVITY_INDEX_MARGIN;
   let { fromBlock, toBlock, rows } = index ?? { fromBlock: head + 1, toBlock: head, rows: [] };
+  // An index kept with fewer rows may have dropped its oldest: read again below the oldest kept.
+  if (index && index.keep < ACTIVITY_KEEP && rows.length >= index.keep && rows.length > 0) fromBlock = Math.max(fromBlock, rows[rows.length - 1].block + 1);
+  const add = (more: MarketActivity[]) => {
+    const merged = mergeActivity(rows, more, Infinity);
+    rows = merged.slice(0, ACTIVITY_KEEP);
+    if (merged.length > ACTIVITY_KEEP) fromBlock = Math.max(fromBlock, rows[rows.length - 1].block + 1);
+  };
   let chunks = options.chunks ?? ACTIVITY_CHUNKS_PER_RUN;
   if (toBlock < head) {
     const end = Math.min(head, toBlock + chunks * CHUNK_BLOCKS);
-    rows = mergeActivity(rows, await scanActivity(rpc, toBlock + 1, end, { attempts: INDEX_ATTEMPTS }));
+    const more = await scanActivity(rpc, toBlock + 1, end, { attempts: INDEX_ATTEMPTS });
     chunks -= Math.ceil((end - toBlock) / CHUNK_BLOCKS);
     toBlock = end;
+    add(more);
   }
-  if (chunks > 0 && fromBlock > ACTIVITY_FIRST_BLOCK && rows.length < ACTIVITY_LIMIT) {
+  if (chunks > 0 && fromBlock > ACTIVITY_FIRST_BLOCK && rows.length < ACTIVITY_KEEP) {
     const start = Math.max(ACTIVITY_FIRST_BLOCK, fromBlock - chunks * CHUNK_BLOCKS);
-    rows = mergeActivity(rows, await scanActivity(rpc, start, fromBlock - 1, { attempts: INDEX_ATTEMPTS }));
+    const more = await scanActivity(rpc, start, fromBlock - 1, { attempts: INDEX_ATTEMPTS });
     fromBlock = start;
+    add(more);
   }
-  return { fromBlock, toBlock, rows };
+  return { fromBlock, toBlock, keep: ACTIVITY_KEEP, rows };
 }
+
+export type ActivityDay = {
+  /** Whether every event of the last 24 hours is counted; if not, the count starts at `since`. */
+  complete: boolean;
+  since: string;
+  /** Orders at the fund and in the pool, and arbitrage: how many, and the demo dollars they moved. */
+  trades: number;
+  volumeMicros: bigint;
+  /** Arbitrage runs and the demo dollars they earned. */
+  arbitrages: number;
+  earnedMicros: bigint;
+  /** Lending steps: deposits and withdrawals of collateral, loans, repayments, lending and liquidations. */
+  loans: number;
+};
+
+const TRADE_KINDS = new Set<ActivityKind>(["invest", "redeem", "buy", "sell", "arbitrage"]);
+const LOAN_KINDS = new Set<ActivityKind>(["deposit", "withdrawCollateral", "borrow", "repay", "lend", "withdraw", "liquidate"]);
+
+/** The figures of `rows` at or after `sinceMs`. */
+export function activityCounts(rows: MarketActivity[], sinceMs: number): Omit<ActivityDay, "complete" | "since"> {
+  const day = { trades: 0, volumeMicros: 0n, arbitrages: 0, earnedMicros: 0n, loans: 0 };
+  for (const row of rows) {
+    if (Date.parse(row.at) < sinceMs) continue;
+    if (TRADE_KINDS.has(row.kind)) { day.trades += 1; day.volumeMicros += row.dollarsMicros ?? 0n; }
+    if (row.kind === "arbitrage") {
+      day.arbitrages += 1;
+      if (row.dollarsOutMicros !== null && row.dollarsMicros !== null && row.dollarsOutMicros > row.dollarsMicros) day.earnedMicros += row.dollarsOutMicros - row.dollarsMicros;
+    }
+    if (LOAN_KINDS.has(row.kind)) day.loans += 1;
+  }
+  return day;
+}
+
+/**
+ * The last 24 hours of the index at `nowMs`. They are complete when the index holds every event
+ * since the fund's deployment, or its oldest kept row is older than a day; otherwise the count
+ * starts at the oldest kept row.
+ */
+export function activityDay(index: ActivityIndex, nowMs: number): ActivityDay {
+  const dayStart = nowMs - 86_400_000;
+  const oldest = index.rows.at(-1);
+  const complete = (index.fromBlock <= ACTIVITY_FIRST_BLOCK && index.rows.length < index.keep) || (oldest !== undefined && Date.parse(oldest.at) <= dayStart);
+  const sinceMs = complete || !oldest ? dayStart : Date.parse(oldest.at);
+  return { complete, since: new Date(sinceMs).toISOString(), ...activityCounts(index.rows, sinceMs) };
+}
+
+/** The figures with rows read after them added: a page's own reads of the newest blocks. */
+export function withNewerRows(day: ActivityDay, newer: MarketActivity[]): ActivityDay {
+  const more = activityCounts(newer, Date.parse(day.since));
+  return {
+    ...day, trades: day.trades + more.trades, volumeMicros: day.volumeMicros + more.volumeMicros,
+    arbitrages: day.arbitrages + more.arbitrages, earnedMicros: day.earnedMicros + more.earnedMicros, loans: day.loans + more.loans,
+  };
+}
+
+export type ActivityDayJson = { complete: boolean; since: string; trades: number; volumeMicros: string; arbitrages: number; earnedMicros: string; loans: number };
+export const activityDayJson = (day: ActivityDay): ActivityDayJson => ({ ...day, volumeMicros: day.volumeMicros.toString(), earnedMicros: day.earnedMicros.toString() });
 
 /**
  * The served rows with the blocks since read directly, newest first. Reads at most
@@ -291,18 +362,36 @@ export function activityFromJson(value: unknown): MarketActivity {
 }
 
 export function serializeActivityIndex(index: ActivityIndex): string {
-  return JSON.stringify({ fromBlock: index.fromBlock, toBlock: index.toBlock, rows: index.rows.map(activityJson) });
+  return JSON.stringify({ fromBlock: index.fromBlock, toBlock: index.toBlock, keep: index.keep, rows: index.rows.map(activityJson) });
 }
 
-/** A stored or served index, checked; null when it is missing or not an index. */
+/**
+ * A stored or served index, checked; null when it is missing or not an index. An index stored
+ * before rows were kept by the day has no `keep`: it kept ACTIVITY_LIMIT.
+ */
 export function parseActivityIndex(value: unknown): ActivityIndex | null {
   try {
-    const body = (typeof value === "string" ? JSON.parse(value) : value) as { fromBlock?: unknown; toBlock?: unknown; rows?: unknown };
-    if (!body || !Array.isArray(body.rows) || body.rows.length > ACTIVITY_LIMIT) return null;
+    const body = (typeof value === "string" ? JSON.parse(value) : value) as { fromBlock?: unknown; toBlock?: unknown; keep?: unknown; rows?: unknown };
+    if (!body || !Array.isArray(body.rows) || body.rows.length > ACTIVITY_KEEP) return null;
     const fromBlock = count(body.fromBlock);
     const toBlock = count(body.toBlock);
-    if (fromBlock > toBlock + 1) return null;
-    return { fromBlock, toBlock, rows: body.rows.map(activityFromJson).sort(newestFirst) };
+    const keep = body.keep === undefined ? ACTIVITY_LIMIT : count(body.keep);
+    if (fromBlock > toBlock + 1 || keep === 0) return null;
+    return { fromBlock, toBlock, keep, rows: body.rows.map(activityFromJson).sort(newestFirst) };
+  } catch {
+    return null;
+  }
+}
+
+/** Served 24-hour figures, checked; null when they are missing or malformed. */
+export function parseActivityDay(value: unknown): ActivityDay | null {
+  try {
+    const day = value as Record<string, unknown>;
+    if (!day || typeof day !== "object" || typeof day.complete !== "boolean" || typeof day.since !== "string" || !Number.isFinite(Date.parse(day.since))) return null;
+    const volumeMicros = amount(day.volumeMicros);
+    const earnedMicros = amount(day.earnedMicros);
+    if (volumeMicros === null || earnedMicros === null) return null;
+    return { complete: day.complete, since: new Date(day.since).toISOString(), trades: count(day.trades), volumeMicros, arbitrages: count(day.arbitrages), earnedMicros, loans: count(day.loans) };
   } catch {
     return null;
   }

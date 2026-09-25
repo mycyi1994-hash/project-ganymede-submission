@@ -8,7 +8,7 @@ Ganymede sells USTX, the US Tech Basket: one share holds six tokenized US tech s
 
 - Investors connect OKX Wallet, get demo dollars (dUSD, no value) on X Layer Testnet, and invest or redeem through the USTX contract, which issues shares only at the NAV in the registry. Without a wallet, a private demo balance of $10,000 fills orders the same way, off chain. The confirmation and the Portfolio look through each holding to the six xStocks.
 - The product page shows the fund like a real fund: size (shares outstanding × NAV, both recorded on X Layer), investors, return since launch, key terms, 24-hour flows and look-through holdings.
-- Market activity on the same page lists what happened on chain: investments and redemptions at the NAV, pool trades, the arbitrage keeper closing the pool's gap to the NAV (with what it earned) and every lending step, each linked to its transaction on the OKX explorer.
+- Markets shows the market's last 24 hours (volume, trades, keeper arbitrage and what it earned, loan actions) and its latest trades. Market activity on the USTX page lists what happened on chain: investments and redemptions at the NAV, pool trades, the arbitrage keeper closing the pool's gap to the NAV (with what it earned) and every lending step, each linked to its transaction on the OKX explorer.
 - Every five minutes the six xStocks are priced through OKX OnchainOS on X Layer mainnet.
 - The NAV, the shares outstanding and a SHA-256 fingerprint of the full composition document are recorded in a registry on X Layer Testnet.
 - A visitor's browser reads that record directly and recalculates the NAV row by row.

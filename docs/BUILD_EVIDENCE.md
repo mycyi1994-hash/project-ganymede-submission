@@ -1,6 +1,6 @@
 # Build provenance
 
-Production source revision: `852d53e64c25ee4e0999f97514cbc6569e56d867`.
+Production source revision: `6e3e143b5e29c69404ec234893e89275e59f95c0`.
 
 This is a source snapshot, not a claim that the entire project was newly built for this event. The original repository remains private. The entries below were exported from its Git history; reviewers can inspect current implementations and tests, and request original history access from the team if needed. No old secrets, local environment files or full private Git history are published.
 
@@ -355,6 +355,26 @@ Validation of the snapshot source:
 - Reading every market log since launch on X Layer Testnet gave 45 rows; each of the four keeper arbitrages became one row.
 - On a local build, a throwaway test wallet bought $20 of USTX in the pool and sold it back; each trade appeared at the top of the list, as "You", within seconds.
 - On production, the first scheduled run finished ok and the API began serving rows; NAV records stayed on the five-minute marks. The main public routes and APIs returned 200 and the legacy routes redirected. Seven screens on desktop and mobile, with and without a wallet, had no axe violations.
+- The same tests pass in this public checkout after `npm ci`, and so do the relayer typecheck and 28 tests.
+
+These are point-in-time observations, not continuous availability or a security audit.
+
+## Markets activity release
+
+Production source: 6e3e143b5e29c69404ec234893e89275e59f95c0. Worker version: 90840b50-7f9d-4d8a-ab70-c9040b9f61f2, deployed 2026-09-25; prior afb8f68a-8b18-4eba-80d5-a731e76d1528. Relayer and keeper Workers unchanged. This snapshot is exported from bdd638fbdf718183f0d2abe0e55d9dea7f6b31fa, which adds only documentation to the production source.
+
+- Markets shows the last 24 hours of the USTX market and its four latest trades, linking to the full list on the USTX page, which shows the same figures.
+  - Volume of orders at the fund and in the pool.
+  - Trades, and keeper arbitrage runs with what they earned.
+  - Loan actions.
+- The scheduled index keeps 200 rows, more than a day of activity, and `GET /api/v1/ustx/activity` serves the latest 40 with the day's figures. The figures say when they are not yet complete, and count from the oldest row they hold.
+- The index never claims blocks whose rows it dropped. An index stored under the earlier 40-row limit reads again below its oldest row; production's had been cut at 40, and the first run of this version began reading that part again.
+
+Validation of the snapshot source:
+
+- In the development repository, the typecheck, clean build and 156 tests pass, lint reports 0 errors, and the 62 contract tests pass.
+- On a local build, a throwaway test wallet bought $20 of USTX in the pool and sold it back; within seconds of each fill the 24-hour trade count and volume rose by that trade, on the USTX page and on Markets.
+- After the deployment, the main public routes and APIs returned 200 and the legacy routes redirected. Seven screens on desktop and mobile, with and without a wallet, had no axe violations.
 - The same tests pass in this public checkout after `npm ci`, and so do the relayer typecheck and 28 tests.
 
 These are point-in-time observations, not continuous availability or a security audit.

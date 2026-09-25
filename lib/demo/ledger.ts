@@ -56,7 +56,8 @@ function bindable(value: bigint): number {
   return number;
 }
 
-export type DemoFund = { sharesOutstandingMicros: string; investors: number; ordersToday: number; recent: Array<{ side: DemoSide; usdMicros: string; sharesMicros: string; createdAt: string }> };
+/** Fund totals only: no single order, amount or time that could point at an investor. */
+export type DemoFund = { sharesOutstandingMicros: string; investors: number; ordersToday: number; last24h: { investedMicros: string; redeemedMicros: string; orders: number } };
 
 /** Demo shares held across all accounts: "0" without a database, null when the demo tables cannot be read. */
 export async function demoSharesOutstanding(db: D1Database | undefined): Promise<string | null> {
@@ -145,18 +146,19 @@ export class DemoLedger {
     return { order, account: await this.account(subject), replayed: false };
   }
 
-  /** The fund across all demo accounts, without anything that identifies an account. */
+  /** The fund across all demo accounts, as totals only. */
   async fund(now: Date): Promise<DemoFund> {
-    const [totals, daily, recent] = await Promise.all([
+    const since = new Date(now.getTime() - 24 * 3_600_000).toISOString();
+    const [totals, daily, flows] = await Promise.all([
       this.db.prepare("SELECT COALESCE(SUM(shares_micros), 0) AS shares, COALESCE(SUM(CASE WHEN shares_micros > 0 THEN 1 ELSE 0 END), 0) AS investors FROM demo_accounts").first<{ shares: number; investors: number }>(),
       this.db.prepare("SELECT orders FROM demo_daily WHERE day = ?").bind(now.toISOString().slice(0, 10)).first<{ orders: number }>(),
-      this.db.prepare("SELECT side, usd_micros, shares_micros, created_at FROM demo_orders ORDER BY created_at DESC LIMIT 8").all<{ side: DemoSide; usd_micros: number; shares_micros: number; created_at: string }>(),
+      this.db.prepare("SELECT COALESCE(SUM(CASE WHEN side = 'subscribe' THEN usd_micros ELSE 0 END), 0) AS invested, COALESCE(SUM(CASE WHEN side = 'redeem' THEN usd_micros ELSE 0 END), 0) AS redeemed, COUNT(*) AS orders FROM demo_orders WHERE created_at >= ?").bind(since).first<{ invested: number; redeemed: number; orders: number }>(),
     ]);
     return {
       sharesOutstandingMicros: String(totals?.shares ?? 0),
       investors: Number(totals?.investors ?? 0),
       ordersToday: Number(daily?.orders ?? 0),
-      recent: recent.results.map(row => ({ side: row.side, usdMicros: String(row.usd_micros), sharesMicros: String(row.shares_micros), createdAt: row.created_at })),
+      last24h: { investedMicros: String(flows?.invested ?? 0), redeemedMicros: String(flows?.redeemed ?? 0), orders: Number(flows?.orders ?? 0) },
     };
   }
 

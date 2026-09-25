@@ -21,7 +21,9 @@ test("Markets renders the actual product path without fabricated values or the v
   assert.match(html, /US Tech Basket/);
   assert.match(html, />Invest </);
   assert.match(html, /demo dollars/);
-  assert.match(html, /Published NAV/);
+  assert.match(html, /NAV per share/);
+  assert.match(html, /Priced by OKX OnchainOS/);
+  assert.doesNotMatch(html, /Try to break it|Recent investor activity/, "the tamper experiment and single orders are not on the customer page");
   assert.match(html, /href="\/products\/ustx#investment"/);
   assert.doesNotMatch(html, /Try verification|Try changing one price|<img\b[^>]*clearform-stack/);
   assert.doesNotMatch(html, /\$12,454|Example account/);
@@ -62,7 +64,8 @@ test("product pages offer clearly labelled demo investing next to the verificati
   assert.match(product, /Invest in USTX/);
   assert.match(product, /Testnet demo · demo dollars, no real money/);
   assert.match(product, /No real money moves and no shares are issued on chain/);
-  assert.match(product, /Verify this record/);
+  assert.match(product, /View proof/);
+  assert.match(product, /OKX OnchainOS/);
   assert.match(product, /id="investment"/);
 });
 
@@ -84,14 +87,26 @@ test("public Portfolio and Activity do not contain the local example account or 
   assert.equal(response.status, 404, "design fixtures must not be served by the production build");
 });
 
-test("transparency starts unverified, states its scope and keeps the experiment on a local copy", async () => {
+test("transparency is a customer proof page that starts unverified and states its scope", async () => {
   const response = await render("/products/ustx/transparency");
   const html = visible(await response.text());
   assert.equal(response.status, 200);
+  assert.match(html, /Checking the latest NAV/);
+  assert.match(html, /Priced by OKX OnchainOS/);
+  assert.match(html, /Recorded on X Layer/);
+  assert.match(html, /Recent records/);
+  assert.match(html, /What verification covers/);
+  assert.match(html, /What it does not cover/);
+  assert.match(html, /href="\/developers#verify"/);
+  // Developer material lives on /developers, not on the customer page.
+  assert.doesNotMatch(html, /Try to break it|npm run verify:evidence|Original composition document|NAV verified on X Layer/);
+});
+
+test("the developer page keeps the checks, the experiment on a local copy and the evidence file", async () => {
+  const html = visible(await (await render("/developers")).text());
+  assert.match(html, /Verify it yourself/);
   assert.match(html, /Reading the published record/);
   assert.match(html, /Original composition document/);
-  assert.match(html, /What a match confirms/);
-  assert.match(html, /What it does not confirm/);
   assert.match(html, /latest 12 publications/);
   assert.match(html, /Download evidence/);
   assert.match(html, /npm run verify:evidence/);
@@ -100,7 +115,7 @@ test("transparency starts unverified, states its scope and keeps the experiment 
   assert.match(html, /edits a copy of the published document in your browser/);
   assert.match(html, /The published record is not changed/);
   assert.match(html, /starts once this browser has read the published record/);
-  assert.doesNotMatch(html, /record and calculation match|Try changing one price|Try a change/);
+  assert.doesNotMatch(html, /All three checks pass|Try changing one price|Try a change/);
   assert.doesNotMatch(html, /<details[^>]*\bopen(?:[=>\s])/);
 });
 
@@ -124,7 +139,7 @@ test("unknown ETF slugs return not found", async () => {
 
 test("Portfolio reads real xStocks read-only and offers the basket calculator", async () => {
   const html = visible(await (await render("/portfolio")).text());
-  assert.match(html, /Connect wallet/);
+  assert.match(html, /Connect OKX Wallet/);
   assert.match(html, /Or view any public address/);
   assert.match(html, /nothing is signed or sent/);
   assert.match(html, /Size a USTX-weighted basket/);
@@ -137,7 +152,8 @@ test("the product page shows fund figures and Markets shows the OKX and X Layer 
   assert.match(product, /Fund overview/);
   assert.match(product, /href="#overview"/);
   assert.match(product, /Minimum investment/);
-  assert.match(product, /Recent investor activity/);
+  assert.match(product, /Net flows, 24h/);
+  assert.doesNotMatch(product, /Recent investor activity/);
   const markets = visible(await (await render("/")).text());
   assert.match(markets, /Built on X Layer and OKX/);
   assert.match(markets, /OKX OnchainOS/);

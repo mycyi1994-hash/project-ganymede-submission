@@ -207,9 +207,12 @@ test("the fund totals add up every account and name none of them", async () => {
     assert.equal(fund.sharesOutstandingMicros, total);
     assert.equal(fund.investors, 2, "an account that redeemed everything is not counted");
     assert.equal(fund.ordersToday, 4);
-    assert.equal(fund.recent.length, 4);
-    assert.deepEqual(Object.keys(fund.recent[0]).sort(), ["createdAt", "sharesMicros", "side", "usdMicros"]);
-    assert.doesNotMatch(JSON.stringify(fund), /session|order-/, "no subject or order id leaves the ledger");
+    const redeemed = BigInt(usdForShares(BigInt(carol.account.sharesMicros), NAV));
+    assert.deepEqual(fund.last24h, { investedMicros: "1300000000", redeemedMicros: redeemed.toString(), orders: 4 });
+    assert.deepEqual(Object.keys(fund).sort(), ["investors", "last24h", "ordersToday", "sharesOutstandingMicros"], "totals only, no order list");
+    assert.doesNotMatch(JSON.stringify(fund), /session|order-|createdAt/, "no subject, order id or order time leaves the ledger");
+    // Orders older than a day drop out of the flows.
+    assert.equal((await demo.fund(new Date(now.getTime() + 25 * 3_600_000))).last24h.orders, 0);
     assert.equal(await demoSharesOutstanding(db), total);
     assert.equal(await demoSharesOutstanding(undefined), "0");
     assert.equal(await demoSharesOutstanding({ prepare() { throw new Error("no such table: demo_accounts"); } }), null);

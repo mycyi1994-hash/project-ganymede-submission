@@ -1,6 +1,6 @@
 # Build provenance
 
-Production source revision: `23d35d25a115befab184ccc68e96f6e54f311f0d`.
+Production source revision: `f660dc3f528783f1afc167561b653ad6864bd9df`.
 
 This is a source snapshot, not a claim that the entire project was newly built for this event. The original repository remains private. The entries below were exported from its Git history; reviewers can inspect current implementations and tests, and request original history access from the team if needed. No old secrets, local environment files or full private Git history are published.
 
@@ -141,5 +141,24 @@ Validation of the snapshot source:
   - a $250 demo order in a production browser showed the tokens it added to the basket, and Portfolio showed the holding looked through to each xStock;
   - the badge verified the NAV in the browser;
   - axe reported no violations on eleven screens, and there was no horizontal overflow at 200% or 400% zoom, or at 320 or 390 px.
+
+These are point-in-time observations, not continuous availability or a security audit.
+
+
+## Customer proof page release
+
+Production source: f660dc3f528783f1afc167561b653ad6864bd9df. Worker version: 26694863-3284-4e16-97a9-ad4862b2ea44, deployed 2026-09-25 01:0x UTC. Relayer Worker version: cb38524c-cb75-4350-a9ee-a363f49a5c93, unchanged. This snapshot is exported from 65e0625b4adfb13a3a35ecef6da0a19ed7c1aa9f, which adds only documentation to the production source.
+
+- f660dc3f528783f1afc167561b653ad6864bd9df → 26694863-3284-4e16-97a9-ad4862b2ea44: the Verify page is a customer proof page in the manner of an exchange proof of reserves, and the individual checks, the tamper experiment, the evidence file and the original document move to "Verify it yourself" on the developer page. Figures that come from OKX are labelled "Priced by OKX OnchainOS", "OKX price" and "OKX Explorer". The fund overview shows 24-hour flows instead of a public list of single orders, and `/api/demo/fund` returns totals only. The constituents strip no longer overflows its row: a legacy global rule had made its buttons 46px tall inside a 29px row.
+
+Validation of the snapshot source:
+
+- In the development repository, the typecheck, clean build and 126 tests pass, and lint reports 0 errors.
+- The same tests pass in this public checkout after `npm ci`, and so do the relayer typecheck and 16 tests.
+- After the deployment:
+  - eleven public routes and three public APIs returned 200 and the legacy routes redirected;
+  - at 1536 px and 125% zoom the strip's buttons were 29px with no clip-path left behind;
+  - the proof page showed "NAV verified on X Layer" and the developer page's three checks passed;
+  - axe reported no violations on six screens, with no horizontal overflow or page errors.
 
 These are point-in-time observations, not continuous availability or a security audit.

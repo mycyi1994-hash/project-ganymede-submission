@@ -4,6 +4,7 @@ import { XSTOCKS_PRODUCT_KEY } from "@/lib/xstocks/onchain";
 import { ProductShell } from "./ProductShell";
 import { DocumentMenu } from "./DocumentMenu";
 import { Icon } from "./Icons";
+import VerifyYourself from "./VerifyYourself";
 
 const SITE = "https://ganymede-xlayer.gana003.workers.dev";
 const REPOSITORY = "https://github.com/mycyi1994-hash/project-ganymede-submission";
@@ -47,7 +48,7 @@ export function DevelopersPage() {
         <section id="api"><h2>Public NAV API</h2><p>The latest USTX record, read from the registry on X Layer when you call it. No key, no cookies, CORS open to every origin, cacheable for 30 seconds.</p>
           <Code label="Request">{`curl ${SITE}/api/v1/ustx`}</Code>
           <Code label="Response (abridged)">{apiExample}</Code>
-          <p>Also available: <code>GET /api/xstocks</code> returns the full market snapshot with the composition documents behind recent records, and <code>GET /api/demo/fund</code> returns fund totals and recent anonymous orders.</p>
+          <p>Also available: <code>GET /api/xstocks</code> returns the full market snapshot with the composition documents behind recent records, and <code>GET /api/demo/fund</code> returns fund totals and 24-hour flows.</p>
           <a className="gmd-inline-link" href="/api/v1/ustx" target="_blank" rel="noreferrer">Open the live response <Icon name="external" size={14} /></a>
         </section>
         <section id="chain"><h2>Read the record from X Layer yourself</h2><p>You do not have to trust our API. The registry is a public contract on X Layer Testnet (chain {PROOF_DEPLOYMENT.chainId}); its <code>latestNav</code> getter returns the NAV per share, the shares outstanding, the composition fingerprint and the effective time.</p>
@@ -58,8 +59,9 @@ export function DevelopersPage() {
           <Code label="HTML">{embedExample}</Code>
           <div className="gmd-embed-preview"><span>Live preview</span><iframe src="/embed/ustx" title="USTX verified NAV badge preview" width="440" height="260" loading="lazy" /></div>
         </section>
-        <section id="evidence"><h2>Re-check any record offline</h2><p>The verification page downloads an evidence file for the record it checked. Anyone can re-check it against the publishing transaction with the open-source verifier.</p>
-          <Code label="Terminal">{`git clone ${REPOSITORY}\ncd project-ganymede-submission && npm install\nnpm run verify:evidence -- ustx-evidence.json`}</Code>
+        <section id="verify"><h2>Verify it yourself</h2><p>The Transparency page shows customers the result. Here are the checks behind it, live in your browser: the registry read from X Layer, the SHA-256 fingerprint of the original composition document and the NAV recalculated row by row. Break a copy to see which check catches which edit, then download the evidence file and re-check it anywhere.</p>
+          <VerifyYourself />
+          <Code label="Re-check a downloaded file">{`git clone ${REPOSITORY}\ncd project-ganymede-submission && npm install\nnpm run verify:evidence -- ustx-evidence.json`}</Code>
         </section>
         <section id="okx"><h2>Built on the OKX stack</h2>
           <ul className="gmd-stack-list">

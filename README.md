@@ -12,14 +12,15 @@ Investing uses demo dollars on X Layer Testnet records: no real money moves and 
 
 1. **Markets** shows USTX with its latest NAV, fund size, investors, return since launch, the NAV history and the weights of AAPLx, MSFTx, NVDAx, AMZNx, METAx and TSLAx. A status chip reports the check your browser has just run against X Layer.
 2. **Invest** on the USTX page. Every browser gets a private demo account with $10,000 in demo dollars. Choose an amount, review, and the order fills instantly at the NAV recorded on X Layer. The confirmation shows what went into your basket: the amount of each xStock your shares now hold and its value.
-3. **The fund overview** on the same page shows the fund size (shares outstanding × NAV, both recorded on X Layer), investors, return since the $100.00 launch on 23 September 2026, the key terms, what all shares hold of each xStock and recent anonymous orders.
+3. **The fund overview** on the same page shows the fund size (shares outstanding × NAV, both recorded on X Layer), investors, return since the $100.00 launch on 23 September 2026, the key terms, 24-hour flows and what all shares hold of each xStock.
 4. **Portfolio** shows your demo account: total value, return, your USTX looked through to each xStock, and your orders. Below it, connect a wallet (OKX Wallet first) or paste any public address to value real xStock balances on X Layer mainnet at the verified prices, with a downloadable statement and a USTX-weighted basket calculator. The wallet part is read-only; nothing is signed or sent.
-5. **Verify** runs the check automatically. Your browser reads the pinned registry on X Layer Testnet, hashes the original document and recalculates every holding. The page lists what a match confirms and what it does not.
-6. **Try to break it** on the same page edits a copy of the document in your browser in three ways:
+5. **Verify** is the customer proof page, in the manner of an exchange's proof of reserves. It shows the result of the check your browser runs automatically, how every price is made (priced by OKX OnchainOS, recorded on X Layer, checked in your browser), the holdings, the latest record, recent records with OKX Explorer links and what verification covers.
+6. **Developers → Verify it yourself** shows the checks behind it. Your browser reads the pinned registry on X Layer Testnet, hashes the original document and recalculates every holding. Each check is shown with its result.
+7. **Try to break it** on the developer page edits a copy of the document in your browser in three ways:
    - change one price: the row arithmetic and the fingerprint fail;
    - also fix the arithmetic: the NAV no longer matches the record;
    - offset two prices so every number and the NAV stay the same: only the fingerprint recorded on X Layer catches the change.
-7. **Download evidence** on the Verify page saves the document, the record and the publishing transaction. Anyone can re-check it:
+8. **Download evidence** on the developer page saves the document, the record and the publishing transaction. Anyone can re-check it:
 
 ```sh
 npm ci
@@ -122,7 +123,7 @@ See `.env.example` for setting names and [the engine reference](docs/ENGINE_REFE
 
 ## Source and release
 
-This public review snapshot corresponds to production source commit `23d35d25a115befab184ccc68e96f6e54f311f0d`. Application code matches the recorded source; documentation may be newer. The original development history remains private, and public-hosting identifiers are adjusted. See [snapshot provenance](docs/BUILD_EVIDENCE.md). Cloudflare deployment messages identify the production source commit. The current release, its checks and its limits are in [the product release notes](docs/PRODUCT_RELEASE.md). [Release rules and identity model](docs/release-identity.md).
+This public review snapshot corresponds to production source commit `f660dc3f528783f1afc167561b653ad6864bd9df`. Application code matches the recorded source; documentation may be newer. The original development history remains private, and public-hosting identifiers are adjusted. See [snapshot provenance](docs/BUILD_EVIDENCE.md). Cloudflare deployment messages identify the production source commit. The current release, its checks and its limits are in [the product release notes](docs/PRODUCT_RELEASE.md). [Release rules and identity model](docs/release-identity.md).
 
 - [Dev Day submission notes](docs/OKX_DEV_DAY.md) and [build-period work](docs/BUILD_PERIOD.md)
 - [Asset credits](public/ASSET-CREDITS.md)

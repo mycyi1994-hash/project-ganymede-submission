@@ -43,7 +43,7 @@ export function BasketTable({ composition, sharesMicros, label }: { composition:
   const view = lookThrough(composition, sharesMicros);
   return <div className="gmd-basket-table">
     <WeightBar rows={view.rows} large />
-    <div className="gmd-data-table-scroll"><table className="gmd-table" aria-label={label}><thead><tr><th>Asset</th><th>Tokens</th><th>Token price</th><th>Value</th><th>Weight</th></tr></thead><tbody>{view.rows.map(row => {
+    <div className="gmd-data-table-scroll"><table className="gmd-table" aria-label={label}><thead><tr><th>Asset</th><th>Tokens</th><th>OKX price</th><th>Value</th><th>Weight</th></tr></thead><tbody>{view.rows.map(row => {
       const holding = composition.holdings.find(item => item.symbol === row.symbol);
       return <tr key={row.symbol} style={assetStyle(row.symbol)}>
         <th scope="row"><span className="gmd-basket-asset"><AssetMark symbol={row.symbol} /><span><b>{assetNames[row.symbol] ?? row.symbol}</b><a href={tokenExplorerUrl(row.address)} target="_blank" rel="noreferrer">{row.symbol}<Icon name="external" size={12} /><span className="gmd-sr-only"> on the OKX X Layer explorer (opens in a new tab)</span></a></span></span></th>

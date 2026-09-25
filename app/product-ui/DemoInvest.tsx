@@ -9,6 +9,7 @@ import { DEMO_ORDER_EVENT, formatShares, parseShares } from "@/lib/demo/format";
 import { Icon } from "./Icons";
 import { useMarket } from "./MarketProvider";
 import { BasketList, BasketTable, useRecordComposition } from "./Basket";
+import { OkxSource } from "./OkxSource";
 
 // Demo investing with demo dollars in a private browser session. No real money moves and no
 // shares are issued on chain; orders fill at the latest NAV recorded on X Layer.
@@ -99,13 +100,14 @@ export function InvestPanel() {
         <dl className="gmd-facts">
           <div><dt>{filled.side === "subscribe" ? "Paid" : "Received"}</dt><dd>{formatUsdMicros(filled.usdMicros, 2)}</dd></div>
           <div><dt>NAV per share</dt><dd>{formatUsdMicros(filled.navMicros, 4)}</dd></div>
+          <div><dt>Priced by</dt><dd>OKX OnchainOS</dd></div>
           <div><dt>Recorded on X Layer</dt><dd>{shortTime(filled.navEffectiveAt)}</dd></div>
           <div><dt>Demo cash left</dt><dd>{formatUsdMicros(account.cashMicros, 2)}</dd></div>
         </dl>
         {composition && <div className="gmd-order-basket">
           <h3>{filled.side === "subscribe" ? "Added to your basket" : "Taken out of your basket"}</h3>
           <BasketList composition={composition} sharesMicros={BigInt(filled.sharesMicros)} label={filled.side === "subscribe" ? "Tokens this order added" : "Tokens this redemption removed"} />
-          <p className="gmd-caption">{holdingsHash === filled.navHoldingsHash.toLowerCase() ? "Token amounts and values at the prices in the record your order filled at." : "Token amounts per share are fixed until the next rebalance; values use the latest record."}</p>
+          <p className="gmd-caption">{holdingsHash === filled.navHoldingsHash.toLowerCase() ? "At the OKX OnchainOS prices in the record your order filled at." : "Token amounts per share are fixed until the next rebalance; values use the latest OKX OnchainOS prices."}</p>
         </div>}
         <Link prefetch={false} className="gmd-button" href="/portfolio">View portfolio <Icon name="arrow" size={16} /></Link>
         <Link prefetch={false} className="gmd-text-button gmd-inline-link" href={VERIFY}>Verify this price</Link>
@@ -116,7 +118,8 @@ export function InvestPanel() {
         <strong>{side === "buy" ? formatUsdMicros(usd!, 2) : formatShares(shares!)}</strong><span>{side === "buy" ? "demo dollars" : "USTX"}</span>
         <dl className="gmd-facts">
           <div><dt>Basket</dt><dd>US Tech Basket</dd></div>
-          <div><dt>Price</dt><dd>{nav ? `${formatUsdMicros(nav.navMicros, 4)} · ${shortTime(nav.at)}` : "Latest recorded NAV"}</dd></div>
+          <div><dt>NAV per share</dt><dd>{nav ? `${formatUsdMicros(nav.navMicros, 4)} · ${shortTime(nav.at)}` : "Latest recorded NAV"}</dd></div>
+          <div><dt>Priced by</dt><dd>OKX OnchainOS</dd></div>
           <div><dt>{side === "buy" ? "Estimated shares" : "Estimated proceeds"}</dt><dd>{estimate}</dd></div>
           <div><dt>Fee</dt><dd>None</dd></div>
           <div><dt>Account</dt><dd>Demo account in this browser</dd></div>
@@ -143,12 +146,13 @@ export function InvestPanel() {
         </div>
         <div className="gmd-order-estimate"><span>{side === "buy" ? "Estimated shares" : "Estimated proceeds"}</span><strong>{estimate}</strong></div>
         <dl className="gmd-facts">
-          <div><dt>Price</dt><dd>{nav ? formatUsdMicros(nav.navMicros, 4) : "—"}</dd></div>
+          <div><dt>NAV per share</dt><dd>{nav ? formatUsdMicros(nav.navMicros, 4) : "—"}</dd></div>
           <div><dt>Recorded on X Layer</dt><dd>{nav ? shortTime(nav.at) : "—"}</dd></div>
           <div><dt>Fee</dt><dd>None</dd></div>
         </dl>
+        <p className="gmd-invest-source"><OkxSource>Priced by OKX OnchainOS</OkxSource></p>
         <button type="button" className="gmd-button" disabled={Boolean(problem) || !nav} onClick={() => setReview(crypto.randomUUID())}>Review {side === "buy" ? "investment" : "redemption"} <Icon name="arrow" size={17} /></button>
-        <p className="gmd-caption">Demo dollars only. Orders fill at the latest NAV recorded on X Layer; a live fund would fill at the next one. No real money moves and no shares are issued on chain.</p>
+        <p className="gmd-caption">Demo dollars only. No real money moves and no shares are issued on chain.</p>
       </>}
   </aside>;
 }
@@ -178,7 +182,7 @@ export function DemoPortfolio() {
     <header className="gmd-section-heading"><div><h2 id="demo-title">Demo account</h2><p>USTX bought with demo dollars in this browser. No real money.</p></div><Link prefetch={false} className="gmd-button" href="/products/ustx#investment">Invest <Icon name="arrow" size={16} /></Link></header>
     {demo.error ? <p className="gmd-inline-error" role="alert">{demo.error}</p> : !account ? <p className="gmd-caption" role="status">Opening your demo account…</p> : <>
       <div className="gmd-portfolio-summary">
-        <div><span className="gmd-label">Total value</span><strong className="gmd-value">{value === null ? "—" : formatUsdRounded(cash + value)}</strong><p>{nav ? `USTX valued at ${formatUsdMicros(nav.navMicros, 4)}, the NAV recorded on X Layer at ${shortTime(nav.at)}` : "Waiting for the latest recorded NAV…"}</p></div>
+        <div><span className="gmd-label">Total value</span><strong className="gmd-value">{value === null ? "—" : formatUsdRounded(cash + value)}</strong><p>{nav ? `USTX at ${formatUsdMicros(nav.navMicros, 4)} per share, priced by OKX OnchainOS and recorded on X Layer at ${shortTime(nav.at)}` : "Waiting for the latest recorded NAV…"}</p></div>
         <dl>
           <div><dt>Demo cash</dt><dd>{formatUsdMicros(cash, 2)}</dd></div>
           <div><dt>Invested</dt><dd>{formatUsdMicros(cost, 2)}</dd></div>
@@ -198,7 +202,7 @@ export function DemoPortfolio() {
       {shares > 0n && <section className="gmd-inside" aria-labelledby="inside-title">
         <header className="gmd-section-heading"><div><h3 id="inside-title">Inside your USTX</h3><p>Your {formatShares(shares)} shares, looked through to the six xStocks.</p></div></header>
         {composition ? <BasketTable composition={composition} sharesMicros={shares} label="Your USTX looked through to each xStock" /> : <p className="gmd-caption">Waiting for the latest record to show what your shares hold…</p>}
-        <p className="gmd-caption">Each USTX share holds fixed token amounts of each xStock until the next quarterly rebalance. Values use the prices in the latest record on X Layer.</p>
+        <p className="gmd-caption">Each USTX share holds fixed token amounts of each xStock until the next quarterly rebalance. Values use the latest OKX OnchainOS prices recorded on X Layer.</p>
       </section>}
       <div className="gmd-demo-activity">
         <header className="gmd-section-heading"><h3>Recent orders</h3><span>{demo.orders.length ? `${demo.orders.length} shown` : "None yet"}</span></header>

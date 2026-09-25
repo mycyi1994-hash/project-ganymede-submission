@@ -7,11 +7,12 @@
 Ganymede sells USTX, the US Tech Basket: one share holds six tokenized US tech stocks (AAPLx, MSFTx, NVDAx, AMZNx, METAx, TSLAx) on X Layer. Visitors invest with demo dollars, see exactly which tokens their money put in the basket, and verify every price without trusting the publisher's server.
 
 - Every browser gets a private demo account with $10,000 in demo dollars. Orders fill instantly at the NAV recorded on X Layer; the confirmation and the Portfolio look through each holding to the six xStocks.
-- The product page shows the fund like a real fund: size (shares outstanding × NAV, both recorded on X Layer), investors, return since launch, key terms, look-through holdings and recent anonymous orders.
+- The product page shows the fund like a real fund: size (shares outstanding × NAV, both recorded on X Layer), investors, return since launch, key terms, 24-hour flows and look-through holdings.
 - Every five minutes the six xStocks are priced through OKX OnchainOS on X Layer mainnet.
 - The NAV, the shares outstanding and a SHA-256 fingerprint of the full composition document are recorded in a registry on X Layer Testnet.
 - A visitor's browser reads that record directly and recalculates the NAV row by row.
-- A tamper experiment shows which check catches which kind of change. When every number and the NAV are kept, only the fingerprint on X Layer catches the edit.
+- The Verify page presents this to customers as a proof page, like an exchange proof of reserves, with every price labelled as coming from OKX OnchainOS. The developer page shows the individual checks.
+- A tamper experiment on the developer page shows which check catches which kind of change. When every number and the NAV are kept, only the fingerprint on X Layer catches the edit.
 - The result can be downloaded as an evidence file that `npm run verify:evidence` re-checks against the publishing transaction.
 - A read-only Portfolio values any wallet's real xStocks on X Layer mainnet at those verified prices, with a downloadable statement and a USTX-weighted basket calculator.
 - Partners get a public NAV API (`/api/v1/ustx`, open CORS), an embeddable badge that verifies the NAV in the visitor's browser (`/embed/ustx`), and issuer and developer pages with planned pricing and a roadmap.
@@ -26,7 +27,8 @@ Ganymede sells USTX, the US Tech Basket: one share holds six tokenized US tech s
 
 - Markets: https://ganymede-xlayer.gana003.workers.dev/
 - USTX: https://ganymede-xlayer.gana003.workers.dev/products/ustx
-- Verify (automatic check, tamper experiment, evidence download): https://ganymede-xlayer.gana003.workers.dev/products/ustx/transparency
+- Verify (customer proof page): https://ganymede-xlayer.gana003.workers.dev/products/ustx/transparency
+- Verify it yourself (the three checks, tamper experiment, evidence download): https://ganymede-xlayer.gana003.workers.dev/developers#verify
 - Portfolio (demo account with look-through, read-only xStocks valuation on X Layer mainnet, basket calculator): https://ganymede-xlayer.gana003.workers.dev/portfolio
 - For issuers: https://ganymede-xlayer.gana003.workers.dev/issuers
 - Developers & API: https://ganymede-xlayer.gana003.workers.dev/developers (public API https://ganymede-xlayer.gana003.workers.dev/api/v1/ustx, badge https://ganymede-xlayer.gana003.workers.dev/embed/ustx)
@@ -61,9 +63,9 @@ Ganymede began in July 2026 as a Korean-won crypto strategy engine with Upbit ma
 The official criteria are holistic and unweighted. The evidence behind each one:
 
 - **Innovation.** On-chain NAV exists elsewhere, for example in the DTCC Smart NAV pilot and in Centrifuge. The contribution here is narrower: any visitor reproduces a basket NAV row by row against an X Layer record. The experiment isolates what the chain fingerprint adds, and the result travels as a verifiable file.
-- **Product completeness.** Markets → USTX → invest with demo dollars → see what went into the basket → Portfolio look-through → automatic browser verification → tamper experiment → evidence download → command-line re-check, plus a Portfolio that values real xStocks holdings. Every visible action works.
+- **Product completeness.** Markets → USTX → invest with demo dollars → see what went into the basket → Portfolio look-through → the Verify proof page → on the developer page, the individual checks, tamper experiment, evidence download and command-line re-check, plus a Portfolio that values real xStocks holdings. Every visible action works.
 - **User value.** An investor buys a diversified tech basket in three taps, sees the exact tokens behind each share, and can confirm in seconds that the price they paid matches its document and chain record, then pass that confirmation on as a file instead of a screenshot.
-- **Technical execution.** Integer arithmetic, canonical document bytes, a pinned registry and network, direct RPC reads, receipt-event matching, transactional demo orders with idempotent retries, failure tests (125 application tests, 16 relayer tests) and isolated visitor records.
+- **Technical execution.** Integer arithmetic, canonical document bytes, a pinned registry and network, direct RPC reads, receipt-event matching, transactional demo orders with idempotent retries, failure tests (126 application tests, 16 relayer tests) and isolated visitor records.
 - **Integration.** Real OnchainOS prices for real xStock tokens on X Layer mainnet, published with the shares outstanding to and verified against an X Layer registry. The six token contracts and any wallet's balances are read from X Layer mainnet in the browser, with OKX Wallet connected first.
 - **Growth and ecosystem.** Other X Layer apps can show the verified NAV through the public API or the self-verifying badge. The issuer page sets out the business model (free sandbox, per-basket subscription, distribution fee through licensed partners) and the roadmap to X Layer mainnet and an issuer console. No adoption is claimed.
 

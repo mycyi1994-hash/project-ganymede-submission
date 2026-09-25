@@ -1,6 +1,6 @@
 # Build provenance
 
-Production source revision: `10dee7aa57eb64a322090d0cd4a7b848ef14e19b`.
+Production source revision: `e36c7a3a925a793c4ea380d510f6fc73258fa6df`.
 
 This is a source snapshot, not a claim that the entire project was newly built for this event. The original repository remains private. The entries below were exported from its Git history; reviewers can inspect current implementations and tests, and request original history access from the team if needed. No old secrets, local environment files or full private Git history are published.
 
@@ -198,5 +198,26 @@ Validation of the snapshot source:
   - eleven public routes and three public APIs returned 200 and the legacy routes redirected;
   - the first cycle read the wallet totals from the fund contract and recorded the NAV with no warning;
   - seven screens on desktop and mobile, with and without a wallet, had no axe violations, horizontal overflow or page errors. On production the wallet was only connected and read; no transaction was sent.
+
+These are point-in-time observations, not continuous availability or a security audit.
+
+
+## NAV feed and lending release
+
+Production source: e36c7a3a925a793c4ea380d510f6fc73258fa6df. Worker version: 6f647815-4665-40fd-b098-9146546f512d, deployed 2026-09-25. Relayer Worker version: cb38524c-cb75-4350-a9ee-a363f49a5c93, unchanged. This snapshot is exported from 4545c2c7d2fbbc84b909f4370fe5576370d308c5, which adds only documentation to the production source.
+
+- `GanymedeNavFeed` on X Layer Testnet (chain 1952), `0x292c56c5290cc7b73e3ee33c2c2688eb3e04c3c8`, deployed by the administrator key and recorded in `onchain/deployments/xlayer-testnet.json` with its creation transaction.
+  - It returns the registry's latest `us-tech-x` NAV through `AggregatorV3Interface`, the interface Chainlink price feeds use: 8 decimals, "USTX / USD".
+  - The round ID and `updatedAt` are the record's effective time. It has no owner and nothing to configure.
+- The developer page gains "Read the NAV from a contract" with a Solidity example, and `GET /api/v1/ustx` returns the feed's address.
+- `GanymedeLendingMarket` (demo-dollar loans against USTX at the recorded NAV, with liquidation) is written and tested but not deployed. `npm run fork:lending` runs it against the live testnet contracts on an in-memory fork with no key.
+- All five X Layer Testnet contracts are source-verified on the OKX explorer and match exactly on Sourcify (creation and runtime bytecode); `onchain/README.md` lists them.
+
+Validation of the snapshot source:
+
+- In the development repository, the typecheck, clean build and 134 tests pass, lint reports 0 errors, and the 50 contract tests pass. Deliberate breaks of the lending and feed rules each made the contract tests fail.
+- The same tests pass in this public checkout after `npm ci`, and so do the relayer typecheck and 16 tests.
+- After the deployment, the main public routes and APIs returned 200 and the legacy routes redirected. The feed appeared on `/developers` and in `/api/v1/ustx`. Seven screens on desktop and mobile, with and without a wallet, had no axe violations, horizontal overflow or page errors.
+- The first cycle after the deployment recorded the NAV effective 2026-09-25 04:46:17 UTC ($99.772334), and the feed's `latestRoundData` returned that value with that time as its round.
 
 These are point-in-time observations, not continuous availability or a security audit.

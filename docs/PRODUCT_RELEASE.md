@@ -10,7 +10,7 @@ USTX와 GMDCORE는 다른 대상이다. USTX는 모델 바스켓이다. 지갑 �
 
 ## 전체 화면
 
-현재 운영 소스 `10dee7a` 기준이다. 모든 화면 위에 테스트넷 안내 한 줄이 있고, 헤더에 네트워크 표시와 "Connect OKX Wallet"이 있다. 메뉴는 Markets / Portfolio / Transparency다. 이전 배포별 변경은 아래 배포 절에 있다.
+현재 운영 소스 `e36c7a3` 기준이다. 모든 화면 위에 테스트넷 안내 한 줄이 있고, 헤더에 네트워크 표시와 "Connect OKX Wallet"이 있다. 메뉴는 Markets / Portfolio / Transparency다. 이전 배포별 변경은 아래 배포 절에 있다.
 
 | 경로 | 완료한 동선 |
 | --- | --- |
@@ -19,9 +19,9 @@ USTX와 GMDCORE는 다른 대상이다. USTX는 모델 바스켓이다. 지갑 �
 | `/products/ustx/transparency` | Verify(고객용 증명 페이지, 거래소의 준비금 증명 형식): 브라우저 자동 검증 결과, 가격 산정 3단계(OKX OnchainOS → X Layer 기록 → 브라우저 확인), 구성 종목과 OKX 가격, 최신 기록(발행 좌수·OKX 탐색기), 최근 기록, 확인 범위와 비범위 |
 | `/portfolio` | 내 투자(총평가액·현금·투자원금·수익률, 보유 USTX, "Inside your USTX" 종목별 들여다보기, 최근 주문, 데모 잔고 초기화) → OKX Wallet 연결 또는 공개 주소 입력 → 그 지갑의 USTX(X Layer Testnet)와 종목별 들여다보기 → X Layer 메인넷 xStocks 6종 잔고(한 블록 기준) → 검증된 기록의 가격으로 평가·명세서 내려받기. 지갑 부분은 읽기 전용 |
 | `/issuers` | 발행사용: 필요성, 4단계 작동 방식, 제공 기능, 플랜(Sandbox 무료, Issuer·Distribution은 문의), GitHub 문의. 푸터에서 연결 |
-| `/developers` | 공개 NAV API 예시, 지갑·컨트랙트에서 투자하기(USTX·dUSD 주소와 viem 예시), viem으로 X Layer 레지스트리 직접 읽기, 임베드 배지 코드와 실시간 미리보기, "Verify it yourself"(3가지 확인 결과, xStock 계약 6개 확인, 변조 실험 3종, 증거 파일 내려받기와 재확인 명령, 원문 문서), 사용한 OKX 스택 |
+| `/developers` | 공개 NAV API 예시, 지갑·컨트랙트에서 투자하기(USTX·dUSD 주소와 viem 예시), 컨트랙트에서 NAV 읽기(Chainlink `AggregatorV3Interface` 가격 피드 주소와 Solidity 예시), viem으로 X Layer 레지스트리 직접 읽기, 임베드 배지 코드와 실시간 미리보기, "Verify it yourself"(3가지 확인 결과, xStock 계약 6개 확인, 변조 실험 3종, 증거 파일 내려받기와 재확인 명령, 원문 문서), 사용한 OKX 스택 |
 | `/embed/ustx` | 다른 사이트가 iframe으로 넣는 배지. 방문자 브라우저가 X Layer를 직접 읽고 문서 해시·NAV를 대조한 뒤 "Verified in your browser"를 표시 |
-| `/api/v1/ustx` | 최신 USTX 기록(NAV·발행 좌수·지문·거래 해시)을 요청 시점에 X Layer에서 읽어 반환하고, USTX 지분 토큰과 dUSD 주소를 함께 준다. CORS `*`, 30초 캐시, 읽기 전용 |
+| `/api/v1/ustx` | 최신 USTX 기록(NAV·발행 좌수·지문·거래 해시)을 요청 시점에 X Layer에서 읽어 반환하고, USTX 지분 토큰, dUSD, 가격 피드 주소를 함께 준다. CORS `*`, 30초 캐시, 읽기 전용 |
 | `/api/demo/account`, `/api/demo/orders`, `/api/demo/reset`, `/api/demo/fund` | 데모 계정 조회(읽기 전용, 쿠키만 발급)·주문·초기화, 펀드 합계(지갑 USTX + 데모 잔고 지분, 투자자 수 포함)와 데모 잔고 주문의 24시간 유입(개별 주문은 공개하지 않음, 읽기 전용) |
 | `/activity` | GMDCORE 테스트넷 장부의 공개 주소 잔액·지분 이전 로그 → 거래 상세. 메뉴에는 없음 |
 | `/activity/[hash]` | 성공 receipt의 해당 CORE 계약 Transfer만 표시. 미존재·실패·다른 계약은 완료 처리하지 않음 |
@@ -49,7 +49,7 @@ USTX와 GMDCORE는 다른 대상이다. USTX는 모델 바스켓이다. 지갑 �
 
 대상은 기존 `ganymede-xlayer` Worker와 기존 D1이다. 새 DB 테이블이나 운영 자동화는 만들지 않는다. 9/25 지갑 투자 배포에서 테스트넷 계약 2개(dUSD, USTX)를 추가했다. 환경 변수·비밀 값과 5분 일정은 유지한다. 
 - 현재 애플리케이션 소스: `10dee7a` (지갑 투자, `main` `405d04e` 포함). 그 전 소스는 `cb921f5`(서비스형 화면 배치, `f970e23`·`f660dc3` 포함)이고, `f660dc3`은 고객용 증명 페이지·OKX 출처 표기·비중 막대 수정으로 `23d35d2`를 포함한다. `23d35d2`는 접근성 수정이고 `0c38037`을 포함한다.
-- 현재 Worker 버전: `f760cd9e-bf95-47a0-8d4d-4a0fa4886c21`. 이전 버전은 `3a46801e-e6f9-47e0-af1c-8477f24bef71`, 그 전은 `837c8a3b-38a4-4544-8ba7-4d6a7899fa05`.
+- 현재 Worker 버전: `6f647815-4665-40fd-b098-9146546f512d`. 이전 버전은 `f760cd9e-bf95-47a0-8d4d-4a0fa4886c21`, 그 전은 `3a46801e-e6f9-47e0-af1c-8477f24bef71`.
 - 운영 주소: https://ganymede-xlayer.gana003.workers.dev
 - 최초 통합 배포: `ff04920` → `bb33af8d-0c01-4c7e-ac20-0853854bfb74`. 직전 운영 버전 `b287ab71-66f9-45d0-8854-3ee28626f2c0`의 소스 `df6c41e`를 포함했다. 두 배포 모두 직전 활성 버전을 재확인하고 게시했다.
 - 원격 저장소 브랜치: `codex/product-redesign-1-3`. 애플리케이션과 이 배포 기록을 푸시했다. 이 브랜치는 PR #4로 `main`에 통합됐다.
@@ -198,3 +198,23 @@ USTX와 GMDCORE는 다른 대상이다. USTX는 모델 바스켓이다. 지갑 �
     - 데스크톱(1440px)과 모바일(390px), 지갑 있음·없음으로 7개 화면 모두 axe 위반 0건, 가로 넘침과 페이지 오류가 없었다. 운영에서는 거래 없이 지갑 연결·네트워크 전환·잔고 표시까지만 확인했다.
     - 샘플 확인이며 연속 무장애 증명이 아니다.
   - 필요 시 `3a46801e`로 되돌릴 수 있다. 그 버전은 지갑 탭 없이 동작하고 NAV 기록에 데모 잔고 지분만 싣는다. 이미 발행된 지갑의 USTX는 체인에 남고, 컨트랙트에서 직접 환매할 수 있다.
+- 2026-09-25 가격 피드 배포: `e36c7a3` → `6f647815-4665-40fd-b098-9146546f512d`. 직전 버전은 `f760cd9e`(`10dee7a`)이다. 사용자가 피드 배포와 운영 배포를 승인했다.
+  - 컨트랙트(X Layer Testnet, 관리자 키로 배포, `onchain/deployments/xlayer-testnet.json`)
+    - `GanymedeNavFeed`("USTX / USD", 소수 8자리) `0x292c56c5290cc7b73e3ee33c2c2688eb3e04c3c8`, 생성 거래 `0x816e42ff26474f01334a3c7ca16659d70e337a331b0a507d80102cf11e2a6ed3`. 레지스트리의 `us-tech-x` 최신 NAV를 Chainlink `AggregatorV3Interface`로 돌려준다. 라운드 ID와 `updatedAt`은 기록의 효력 시각이다. 소유자와 설정이 없다.
+    - OKX 탐색기 소스 검증을 마쳤고 Sourcify에서 생성·런타임 바이트코드가 완전 일치했다. 기존 4개 컨트랙트도 Sourcify에서 완전 일치를 받았다.
+    - 관리자 지갑 테스트넷 OKB 사용량은 약 0.00001이다.
+    - 대출 시장(`GanymedeLendingMarket`)은 작성·테스트만 했고 배포하지 않았다.
+  - 바뀐 점
+    - `/developers`에 "Read the NAV from a contract"(피드 설명, 컴파일되는 Solidity 예시, 탐색기 링크)를 넣었다. OKX 스택 목록의 X Layer Testnet 항목에 피드를 넣었다.
+    - `/api/v1/ustx`가 `feed`(주소, 인터페이스, 소수 자릿수, 탐색기 링크)를 함께 준다.
+    - 피드 주소는 `FUND_DEPLOYMENT.feed`에 고정했고, 배포 기록과 대조하는 테스트를 추가했다.
+  - 배포 전
+    - 활성 버전이 `f760cd9e`(`10dee7a`)임을 확인했다. 소스가 현재 `main`(`55cb87f`)을 포함한다.
+    - 앱 검사 134개, 컨트랙트 검사 50개가 통과했고 lint 오류는 0이다(경고 10개는 main과 같다).
+    - 깨끗한 빌드, 기존 D1과 `*/5` 일정, `--keep-vars`로 배포했다.
+  - 배포 후 운영 확인
+    - 주요 11개 화면과 공개 API 2개가 200을 반환하고, 이전 4개 경로가 새 화면으로 이동했다.
+    - `/api/v1/ustx`의 `feed`와 `/developers`의 피드 절을 확인했다.
+    - 데스크톱(1440px)과 모바일(390px), 지갑 있음·없음으로 7개 화면 모두 axe 위반 0건, 가로 넘침과 페이지 오류가 없었다.
+    - 샘플 확인이며 연속 무장애 증명이 아니다.
+  - 필요 시 `f760cd9e`로 되돌릴 수 있다. 피드 컨트랙트는 체인에 남아 계속 동작한다.

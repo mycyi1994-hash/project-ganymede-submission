@@ -61,6 +61,17 @@ export interface Deployment {
       symbol: string;
       constructorArgs: unknown[];
     };
+    // The USTX NAV in the AggregatorV3Interface shape (scripts/deploy-feed.ts).
+    GanymedeNavFeed?: {
+      address: string;
+      deployedAt: string;
+      deploymentTransaction: string;
+      productId: string;
+      description: string;
+      constructorArgs: unknown[];
+    };
+    // Lending against USTX (scripts/deploy-lending.ts). Written and tested; not deployed.
+    GanymedeLendingMarket?: { address: string; deployedAt: string; constructorArgs: unknown[] };
   };
 }
 

@@ -1,0 +1,32 @@
+{
+  "language": "Solidity",
+  "sources": {
+    "contracts/GanymedeNavFeed.sol": {
+      "content": "// SPDX-License-Identifier: MIT\npragma solidity ^0.8.28;\n\ninterface INavSource {\n    function latestNav(bytes32 productId)\n        external\n        view\n        returns (uint256 navPerShareMicros, uint256 sharesOutstandingMicros, bytes32 holdingsHash, uint64 effectiveAt, uint64 publishedAt);\n}\n\n/// @title GanymedeNavFeed\n/// @notice One product's NAV from GanymedeNavRegistry, in the AggregatorV3Interface shape that\n///         Chainlink price feeds use, so lending markets, vaults and dashboards on X Layer can read\n///         it without custom code. It has no owner and no state of its own: every answer is the\n///         registry's latest record for the product.\n/// @dev Answers have 8 decimals, like Chainlink's USD feeds. The round ID is the record's effective\n///      time, which the registry only lets grow, and `startedAt` and `updatedAt` are that same\n///      time, so a staleness check on `updatedAt` measures the age of the prices themselves, not of\n///      the transaction that published them. Only the latest round is on chain; earlier records\n///      are in the registry's NavPublished events.\ncontract GanymedeNavFeed {\n    uint8 public constant decimals = 8;\n    uint256 public constant version = 1;\n    // Registry NAVs have 6 decimals.\n    uint256 private constant MICROS_TO_ANSWER = 100;\n\n    INavSource public immutable registry;\n    bytes32 public immutable productId;\n    string public description;\n\n    error InvalidAddress();\n    error InvalidProduct();\n    error NoDataPresent();\n\n    constructor(address navRegistry, bytes32 feedProductId, string memory feedDescription) {\n        if (navRegistry == address(0)) revert InvalidAddress();\n        if (feedProductId == bytes32(0)) revert InvalidProduct();\n        registry = INavSource(navRegistry);\n        productId = feedProductId;\n        description = feedDescription;\n    }\n\n    function latestRoundData()\n        public\n        view\n        returns (uint80 roundId, int256 answer, uint256 startedAt, uint256 updatedAt, uint80 answeredInRound)\n    {\n        (uint256 navPerShareMicros, , , uint64 effectiveAt, ) = registry.latestNav(productId);\n        if (navPerShareMicros == 0 || effectiveAt == 0) revert NoDataPresent();\n        roundId = uint80(effectiveAt);\n        answer = int256(navPerShareMicros * MICROS_TO_ANSWER);\n        startedAt = effectiveAt;\n        updatedAt = effectiveAt;\n        answeredInRound = roundId;\n    }\n\n    /// @notice The latest round only; any other round ID reverts with NoDataPresent.\n    function getRoundData(uint80 requestedRoundId)\n        external\n        view\n        returns (uint80 roundId, int256 answer, uint256 startedAt, uint256 updatedAt, uint80 answeredInRound)\n    {\n        (roundId, answer, startedAt, updatedAt, answeredInRound) = latestRoundData();\n        if (requestedRoundId != roundId) revert NoDataPresent();\n    }\n\n    // The older AggregatorInterface reads, still used by some integrations.\n    function latestAnswer() external view returns (int256 answer) {\n        (, answer, , , ) = latestRoundData();\n    }\n\n    function latestTimestamp() external view returns (uint256 updatedAt) {\n        (, , , updatedAt, ) = latestRoundData();\n    }\n\n    function latestRound() external view returns (uint256) {\n        (uint80 roundId, , , , ) = latestRoundData();\n        return roundId;\n    }\n}\n"
+    }
+  },
+  "settings": {
+    "optimizer": {
+      "enabled": true,
+      "runs": 200
+    },
+    "metadata": {
+      "bytecodeHash": "ipfs"
+    },
+    "evmVersion": "paris",
+    "outputSelection": {
+      "*": {
+        "*": [
+          "abi",
+          "evm.bytecode",
+          "evm.deployedBytecode",
+          "evm.methodIdentifiers",
+          "metadata"
+        ],
+        "": [
+          "ast"
+        ]
+      }
+    }
+  }
+}

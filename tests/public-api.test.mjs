@@ -61,6 +61,8 @@ test("the public NAV API serves the X Layer record to any origin and never write
     assert.equal(body.verify.page, "https://ganymede.test/products/ustx/transparency");
     assert.equal(body.shares.token, "0x77eaeba1366bde7818da12d3cbdbea0a2ee97596");
     assert.equal(body.shares.paidWith.symbol, "dUSD");
+    assert.equal(body.feed.address, "0x292c56c5290cc7b73e3ee33c2c2688eb3e04c3c8");
+    assert.equal(body.feed.decimals, 8);
     const preflight = OPTIONS();
     assert.equal(preflight.status, 204);
     assert.match(preflight.headers.get("access-control-allow-methods"), /GET/);

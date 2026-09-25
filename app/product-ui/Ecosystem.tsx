@@ -52,6 +52,21 @@ await wallet.writeContract({ address: dollar, abi, functionName: "approve", args
 const shares = await client.readContract({ address: fund, abi, functionName: "previewInvest", args: [amount] });
 await wallet.writeContract({ address: fund, abi, functionName: "invest", args: [amount, shares * 99n / 100n] });`;
 
+// Solidity needs the checksummed address literal.
+const feedExample = `interface AggregatorV3Interface {
+  function latestRoundData() external view
+    returns (uint80 roundId, int256 answer, uint256 startedAt, uint256 updatedAt, uint80 answeredInRound);
+}
+
+// USTX / USD on X Layer Testnet, 8 decimals
+AggregatorV3Interface constant USTX_USD = AggregatorV3Interface(0x292c56c5290Cc7B73e3eE33c2C2688eB3e04c3c8);
+
+function ustxInUsd() view returns (uint256) {
+  (, int256 answer, , uint256 updatedAt, ) = USTX_USD.latestRoundData();
+  require(block.timestamp - updatedAt <= 1 hours, "stale NAV"); // a record lands every five minutes
+  return uint256(answer);
+}`;
+
 const embedExample = `<iframe src="${SITE}/embed/ustx" title="USTX verified NAV"
   width="440" height="260" style="border:0" loading="lazy"></iframe>`;
 
@@ -78,6 +93,10 @@ export function DevelopersPage() {
           <Code label="Invest with viem">{investExample}</Code>
           <div className="gmd-terms-links"><a className="gmd-inline-link" href={`${FUND_DEPLOYMENT.explorerUrl}/token/${FUND_DEPLOYMENT.fund}`} target="_blank" rel="noreferrer">USTX token on the OKX explorer <Icon name="external" size={14} /></a><a className="gmd-inline-link" href={`${FUND_DEPLOYMENT.explorerUrl}/token/${FUND_DEPLOYMENT.dollar}`} target="_blank" rel="noreferrer">dUSD demo dollars <Icon name="external" size={14} /></a></div>
         </section>
+        <section id="feed"><h2>Read the NAV from a contract</h2><p>Contracts can price USTX too. <code>GanymedeNavFeed</code> serves the latest USTX record through <code>AggregatorV3Interface</code>, the interface Chainlink price feeds use, so a lending market, vault or dashboard that already reads Chainlink prices can read USTX by changing one address. Answers have 8 decimals. The round ID and <code>updatedAt</code> are the record’s effective time, so a staleness check measures the age of the prices. The feed has no owner and nothing to configure.</p>
+          <Code label="Read the feed in Solidity">{feedExample}</Code>
+          <div className="gmd-terms-links"><a className="gmd-inline-link" href={`${FUND_DEPLOYMENT.explorerUrl}/address/${FUND_DEPLOYMENT.feed}`} target="_blank" rel="noreferrer">USTX / USD feed on the OKX explorer <Icon name="external" size={14} /></a></div>
+        </section>
         <section id="embed"><h2>Embed the verified NAV badge</h2><p>Show the USTX NAV on your site, wallet or dashboard. The badge reads X Layer from the visitor’s browser, hashes the published document and recalculates the NAV before it says “Verified”.</p>
           <Code label="HTML">{embedExample}</Code>
           <div className="gmd-embed-preview"><span>Live preview</span><iframe src="/embed/ustx" title="USTX verified NAV badge preview" width="440" height="260" loading="lazy" /></div>
@@ -89,7 +108,7 @@ export function DevelopersPage() {
         <section id="okx"><h2>Built on the OKX stack</h2>
           <ul className="gmd-stack-list">
             <li><b>OKX OnchainOS Market API</b><span>Prices all six xStocks on X Layer every five minutes. The NAV is never published without them.</span></li>
-            <li><b>X Layer Testnet</b><span>Holds the NAV registry (every NAV, its composition fingerprint and the shares outstanding) and the USTX token, which issues shares only at the recorded NAV.</span></li>
+            <li><b>X Layer Testnet</b><span>Holds the NAV registry (every NAV, its composition fingerprint and the shares outstanding), the USTX token, which issues shares only at the recorded NAV, and a feed that serves that NAV to other contracts in the Chainlink interface.</span></li>
             <li><b>X Layer mainnet</b><span>Where the xStocks live. Portfolio reads any wallet’s xStock balances directly from mainnet.</span></li>
             <li><b>OKX Wallet</b><span>Invests and redeems USTX on X Layer Testnet from the USTX page, and shows its balances on Portfolio.</span></li>
             <li><b>OKX explorer</b><span>Every record, token and transaction links to the OKX X Layer explorer.</span></li>

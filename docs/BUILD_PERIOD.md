@@ -21,10 +21,12 @@ Those modules still power the separate paper Lab. They are not part of the submi
 | Verification | The browser reads the registry directly and recalculates the NAV; a three-way tamper experiment; a downloadable evidence file and the `verify:evidence` command | `27350f2`, `4641ddc`, `80a0316`, `11829e8` |
 | Product | Clearform redesign; Markets, USTX and Verify screens led by the browser check; read-only xStocks Portfolio at verified prices; NAV chart from publication receipts | `e5d1d8f`, `f4d67c1`, `ff04920`, `c0ce112`, `ebef0fa`, `d055246` |
 | Investing | Wallet investing on X Layer Testnet: a USTX share contract that issues and redeems only at the NAV in the registry, no-value demo dollars, and an order panel that runs approve and invest from OKX Wallet. Demo-balance investing with private accounts, instant orders at the recorded NAV, idempotent retries and a daily cap. Order confirmations and a Portfolio that look through each holding to the six xStocks | `1327a6a`, `0c38037`, `2fed796`, `bc3bf08` |
+| Lending | A demo-dollar lending market that takes USTX as collateral at the recorded NAV, with a jump-rate curve and liquidations that the fund's redemption at NAV pays out; written and tested, run against the live contracts on a local fork, not deployed | `8706a43` |
+| NAV feed | The USTX NAV in the Chainlink `AggregatorV3Interface` on X Layer Testnet, shown on the developer page and in the public API; all five X Layer Testnet contracts source-verified on the OKX explorer and Sourcify | `beff92f`, `b11493b`, `e36c7a3` |
 | Fund and ecosystem | Fund overview with size, investors and return since launch; the shares outstanding recorded on X Layer with every NAV; a public NAV API with open CORS, an embeddable self-verifying badge, and issuer and developer pages | `0c38037`, `23d35d2` |
 | Hardening | Public reads without writes, identity header gate, relayer retry and nonce handling, paper-ledger integrity, sanitized public errors | `c98e7ea`, `387ec35`, `8cd427f`, `7b18cf9`, `124bebe` |
 
-From `7a33392` to `fdeeb16`: 218 files changed, 21531 insertions(+), 7372 deletions(-).
+From `7a33392` to `bdf7ac0`: 227 files changed, 22994 insertions(+), 7372 deletions(-).
 
 ## Every commit in the build period (UTC)
 
@@ -127,3 +129,10 @@ From `7a33392` to `fdeeb16`: 218 files changed, 21531 insertions(+), 7372 deleti
 | 2026-09-25 03:04 | `bc3bf08` | Invest in USTX from a wallet on X Layer Testnet | 23 | +1064 / −49 |
 | 2026-09-25 03:07 | `10dee7a` | Describe wallet investing in the README, contract and submission docs | 5 | +60 / −37 |
 | 2026-09-25 03:30 | `c71da11` | Record the wallet investing release (f760cd9e) | 3 | +44 / −13 |
+| 2026-09-25 03:32 | `4b4959a` | Bring the build-period record up to the latest commit | 1 | +2 / −1 |
+| 2026-09-25 04:18 | `7a709cd` | Record the lending market in the build-period record and Dev Day evidence | 2 | +5 / −1 |
+| 2026-09-25 04:18 | `8706a43` | Add a USTX-collateral lending market (not deployed) and record source verification | 13 | +1008 / −10 |
+| 2026-09-25 04:27 | `beff92f` | Add a Chainlink-style USTX NAV feed | 10 | +344 / −3 |
+| 2026-09-25 04:32 | `b11493b` | Deploy the USTX NAV feed on X Layer Testnet | 8 | +72 / −10 |
+| 2026-09-25 04:37 | `e36c7a3` | Show the USTX NAV feed on the developers page and in the public API | 6 | +37 / −1 |
+| 2026-09-25 04:44 | `bdf7ac0` | Record the NAV feed release (6f647815) and its explorer verification | 4 | +31 / −10 |

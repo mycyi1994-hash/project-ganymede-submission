@@ -178,6 +178,8 @@ test("issuer, developer and embed pages render for partners", async () => {
   assert.match(developers, /verify:evidence/);
   assert.match(developers, /Invest from a wallet or a contract/);
   assert.match(developers, /0x77eaeba1366bde7818da12d3cbdbea0a2ee97596/);
+  assert.match(developers, /Read the NAV from a contract/);
+  assert.match(developers, /AggregatorV3Interface\(0x292c56c5290Cc7B73e3eE33c2C2688eB3e04c3c8\)/);
   assert.doesNotMatch(developers, /never signs/, "OKX Wallet now signs orders on X Layer Testnet");
   const embed = await render("/embed/ustx");
   assert.equal(embed.status, 200);

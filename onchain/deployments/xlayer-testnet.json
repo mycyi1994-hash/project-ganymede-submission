@@ -45,6 +45,18 @@
         "0x7fd4bda948705c478ec63926a4cdececd33422c85c3e35f414251992b48c2a20",
         "0x107633a3aa88c81d4c47d01992e089573e2e87c9"
       ]
+    },
+    "GanymedeNavFeed": {
+      "address": "0x292c56c5290cc7b73e3ee33c2c2688eb3e04c3c8",
+      "deployedAt": "2026-09-25T04:30:14.259Z",
+      "deploymentTransaction": "0x816e42ff26474f01334a3c7ca16659d70e337a331b0a507d80102cf11e2a6ed3",
+      "productId": "us-tech-x",
+      "description": "USTX / USD",
+      "constructorArgs": [
+        "0xf320d2a7f280b7ab61e24374986869d7be34289c",
+        "0x7fd4bda948705c478ec63926a4cdececd33422c85c3e35f414251992b48c2a20",
+        "USTX / USD"
+      ]
     }
   }
 }

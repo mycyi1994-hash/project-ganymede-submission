@@ -64,6 +64,16 @@ export async function GET(request: Request) {
         paidWith: { token: FUND_DEPLOYMENT.dollar, symbol: "dUSD", value: "none (testnet demo dollars)" },
         explorerUrl: `${FUND_DEPLOYMENT.explorerUrl}/token/${FUND_DEPLOYMENT.fund}`,
       },
+      feed: {
+        address: FUND_DEPLOYMENT.feed,
+        interface: "AggregatorV3Interface",
+        description: "USTX / USD",
+        decimals: 8,
+        network: FUND_DEPLOYMENT.name,
+        chainId: FUND_DEPLOYMENT.chainId,
+        rule: "latestRoundData() answers this registry's latest NAV with 8 decimals; roundId and updatedAt are its effective time.",
+        explorerUrl: `${FUND_DEPLOYMENT.explorerUrl}/address/${FUND_DEPLOYMENT.feed}`,
+      },
       verify: {
         page: `${origin}/products/ustx/transparency`,
         documents: `${origin}/api/xstocks`,

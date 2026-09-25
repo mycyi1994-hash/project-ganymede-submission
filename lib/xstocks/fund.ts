@@ -12,6 +12,8 @@ export const FUND_DEPLOYMENT = {
   ...DEFAULT_SETTLEMENT_CHAIN,
   fund: "0x77eaeba1366bde7818da12d3cbdbea0a2ee97596",
   dollar: "0xf07535080f74e8b0f571e58dfa600f47e72ea9bf",
+  // GanymedeNavFeed: the same registry record in the Chainlink AggregatorV3Interface, for other contracts.
+  feed: "0x292c56c5290cc7b73e3ee33c2c2688eb3e04c3c8",
   faucetUrl: "https://web3.okx.com/xlayer/faucet",
 } as const;
 

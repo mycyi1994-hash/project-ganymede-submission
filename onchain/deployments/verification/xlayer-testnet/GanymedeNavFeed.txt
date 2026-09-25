@@ -1,0 +1,9 @@
+network               X Layer Testnet (chain 1952)
+address               0x292c56c5290cc7b73e3ee33c2c2688eb3e04c3c8
+explorer              https://www.okx.com/web3/explorer/xlayer-test/address/0x292c56c5290cc7b73e3ee33c2c2688eb3e04c3c8
+contract name         contracts/GanymedeNavFeed.sol:GanymedeNavFeed
+compiler              v0.8.28+commit.7893614a
+optimizer             enabled, 200 runs
+evm version           paris
+license               MIT
+constructor args      000000000000000000000000f320d2a7f280b7ab61e24374986869d7be34289c7fd4bda948705c478ec63926a4cdececd33422c85c3e35f414251992b48c2a200000000000000000000000000000000000000000000000000000000000000060000000000000000000000000000000000000000000000000000000000000000a55535458202f2055534400000000000000000000000000000000000000000000

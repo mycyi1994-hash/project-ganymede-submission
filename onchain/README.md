@@ -113,13 +113,17 @@ its own nonce and gas limit, because a node behind the load-balanced RPC can lag
 the last receipt. The script records both addresses, their creation
 transactions and the seeding transaction.
 
-## Lending market (written and tested, not deployed)
+## Lending market (deployed, paused)
 
 `GanymedeLendingMarket` lends dUSD against USTX collateral valued at the fund's
 current NAV (rules in `../contracts/README.md`; 13 tests in
-`test/GanymedeLendingMarket.test.ts`). It is not deployed and not in the app.
+`test/GanymedeLendingMarket.test.ts`). It is deployed at
+[`0xae2f54ae3d0370295de18510d56de92afb8843c7`](https://web3.okx.com/explorer/x-layer-testnet/address/0xae2f54ae3d0370295de18510d56de92afb8843c7)
+([creation](https://web3.okx.com/explorer/x-layer-testnet/tx/0xb771847aebe5f893eec25e97f99c69cc55f0f85fcaa71217facab2bd7df26278))
+and paused: nothing can be supplied or borrowed until the administrator calls
+`unpause()`, which needs the user's approval. It is not in the app.
 
-Try it against the live contracts without deploying anything:
+Try a full cycle against the live contracts without touching the deployment:
 
 ```bash
 npm run fork:lending
@@ -132,21 +136,24 @@ by the impersonated publisher, liquidation, redemption of the seized USTX at the
 fund (the 8% bonus), repayment and withdrawal. It uses no key and broadcasts
 nothing.
 
-Deploying needs the user's approval. Then:
+The deployment used
 
 ```bash
 npm run deploy:lending
 ```
 
-deploys the market next to the recorded fund, reads the wiring back, confirms it
-is paused and adds it to `deployments/xlayer-testnet.json`. The script never
-unpauses it; activating the market is a separate decision.
+which deploys the market next to the recorded fund with its own nonce and gas
+limit, reads the wiring back, confirms it is paused and adds it to
+`deployments/xlayer-testnet.json` with its creation transaction. It was
+rehearsed first on a local fork of X Layer Testnet with a key holding no real
+funds. The script never unpauses the market; activating it is a separate
+decision.
 
 ## Verify the sources
 
-Source verification makes the contract readable on the explorer. All seven
-deployed contracts are verified on the OKX explorer and match exactly (creation
-and runtime bytecode) on Sourcify:
+Source verification makes the contract readable on the explorer. All eight
+deployed contracts match exactly (creation and runtime bytecode) on Sourcify,
+and all but the newly deployed lending market are verified on the OKX explorer:
 
 | Contract | OKX explorer | Sourcify |
 | --- | --- | --- |
@@ -157,6 +164,7 @@ and runtime bytecode) on Sourcify:
 | `GanymedeUstxPool` (USTX/dUSD) | [verified](https://web3.okx.com/explorer/x-layer-testnet/address/0x286f5e7ffdbc30db12665d7a3854217d7cd05cc1) | [exact match](https://repo.sourcify.dev/1952/0x286f5e7ffdbc30db12665d7a3854217d7cd05cc1) |
 | `GanymedeNavArbitrage` | [verified](https://web3.okx.com/explorer/x-layer-testnet/address/0xaeba15aa92d6f3109e2b992f18933e1abe2fa3d9) | [exact match](https://repo.sourcify.dev/1952/0xaeba15aa92d6f3109e2b992f18933e1abe2fa3d9) |
 | `GanymedeNavFeed` (USTX / USD) | [verified](https://web3.okx.com/explorer/x-layer-testnet/address/0x292c56c5290cc7b73e3ee33c2c2688eb3e04c3c8) | [exact match](https://repo.sourcify.dev/1952/0x292c56c5290cc7b73e3ee33c2c2688eb3e04c3c8) |
+| `GanymedeLendingMarket` (paused) | [upload pending](https://web3.okx.com/explorer/x-layer-testnet/address/0xae2f54ae3d0370295de18510d56de92afb8843c7) | [exact match](https://repo.sourcify.dev/1952/0xae2f54ae3d0370295de18510d56de92afb8843c7) |
 
 To verify a new deployment, pick one of the options below.
 

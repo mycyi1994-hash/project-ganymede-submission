@@ -260,3 +260,19 @@ Validation of the snapshot source:
 - After each deployment, the main public routes and APIs returned 200 and the legacy routes redirected. On b203515c, seven screens on desktop and mobile, with and without a wallet, had no axe violations, horizontal overflow or page errors.
 
 These are point-in-time observations, not continuous availability or a security audit.
+
+## Lending market deployment
+
+Production source: 1e0465f26ae1276e8d0e9fb653535c7d68e22ed3, unchanged: no Worker was deployed. This snapshot is exported from 92815027b4a924392370e23d7b72ae63b642cf5e, which adds to the production source the lending deployment record, the updated deploy script and documentation; application code is unchanged.
+
+- `GanymedeLendingMarket` is deployed on X Layer Testnet at `0xae2f54ae3d0370295de18510d56de92afb8843c7` (creation transaction `0xb771847aebe5f893eec25e97f99c69cc55f0f85fcaa71217facab2bd7df26278`), next to the recorded dUSD and USTX fund, by the administrator key, with the user's approval. It lends demo dollars against USTX valued at the fund's `currentNav()`.
+- It is paused: nothing can be supplied, posted or borrowed until the administrator calls `unpause()`, which has not been done. It is not in the app.
+- `onchain/scripts/deploy-lending.ts` now sets its own nonce and gas limit and waits for the receipt, and the record carries the creation transaction. The contract matches exactly on Sourcify (creation and runtime bytecode); the OKX explorer upload files are in `onchain/deployments/verification/xlayer-testnet/`.
+
+Validation of the snapshot source:
+
+- In the development repository, the contract typecheck and 60 contract tests pass. The deploy script ran first on a local fork of X Layer Testnet with a key holding no real funds, and `npm run fork:lending` ran supply, collateral bought at the live NAV, a loan, a 30% lower NAV, liquidation with the 8% bonus, redemption of the seized USTX at the fund, repayment and withdrawal against the live contracts in memory, broadcasting nothing.
+- After the deployment, the chain returned the expected dUSD, fund and administrator addresses and `paused = true`.
+- The application and relayer tests pass in this public checkout after `npm ci`.
+
+These are point-in-time observations, not continuous availability or a security audit.

@@ -74,6 +74,16 @@
       "constructorArgs": [
         "0x286f5e7ffdbc30db12665d7a3854217d7cd05cc1"
       ]
+    },
+    "GanymedeLendingMarket": {
+      "address": "0xae2f54ae3d0370295de18510d56de92afb8843c7",
+      "deployedAt": "2026-09-25T06:45:12.299Z",
+      "deploymentTransaction": "0xb771847aebe5f893eec25e97f99c69cc55f0f85fcaa71217facab2bd7df26278",
+      "constructorArgs": [
+        "0xf07535080f74e8b0f571e58dfa600f47e72ea9bf",
+        "0x77eaeba1366bde7818da12d3cbdbea0a2ee97596",
+        "0x107633a3aa88c81d4c47d01992e089573e2e87c9"
+      ]
     }
   }
 }

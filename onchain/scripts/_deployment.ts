@@ -80,7 +80,7 @@ export interface Deployment {
     };
     GanymedeNavArbitrage?: { address: string; deployedAt: string; deploymentTransaction: string; constructorArgs: unknown[] };
     // Lending against USTX (scripts/deploy-lending.ts). Written and tested; not deployed.
-    GanymedeLendingMarket?: { address: string; deployedAt: string; constructorArgs: unknown[] };
+    GanymedeLendingMarket?: { address: string; deployedAt: string; deploymentTransaction?: string; constructorArgs: unknown[] };
   };
 }
 

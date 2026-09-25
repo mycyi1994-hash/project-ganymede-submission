@@ -17,6 +17,8 @@ export const FUND_DEPLOYMENT = {
   // GanymedeUstxPool (the USTX/dUSD market) and GanymedeNavArbitrage, which closes its gap to the NAV.
   pool: "0x286f5e7ffdbc30db12665d7a3854217d7cd05cc1",
   arbitrage: "0xaeba15aa92d6f3109e2b992f18933e1abe2fa3d9",
+  // GanymedeLendingMarket: dUSD loans against USTX valued at the fund's NAV.
+  lending: "0xae2f54ae3d0370295de18510d56de92afb8843c7",
   // The arbitrage keeper's wallet (relayer/src/keeper.ts): no role on any contract, testnet OKB and demo dollars only.
   keeper: "0xccf372068496d9bef0f7cf83d697183d358dec1b",
   faucetUrl: "https://web3.okx.com/xlayer/faucet",
@@ -77,11 +79,11 @@ export const FUND_ERRORS: Record<string, string> = {
 };
 
 export type TransactionCall = { to: string; data: string };
-const word = (value: bigint) => {
+export const word = (value: bigint) => {
   if (value < 0n || value >= 1n << 256n) throw new Error("Amount out of range.");
   return value.toString(16).padStart(64, "0");
 };
-const addressWord = (address: string) => {
+export const addressWord = (address: string) => {
   if (!/^0x[0-9a-f]{40}$/i.test(address)) throw new Error("Invalid address.");
   return address.slice(2).toLowerCase().padStart(64, "0");
 };
@@ -158,22 +160,22 @@ export function fundRpc(options: RpcOptions = {}): Rpc {
   };
 }
 
-const hexBlock = (block: number) => `0x${block.toString(16)}`;
-function quantity(value: unknown): bigint {
+export const hexBlock = (block: number) => `0x${block.toString(16)}`;
+export function quantity(value: unknown): bigint {
   if (typeof value !== "string" || !/^0x[0-9a-f]{1,64}$/i.test(value)) throw new Error("X Layer Testnet returned an invalid value.");
   return BigInt(value);
 }
-function words(value: unknown, count: number): bigint[] {
+export function words(value: unknown, count: number): bigint[] {
   if (typeof value !== "string" || !/^0x[0-9a-f]*$/i.test(value) || value.length < 2 + 64 * count) throw new Error("X Layer Testnet returned an invalid value.");
   return Array.from({ length: count }, (_, index) => BigInt(`0x${value.slice(2 + index * 64, 2 + (index + 1) * 64)}`));
 }
-const call = (rpc: Rpc, to: string, data: string, block: string) => rpc("eth_call", [{ to, data }, block]);
+export const call = (rpc: Rpc, to: string, data: string, block: string) => rpc("eth_call", [{ to, data }, block]);
 
 /**
  * Runs `read` at `block`, retrying while the load-balanced public RPC answers from a node
  * that has not seen that block yet. Reverts are returned at once.
  */
-async function atBlock<T>(read: () => Promise<T>, attempts = 8): Promise<T> {
+export async function atBlock<T>(read: () => Promise<T>, attempts = 8): Promise<T> {
   for (let attempt = 1; ; attempt += 1) {
     try { return await read(); } catch (error) {
       const name = (error as { name?: unknown })?.name;
@@ -199,7 +201,7 @@ export type FundAccount = {
   pool: PoolReserves;
 };
 
-async function readNav(rpc: Rpc, block: string): Promise<FundNav> {
+export async function readNav(rpc: Rpc, block: string): Promise<FundNav> {
   try {
     const [nav, effectiveAt] = words(await call(rpc, FUND_DEPLOYMENT.fund, FUND_SELECTORS.currentNav, block), 2);
     return { navMicros: nav, effectiveAt: new Date(Number(effectiveAt) * 1000).toISOString() };
@@ -213,7 +215,7 @@ async function readNav(rpc: Rpc, block: string): Promise<FundNav> {
  * The block to read at: the latest the RPC reports, but never below `minBlock`, the newest block
  * this page has seen (a receipt's), so a lagging node cannot show balances from before it.
  */
-async function readBlock(rpc: Rpc, minBlock = 0): Promise<number> {
+export async function readBlock(rpc: Rpc, minBlock = 0): Promise<number> {
   if (quantity(await rpc("eth_chainId", [])) !== BigInt(FUND_DEPLOYMENT.chainId)) throw new Error("The network does not match X Layer Testnet.");
   return Math.max(Number(quantity(await rpc("eth_blockNumber", []))), minBlock);
 }
@@ -377,7 +379,7 @@ export function poolFill(receipt: FundReceipt): PoolFill | null {
 }
 
 /** Revert data carried by a wallet or RPC error, wherever the provider put it. */
-function revertData(error: unknown): string | null {
+export function revertData(error: unknown): string | null {
   const seen = new Set<unknown>();
   const visit = (value: unknown): string | null => {
     if (!value || seen.has(value)) return null;

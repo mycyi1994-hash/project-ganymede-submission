@@ -11,6 +11,7 @@
     "deploy:feed": "hardhat run scripts/deploy-feed.ts --network xlayerTestnet",
     "deploy:pool": "hardhat run scripts/deploy-pool.ts --network xlayerTestnet",
     "deploy:lending": "hardhat run scripts/deploy-lending.ts --network xlayerTestnet",
+    "activate:lending": "hardhat run scripts/activate-lending.ts --network xlayerTestnet",
     "fork:lending": "hardhat run scripts/fork-lending.ts",
     "allowlist": "hardhat run scripts/allowlist.ts --network xlayerTestnet",
     "status": "hardhat run scripts/status.ts --network xlayerTestnet",

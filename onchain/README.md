@@ -10,7 +10,7 @@ sources stay in `contracts/`.
 cd onchain
 npm install
 npm run build   # compile
-npm test        # 61 tests, no network needed
+npm test        # 62 tests, no network needed
 ```
 
 ## Keys
@@ -113,15 +113,19 @@ its own nonce and gas limit, because a node behind the load-balanced RPC can lag
 the last receipt. The script records both addresses, their creation
 transactions and the seeding transaction.
 
-## Lending market (deployed, paused)
+## Lending market (live)
 
 `GanymedeLendingMarket` lends dUSD against USTX collateral valued at the fund's
 current NAV (rules in `../contracts/README.md`; 13 tests in
 `test/GanymedeLendingMarket.test.ts`). It is deployed at
 [`0xae2f54ae3d0370295de18510d56de92afb8843c7`](https://web3.okx.com/explorer/x-layer-testnet/address/0xae2f54ae3d0370295de18510d56de92afb8843c7)
 ([creation](https://web3.okx.com/explorer/x-layer-testnet/tx/0xb771847aebe5f893eec25e97f99c69cc55f0f85fcaa71217facab2bd7df26278))
-and paused: nothing can be supplied or borrowed until the administrator calls
-`unpause()`, which needs the user's approval. It is not in the app.
+and live: the administrator unpaused it with the user's approval
+([unpause](https://web3.okx.com/explorer/x-layer-testnet/tx/0x1acb998775cb55926d585611f9cc18171ab63015b86b62927828d237af6a873f)), a test wallet
+supplied the first $5,000 of demo dollars
+([supply](https://web3.okx.com/explorer/x-layer-testnet/tx/0xaae154df99a842a354c832fbaefff5fdadaf5ae0538fdb3408b0dce1a5ea67af)), and the USTX page's
+Borrow section deposits USTX, borrows, repays, withdraws and lends through it.
+Pausing it again needs the user's approval.
 
 Try a full cycle against the live contracts without touching the deployment:
 
@@ -146,8 +150,16 @@ which deploys the market next to the recorded fund with its own nonce and gas
 limit, reads the wiring back, confirms it is paused and adds it to
 `deployments/xlayer-testnet.json` with its creation transaction. It was
 rehearsed first on a local fork of X Layer Testnet with a key holding no real
-funds. The script never unpauses the market; activating it is a separate
-decision.
+funds. The deploy script never unpauses the market; activating it was a separate
+decision, taken with
+
+```bash
+npm run activate:lending
+```
+
+which runs `unpause()` as a simulation first, sends it from the administrator
+key, reads `paused = false` back at the receipt's block and records the
+transaction.
 
 ## Verify the sources
 
@@ -164,7 +176,7 @@ and runtime bytecode) on Sourcify:
 | `GanymedeUstxPool` (USTX/dUSD) | [verified](https://web3.okx.com/explorer/x-layer-testnet/address/0x286f5e7ffdbc30db12665d7a3854217d7cd05cc1) | [exact match](https://repo.sourcify.dev/1952/0x286f5e7ffdbc30db12665d7a3854217d7cd05cc1) |
 | `GanymedeNavArbitrage` | [verified](https://web3.okx.com/explorer/x-layer-testnet/address/0xaeba15aa92d6f3109e2b992f18933e1abe2fa3d9) | [exact match](https://repo.sourcify.dev/1952/0xaeba15aa92d6f3109e2b992f18933e1abe2fa3d9) |
 | `GanymedeNavFeed` (USTX / USD) | [verified](https://web3.okx.com/explorer/x-layer-testnet/address/0x292c56c5290cc7b73e3ee33c2c2688eb3e04c3c8) | [exact match](https://repo.sourcify.dev/1952/0x292c56c5290cc7b73e3ee33c2c2688eb3e04c3c8) |
-| `GanymedeLendingMarket` (paused) | [verified](https://web3.okx.com/explorer/x-layer-testnet/address/0xae2f54ae3d0370295de18510d56de92afb8843c7) | [exact match](https://repo.sourcify.dev/1952/0xae2f54ae3d0370295de18510d56de92afb8843c7) |
+| `GanymedeLendingMarket` | [verified](https://web3.okx.com/explorer/x-layer-testnet/address/0xae2f54ae3d0370295de18510d56de92afb8843c7) | [exact match](https://repo.sourcify.dev/1952/0xae2f54ae3d0370295de18510d56de92afb8843c7) |
 
 To verify a new deployment, pick one of the options below.
 

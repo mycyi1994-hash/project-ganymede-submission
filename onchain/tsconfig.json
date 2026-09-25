@@ -18,6 +18,7 @@
       "../relayer/src/ids.ts": "cjs",
       // The app's fund client, pinned against the compiled contracts in test/AppFundClient.test.ts.
       "../lib/xstocks/fund.ts": "cjs",
+      "../lib/xstocks/lending.ts": "cjs",
       "../lib/chains.ts": "cjs"
     }
   },
@@ -28,6 +29,7 @@
     // Only the id module — the rest of relayer/src targets the Workers runtime.
     "../relayer/src/ids.ts",
     "../lib/xstocks/fund.ts",
+    "../lib/xstocks/lending.ts",
     // hardhat-viem writes contract types here on `npm run build`.
     "./artifacts/**/*.d.ts"
   ]

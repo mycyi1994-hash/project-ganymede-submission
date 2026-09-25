@@ -90,6 +90,22 @@ const ARBITRAGE_TX = "0x3c604c934a1ef7576a173e0b513c419ad89376f1c6bea17464f8c5af
 // The keeper's own trade, sent with nobody watching: the pool was 6.02% below the NAV and closed to 0.29% below.
 const KEEPER_TX = "0xbec5c89a1546e65c1f03a4131c85c1ef50e1ac9e3f4e6e09f929b33f7c33d26f";
 
+const lendingExample = `import { parseAbi } from "viem";
+
+const market = "${FUND_DEPLOYMENT.lending}";
+const ustx = "${FUND_DEPLOYMENT.fund}";
+const abi = parseAbi([
+  "function supplyCollateral(uint256 shares)",
+  "function borrow(uint256 amount)",
+  "function collateralValueOf(address) view returns (uint256 value, uint256 borrowLimit, uint256 liquidationLimit)",
+]);
+
+// Post 1 USTX (6 decimals), then borrow $20 of demo dollars against it.
+await wallet.writeContract({ address: ustx, abi: parseAbi(["function approve(address, uint256) returns (bool)"]), functionName: "approve", args: [market, 1_000_000n] });
+await wallet.writeContract({ address: market, abi, functionName: "supplyCollateral", args: [1_000_000n] });
+const [value, borrowLimit] = await client.readContract({ address: market, abi, functionName: "collateralValueOf", args: [wallet.account.address] });
+await wallet.writeContract({ address: market, abi, functionName: "borrow", args: [20_000_000n] });`;
+
 const embedExample = `<iframe src="${SITE}/embed/ustx" title="USTX verified NAV"
   width="440" height="260" style="border:0" loading="lazy"></iframe>`;
 
@@ -124,6 +140,10 @@ export function DevelopersPage() {
           <Code label="Close the gap with viem">{marketExample}</Code>
           <div className="gmd-terms-links"><a className="gmd-inline-link" href={`${FUND_DEPLOYMENT.explorerUrl}/address/${FUND_DEPLOYMENT.pool}`} target="_blank" rel="noreferrer">USTX/dUSD pool on the OKX explorer <Icon name="external" size={14} /></a><a className="gmd-inline-link" href={`${FUND_DEPLOYMENT.explorerUrl}/tx/${ARBITRAGE_TX}`} target="_blank" rel="noreferrer">An arbitrage on X Layer Testnet <Icon name="external" size={14} /></a><a className="gmd-inline-link" href={`${FUND_DEPLOYMENT.explorerUrl}/tx/${KEEPER_TX}`} target="_blank" rel="noreferrer">A keeper trade that closed a 6% gap <Icon name="external" size={14} /></a><a className="gmd-inline-link" href={`${FUND_DEPLOYMENT.explorerUrl}/address/${FUND_DEPLOYMENT.keeper}`} target="_blank" rel="noreferrer">Keeper wallet on the OKX explorer <Icon name="external" size={14} /></a></div>
         </section>
+        <section id="lending"><h2>Use USTX as collateral</h2><p><code>GanymedeLendingMarket</code> on X Layer Testnet lends demo dollars against USTX. It values collateral with the fund&rsquo;s <code>currentNav()</code>, the same registry record the feed serves, so a stale NAV stops new loans. A wallet can borrow up to 50% of its USTX value. Past 65%, anyone can repay up to half of the loan and take USTX worth 8% more, which the fund redeems at the NAV. The borrow rate follows a jump-rate curve on utilization, and lenders earn what borrowers pay less a 10% reserve. The USTX page&rsquo;s Borrow section runs the whole cycle from OKX Wallet.</p>
+          <Code label="Borrow against USTX with viem">{lendingExample}</Code>
+          <div className="gmd-terms-links"><a className="gmd-inline-link" href={`${FUND_DEPLOYMENT.explorerUrl}/address/${FUND_DEPLOYMENT.lending}`} target="_blank" rel="noreferrer">Lending market on the OKX explorer <Icon name="external" size={14} /></a><a className="gmd-inline-link" href="/products/ustx#borrow">Borrow on the USTX page <Icon name="arrow" size={14} /></a></div>
+        </section>
         <section id="embed"><h2>Embed the verified NAV badge</h2><p>Show the USTX NAV on your site, wallet or dashboard. The badge reads X Layer from the visitor’s browser, hashes the published document and recalculates the NAV before it says “Verified”.</p>
           <Code label="HTML">{embedExample}</Code>
           <div className="gmd-embed-preview"><span>Live preview</span><iframe src="/embed/ustx" title="USTX verified NAV badge preview" width="440" height="260" loading="lazy" /></div>
@@ -135,9 +155,9 @@ export function DevelopersPage() {
         <section id="okx"><h2>Built on the OKX stack</h2>
           <ul className="gmd-stack-list">
             <li><b>OKX OnchainOS Market API</b><span>Prices all six xStocks on X Layer every five minutes. The NAV is never published without them.</span></li>
-            <li><b>X Layer Testnet</b><span>Holds the NAV registry (every NAV, its composition fingerprint and the shares outstanding), the USTX token, which issues shares only at the recorded NAV, a feed that serves that NAV to other contracts in the Chainlink interface, and a USTX/dUSD pool whose gap to the NAV any wallet can close in one transaction.</span></li>
+            <li><b>X Layer Testnet</b><span>Holds the NAV registry (every NAV, its composition fingerprint and the shares outstanding), the USTX token, which issues shares only at the recorded NAV, a feed that serves that NAV to other contracts in the Chainlink interface, a USTX/dUSD pool whose gap to the NAV any wallet can close in one transaction, and a market that lends demo dollars against USTX at that NAV.</span></li>
             <li><b>X Layer mainnet</b><span>Where the xStocks live. Portfolio reads any wallet’s xStock balances directly from mainnet.</span></li>
-            <li><b>OKX Wallet</b><span>Invests and redeems USTX on X Layer Testnet from the USTX page, and shows its balances on Portfolio.</span></li>
+            <li><b>OKX Wallet</b><span>Buys and sells USTX on X Layer Testnet from the USTX page, at the fund or in the pool, borrows against it, and shows its balances on Portfolio.</span></li>
             <li><b>OKX explorer</b><span>Every record, token and transaction links to the OKX X Layer explorer.</span></li>
           </ul>
         </section>

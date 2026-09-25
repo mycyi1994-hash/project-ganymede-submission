@@ -66,15 +66,16 @@ For OKX Dev Day we moved settlement to X Layer and built the tokenized-stock pro
 | OKX OnchainOS Market API | Signed price requests for the six xStock tokens on X Layer mainnet (196). The prices are the inputs of every NAV |
 | X Layer mainnet | Where the priced xStock tokens live. The browser reads the six pinned token contracts (code, symbol, decimals) and any wallet's balances directly |
 | X Layer Testnet (1952) | `GanymedeNavRegistry` stores each NAV, the shares outstanding, the effective time and the composition fingerprint and emits `NavPublished`. `GanymedeBasketFund` (USTX) issues and redeems shares only at that NAV, and `GanymedeDemoDollar` (dUSD) pays for them |
-| OKX Wallet | `window.okxwallet` first: the USTX page switches it to X Layer Testnet and sends the claim, approve, invest and redeem transactions; Portfolio reads its balances |
+| OKX Wallet | `window.okxwallet` first: the USTX page switches it to X Layer Testnet and sends the claim, approve, invest, redeem, pool trade and lending transactions; Portfolio reads its balances |
 | OKX explorer | Every record, token and transaction links to the OKX X Layer explorer |
 | Public API and badge | `/api/v1/ustx` and `/embed/ustx` let other X Layer apps show the verified NAV |
 | USTX market | `GanymedeUstxPool` is a constant-product USTX/dUSD pool, and `GanymedeNavArbitrage` closes its gap to the NAV through the fund in one transaction, like ETF creation and redemption. A keeper Worker checks the pool every five minutes and sends that trade when closing the gap earns at least a cent; [one such trade](https://web3.okx.com/explorer/x-layer-testnet/tx/0xbec5c89a1546e65c1f03a4131c85c1ef50e1ac9e3f4e6e09f929b33f7c33d26f) closed a 6.02% gap to 0.29%. The USTX page shows the pool price and its premium or discount to the NAV |
+| USTX lending | `GanymedeLendingMarket` lends demo dollars against USTX valued at the fund's recorded NAV, up to 50% of it, with liquidation past 65% that the fund's redemption at NAV pays out. The USTX page's Borrow section deposits USTX from OKX Wallet, borrows, repays, withdraws and lends |
 | NAV price feed | `GanymedeNavFeed` serves the registry's USTX NAV through `AggregatorV3Interface`, the interface Chainlink price feeds use (8 decimals, "USTX / USD"), so X Layer contracts that read Chainlink prices can read USTX without custom code |
 | Browser verifier | Reads the registry over public RPC after checking the chain ID, then verifies exact document bytes and integer arithmetic |
 | Evidence command | Re-checks a downloaded file and matches it to the `NavPublished` event in its transaction receipt |
 
-On X Layer Testnet: NAV registry [`0xf320d2a7f280b7ab61e24374986869d7be34289c`](https://web3.okx.com/explorer/x-layer-testnet/address/0xf320d2a7f280b7ab61e24374986869d7be34289c), USTX [`0x77eaeba1366bde7818da12d3cbdbea0a2ee97596`](https://web3.okx.com/explorer/x-layer-testnet/address/0x77eaeba1366bde7818da12d3cbdbea0a2ee97596), dUSD [`0xf07535080f74e8b0f571e58dfa600f47e72ea9bf`](https://web3.okx.com/explorer/x-layer-testnet/address/0xf07535080f74e8b0f571e58dfa600f47e72ea9bf), NAV feed [`0x292c56c5290cc7b73e3ee33c2c2688eb3e04c3c8`](https://web3.okx.com/explorer/x-layer-testnet/address/0x292c56c5290cc7b73e3ee33c2c2688eb3e04c3c8), USTX/dUSD pool [`0x286f5e7ffdbc30db12665d7a3854217d7cd05cc1`](https://web3.okx.com/explorer/x-layer-testnet/address/0x286f5e7ffdbc30db12665d7a3854217d7cd05cc1), NAV arbitrage [`0xaeba15aa92d6f3109e2b992f18933e1abe2fa3d9`](https://web3.okx.com/explorer/x-layer-testnet/address/0xaeba15aa92d6f3109e2b992f18933e1abe2fa3d9), lending market (paused) [`0xae2f54ae3d0370295de18510d56de92afb8843c7`](https://web3.okx.com/explorer/x-layer-testnet/address/0xae2f54ae3d0370295de18510d56de92afb8843c7). Their sources are verified on the OKX explorer and match exactly on Sourcify ([list](onchain/README.md#verify-the-sources)).
+On X Layer Testnet: NAV registry [`0xf320d2a7f280b7ab61e24374986869d7be34289c`](https://web3.okx.com/explorer/x-layer-testnet/address/0xf320d2a7f280b7ab61e24374986869d7be34289c), USTX [`0x77eaeba1366bde7818da12d3cbdbea0a2ee97596`](https://web3.okx.com/explorer/x-layer-testnet/address/0x77eaeba1366bde7818da12d3cbdbea0a2ee97596), dUSD [`0xf07535080f74e8b0f571e58dfa600f47e72ea9bf`](https://web3.okx.com/explorer/x-layer-testnet/address/0xf07535080f74e8b0f571e58dfa600f47e72ea9bf), NAV feed [`0x292c56c5290cc7b73e3ee33c2c2688eb3e04c3c8`](https://web3.okx.com/explorer/x-layer-testnet/address/0x292c56c5290cc7b73e3ee33c2c2688eb3e04c3c8), USTX/dUSD pool [`0x286f5e7ffdbc30db12665d7a3854217d7cd05cc1`](https://web3.okx.com/explorer/x-layer-testnet/address/0x286f5e7ffdbc30db12665d7a3854217d7cd05cc1), NAV arbitrage [`0xaeba15aa92d6f3109e2b992f18933e1abe2fa3d9`](https://web3.okx.com/explorer/x-layer-testnet/address/0xaeba15aa92d6f3109e2b992f18933e1abe2fa3d9), lending market [`0xae2f54ae3d0370295de18510d56de92afb8843c7`](https://web3.okx.com/explorer/x-layer-testnet/address/0xae2f54ae3d0370295de18510d56de92afb8843c7). Their sources are verified on the OKX explorer and match exactly on Sourcify ([list](onchain/README.md#verify-the-sources)).
 
 ## What a match means
 
@@ -101,7 +102,7 @@ Ganymede is built to become the verification and distribution layer for tokenize
 2. Add a second price source and a written policy for corporate actions and constituent changes.
 3. An issuer console so other basket operators can launch their own baskets on the same registry format.
 4. With an issuer, custody and legal structure in place, take the USTX token to mainnet behind a vault that holds the xStocks, with rebalancing through OKX DEX. The testnet token already mints and redeems at the verified NAV; the mainnet vault has not started.
-5. Lending against USTX. `GanymedeLendingMarket` lends demo dollars against USTX valued at the recorded NAV, and liquidators who repay an unhealthy loan redeem the seized USTX at the fund. It is deployed on X Layer Testnet at [`0xae2f54ae3d0370295de18510d56de92afb8843c7`](https://web3.okx.com/explorer/x-layer-testnet/address/0xae2f54ae3d0370295de18510d56de92afb8843c7) but paused, so nothing can be supplied or borrowed yet, and `npm run fork:lending` runs a full cycle, liquidation included, against the live testnet contracts in memory.
+5. Lending against USTX. `GanymedeLendingMarket` lends demo dollars against USTX valued at the recorded NAV, and liquidators who repay an unhealthy loan redeem the seized USTX at the fund. It is live on X Layer Testnet at [`0xae2f54ae3d0370295de18510d56de92afb8843c7`](https://web3.okx.com/explorer/x-layer-testnet/address/0xae2f54ae3d0370295de18510d56de92afb8843c7): the USTX page's Borrow section deposits USTX from OKX Wallet, borrows against it, repays and withdraws, or lends demo dollars, and a test wallet supplied the first $5,000. `npm run fork:lending` runs a full cycle, liquidation included, against the live testnet contracts in memory.
 
 ## Reproduce locally
 
@@ -126,7 +127,7 @@ See `.env.example` for setting names and [the engine reference](docs/ENGINE_REFE
 
 ## Source and release
 
-This public review snapshot corresponds to production source commit `73d543f4cdfcced41c76df3a148360c6730b839e`. Application code matches the recorded source; documentation may be newer. The original development history remains private, and public-hosting identifiers are adjusted. See [snapshot provenance](docs/BUILD_EVIDENCE.md). Cloudflare deployment messages identify the production source commit. [Release rules and identity model](docs/release-identity.md).
+This public review snapshot corresponds to production source commit `0d989a74f56272427cfd9bfc02b6d7ef100cf93d`. Application code matches the recorded source; documentation may be newer. The original development history remains private, and public-hosting identifiers are adjusted. See [snapshot provenance](docs/BUILD_EVIDENCE.md). Cloudflare deployment messages identify the production source commit. [Release rules and identity model](docs/release-identity.md).
 
 - [Dev Day submission notes](docs/OKX_DEV_DAY.md) and [build-period work](docs/BUILD_PERIOD.md)
 - [Asset credits](public/ASSET-CREDITS.md)
@@ -140,7 +141,7 @@ This public review snapshot corresponds to production source commit `73d543f4cdf
 - Wallet investing: `contracts/GanymedeBasketFund.sol`, `contracts/GanymedeDemoDollar.sol`, `lib/xstocks/fund.ts`, `app/product-ui/WalletInvest.tsx`
 - NAV price feed: `contracts/GanymedeNavFeed.sol`
 - USTX market: `contracts/GanymedeUstxPool.sol`, `contracts/GanymedeNavArbitrage.sol`, `readPoolMarket` in `lib/xstocks/fund.ts`, the keeper in `relayer/src/keeper.ts`
-- Lending market (deployed, paused): `contracts/GanymedeLendingMarket.sol`, `onchain/scripts/fork-lending.ts`, `onchain/scripts/deploy-lending.ts`
+- Lending market: `contracts/GanymedeLendingMarket.sol`, `lib/xstocks/lending.ts`, `app/product-ui/Lending.tsx`, `onchain/scripts/fork-lending.ts`, `onchain/scripts/deploy-lending.ts`, `onchain/scripts/activate-lending.ts`
 - Demo investing and fund totals: `lib/demo/ledger.ts`, `app/api/demo/`, look-through: `lib/demo/basket.ts`
 - Public NAV API and badge: `app/api/v1/ustx/route.ts`, `app/embed/ustx/`
 

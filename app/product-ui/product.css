@@ -760,6 +760,22 @@
 .gmd-fund-facts dt { font-size: 14px; color: var(--gmd-copy); }
 .gmd-fund-facts dd { font-size: 14px; text-align: end; }
 .gmd-fund-facts a { color: var(--gmd-accent); }
+.gmd-lending-body { display: grid; grid-template-columns: minmax(0,1fr) minmax(0,1.15fr); gap: 24px; align-items: start; margin-top: 20px; }
+.gmd-lending-body > .gmd-lending-terms { grid-template-columns: 1fr; margin-top: 0; }
+.gmd-lending-panel { min-width: 0; padding: 18px; border: 1px solid var(--gmd-line); border-radius: 8px; background: #fafcfc; }
+.gmd-app .gmd-lending-panel h3 { margin-bottom: 8px; font-size: 16px; }
+.gmd-lending-panel > p { font-size: 14px; }
+.gmd-lending-panel > .gmd-button { width: 100%; margin-top: 14px; }
+.gmd-lending-actions { display: flex; flex-wrap: wrap; gap: 6px; margin-block: 14px; }
+.gmd-lending-actions button { min-height: 32px; padding: 5px 12px; border: 1px solid var(--gmd-line); border-radius: 999px; background: #fff; font-size: 13px; }
+.gmd-lending-actions button[aria-pressed=true] { border-color: var(--gmd-accent); background: #e9f1ef; color: var(--gmd-accent); font-weight: 600; }
+.gmd-lending-panel .gmd-order-input input { font-size: 26px; }
+.gmd-app .gmd-lending-max { display: inline; min-height: 0; padding: 0; border: 0; background: none; color: var(--gmd-accent); font-size: 12px; font-weight: 600; text-decoration: underline; text-underline-offset: 2px; }
+.gmd-lending-panel .gmd-facts.is-stale dd { color: var(--gmd-copy); }
+.gmd-lending-done { display: flex; gap: 8px; align-items: flex-start; margin-top: 12px; color: var(--gmd-accent); font-size: 14px; }
+.gmd-lending-panel :is(.gmd-tx-steps,.gmd-lending-done,.gmd-inline-error):focus { outline: none; }
+.gmd-lending-panel :is(.gmd-tx-steps,.gmd-lending-done,.gmd-inline-error):focus-visible { outline: 2px solid var(--gmd-accent); outline-offset: 3px; }
+.gmd-lending > .gmd-caption { margin-top: 16px; }
 .gmd-fund-holdings { margin-top: 28px; }
 .gmd-app .gmd-fund-holdings h3,.gmd-app .gmd-fund-activity h3,.gmd-app .gmd-inside h3,.gmd-app .gmd-order-basket h3 { font-size: 17px; }
 .gmd-fund-holdings > p { font-size: 14px; margin-top: 6px; max-width: 70ch; }
@@ -787,6 +803,7 @@
 @media (max-width: 930px) {
   .gmd-fund-grid { grid-template-columns: repeat(2,minmax(0,1fr)); }
   .gmd-fund-facts { grid-template-columns: 1fr; }
+  .gmd-lending-body { grid-template-columns: minmax(0,1fr); }
 }
 @media (max-width: 600px) {
   .gmd-fund { padding: 20px 16px; }

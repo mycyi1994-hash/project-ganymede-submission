@@ -20,7 +20,7 @@ import { useWalletAccount } from "./WalletAccount";
 // price, whichever gives more, and the shares land in the wallet. Selling works the same way:
 // redeem at the fund or sell in the pool.
 
-type Provider = NonNullable<Window["ethereum"]>;
+export type Provider = NonNullable<Window["ethereum"]>;
 type Side = "buy" | "sell";
 type Phase = "form" | "review" | "working" | "filled";
 type Step = { key: "approve" | "order"; label: string; state: "idle" | "wallet" | "chain" | "done"; hash?: string };
@@ -70,7 +70,8 @@ export async function switchToTestnet(provider: Provider) {
   }
 }
 
-async function send(provider: Provider, from: string, request: TransactionCall): Promise<string> {
+/** Sends one call from the connected wallet, only while it is on X Layer Testnet. */
+export async function sendFromWallet(provider: Provider, from: string, request: TransactionCall): Promise<string> {
   // Checked right before signing, so a network switch between steps cannot send it elsewhere.
   const chain = String(await provider.request({ method: "eth_chainId" })).toLowerCase();
   if (chain !== FUND_WALLET_CHAIN.chainId) throw new Error("Switch your wallet to X Layer Testnet, then try again.");
@@ -91,7 +92,7 @@ function waitLabel(seconds: number, now: number) {
   return hours ? `${hours}h ${minutes}m` : `${minutes}m`;
 }
 
-function TxLink({ hash, children = "OKX Explorer" }: { hash: string; children?: ReactNode }) {
+export function TxLink({ hash, children = "OKX Explorer" }: { hash: string; children?: ReactNode }) {
   return <a className="gmd-inline-tx" href={fundExplorer.tx(hash)} target="_blank" rel="noreferrer">{children}<Icon name="external" size={12} /><span className="gmd-sr-only"> (opens in a new tab)</span></a>;
 }
 
@@ -130,6 +131,12 @@ export function WalletInvest({ tabs, onUseDemo }: { tabs: ReactNode; onUseDemo: 
       .catch(error => { if (!cancelled) setReadFailure({ owner, message: fundErrorMessage(error) }); });
     return () => { cancelled = true; };
   }, [ready, address, watermark, reload]);
+  // Another panel's transaction (a loan, say) changed this wallet: read again from its block.
+  useEffect(() => {
+    const onOrder = (event: Event) => { const block = (event as CustomEvent<{ block?: number }>).detail?.block; if (typeof block === "number") setWatermark(current => Math.max(current, block)); };
+    window.addEventListener(DEMO_ORDER_EVENT, onOrder);
+    return () => window.removeEventListener(DEMO_ORDER_EVENT, onOrder);
+  }, []);
   // While an order is being chosen, refresh each minute so the NAV and balances stay current.
   useEffect(() => {
     if (!ready || phase !== "form") return;
@@ -170,7 +177,7 @@ export function WalletInvest({ tabs, onUseDemo }: { tabs: ReactNode; onUseDemo: 
     if (!provider || !account) return;
     setClaim({ state: "wallet" });
     try {
-      const hash = await send(provider, address, fundCalls.claim());
+      const hash = await sendFromWallet(provider, address, fundCalls.claim());
       setClaim({ state: "chain" });
       const receipt = await waitForFundReceipt(hash);
       if (receipt.status !== "success") throw new Error("The claim failed on X Layer Testnet.");
@@ -200,7 +207,7 @@ export function WalletInvest({ tabs, onUseDemo }: { tabs: ReactNode; onUseDemo: 
     try {
       if (needsApproval) {
         mark("approve", "wallet");
-        const hash = await send(provider, from, approval);
+        const hash = await sendFromWallet(provider, from, approval);
         mark("approve", "chain", hash);
         const receipt = await waitForFundReceipt(hash);
         if (receipt.status !== "success") throw new Error("The approval failed on X Layer Testnet.");
@@ -210,7 +217,7 @@ export function WalletInvest({ tabs, onUseDemo }: { tabs: ReactNode; onUseDemo: 
       const request = await order();
       await simulateFundCall(from, request, { minBlock: block });
       mark("order", "wallet");
-      const hash = await send(provider, from, request);
+      const hash = await sendFromWallet(provider, from, request);
       mark("order", "chain", hash);
       const receipt = await waitForFundReceipt(hash);
       const fundFilled = receipt.status === "success" && at === "fund" ? fundFill(receipt) : null;
@@ -226,7 +233,7 @@ export function WalletInvest({ tabs, onUseDemo }: { tabs: ReactNode; onUseDemo: 
       setPhase("filled");
       setAmount(side === "buy" ? "1,000" : "");
       setWatermark(current => Math.max(current, receipt.block));
-      window.dispatchEvent(new Event(DEMO_ORDER_EVENT));
+      window.dispatchEvent(new CustomEvent(DEMO_ORDER_EVENT, { detail: { block: receipt.block } }));
     } catch (error) {
       setFailure(fundErrorMessage(error));
       setPhase("review");

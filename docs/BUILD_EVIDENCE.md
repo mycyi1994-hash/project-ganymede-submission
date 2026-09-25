@@ -1,6 +1,6 @@
 # Build provenance
 
-Production source revision: `73d543f4cdfcced41c76df3a148360c6730b839e`.
+Production source revision: `0d989a74f56272427cfd9bfc02b6d7ef100cf93d`.
 
 This is a source snapshot, not a claim that the entire project was newly built for this event. The original repository remains private. The entries below were exported from its Git history; reviewers can inspect current implementations and tests, and request original history access from the team if needed. No old secrets, local environment files or full private Git history are published.
 
@@ -291,6 +291,27 @@ Validation of the snapshot source:
 
 - In the development repository, the typecheck, clean build and 140 tests pass, lint reports 0 errors, and the 61 contract tests pass. One contract test sends the app's own calldata, unchanged, to pool bytecode placed at the pinned pool address, and checks the app's quotes against `quoteBuy` and `quoteSell`.
 - A throwaway test wallet traded through the interface on X Layer Testnet, on a local build and then on production. Its allowances to the pool were first set to zero. A $20 purchase in the pool (approve, then buy) and a full sale (approve, then sell) each completed without page errors.
+- After the deployment, the main public routes and APIs returned 200 and the legacy routes redirected. Seven screens on desktop and mobile, with and without a wallet, had no axe violations, horizontal overflow or page errors.
+- The same tests pass in this public checkout after `npm ci`, and so do the relayer typecheck and 28 tests.
+
+These are point-in-time observations, not continuous availability or a security audit.
+
+## Lending market release
+
+Production source: 0d989a74f56272427cfd9bfc02b6d7ef100cf93d. Worker version: de3e16c9-b6bd-4fe3-a025-7de5d3eb38a5, deployed 2026-09-25; prior 5d7eebbc-b2c4-49fa-b7c1-23fe78270fb8. Relayer and keeper Workers unchanged. This snapshot is exported from 7e785de61eddbe48922a036ed4ef16c696811d12, which adds only documentation to the production source.
+
+- `GanymedeLendingMarket` (`0xae2f54ae3d0370295de18510d56de92afb8843c7`) is live on X Layer Testnet. With the user's approval, the administrator unpaused it after simulating the call (transaction `0x1acb998775cb55926d585611f9cc18171ab63015b86b62927828d237af6a873f`, `npm run activate:lending`). A throwaway test wallet supplied the first $5,000 of demo dollars (transaction `0xaae154df99a842a354c832fbaefff5fdadaf5ae0538fdb3408b0dce1a5ea67af`).
+- The USTX page's Borrow section, from OKX Wallet:
+  - Market figures read at one block.
+  - The wallet's position at the recorded NAV, computed with the contract's rounding.
+  - Deposit USTX, borrow, repay, withdraw USTX, lend and withdraw demo dollars. Each action is approved as needed, simulated, sent and read back from the market's event.
+  - What can be borrowed or withdrawn leaves 0.1% of the debt for the interest accrued until the transaction is mined.
+- The developer page shows how to use USTX as collateral, and `GET /api/v1/ustx` returns the market.
+
+Validation of the snapshot source:
+
+- In the development repository, the typecheck, clean build and 146 tests pass, lint reports 0 errors, and the 62 contract tests pass. One contract test places the market's bytecode and constructor state at the pinned address and runs a full cycle with the app's own calldata, including the app's maximum borrow and withdrawal after an hour of interest.
+- A throwaway test wallet ran the same cycle through the interface on X Layer Testnet, on a local build and then on production: 2.003298 USTX deposited, $20 borrowed at a 10.00% loan to value, repaid in full and the USTX withdrawn. It saw fresh figures after each step and no page errors.
 - After the deployment, the main public routes and APIs returned 200 and the legacy routes redirected. Seven screens on desktop and mobile, with and without a wallet, had no axe violations, horizontal overflow or page errors.
 - The same tests pass in this public checkout after `npm ci`, and so do the relayer typecheck and 28 tests.
 

@@ -63,6 +63,9 @@ test("product pages offer clearly labelled demo investing next to the verificati
   }
   const product = visible(await (await render("/products/ustx")).text());
   assert.match(product, /Invest in USTX/);
+  assert.match(product, /Borrow against USTX/);
+  assert.match(product, /Borrow up to/);
+  assert.match(product, /href="#borrow"/);
   assert.match(product, /You are on X Layer Testnet/);
   assert.match(product, /no real money moves/);
   assert.match(product, /aria-label="Pay with"/);
@@ -182,6 +185,8 @@ test("issuer, developer and embed pages render for partners", async () => {
   assert.match(developers, /Trade USTX on X Layer/);
   assert.match(developers, /A keeper checks the pool every five minutes and sends that trade when closing the gap earns at least a cent/);
   assert.match(developers, /quotes both the fund and the pool for each order and routes it to the better price/);
+  assert.match(developers, /Use USTX as collateral/);
+  assert.match(developers, /0xae2f54ae3d0370295de18510d56de92afb8843c7/);
   assert.match(developers, /0x286f5e7ffdbc30db12665d7a3854217d7cd05cc1/);
   assert.match(developers, /address\/0xccf372068496d9bef0f7cf83d697183d358dec1b/);
   assert.match(developers, /tx\/0xbec5c89a1546e65c1f03a4131c85c1ef50e1ac9e3f4e6e09f929b33f7c33d26f/);

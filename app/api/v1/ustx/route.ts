@@ -83,6 +83,13 @@ export async function GET(request: Request) {
         rule: "A constant-product USTX/dUSD pool with a 0.3% fee; premiumBps() gives its gap to the NAV, and the arbitrage contract closes it through the fund in one transaction; a keeper checks every five minutes and does so when closing the gap earns at least a cent.",
         explorerUrl: `${FUND_DEPLOYMENT.explorerUrl}/address/${FUND_DEPLOYMENT.pool}`,
       },
+      lending: {
+        market: FUND_DEPLOYMENT.lending,
+        network: FUND_DEPLOYMENT.name,
+        chainId: FUND_DEPLOYMENT.chainId,
+        rule: "Borrow demo dollars up to 50% of USTX collateral valued at the fund's currentNav(); past 65% anyone can repay up to half and take USTX worth 8% more.",
+        explorerUrl: `${FUND_DEPLOYMENT.explorerUrl}/address/${FUND_DEPLOYMENT.lending}`,
+      },
       verify: {
         page: `${origin}/products/ustx/transparency`,
         documents: `${origin}/api/xstocks`,

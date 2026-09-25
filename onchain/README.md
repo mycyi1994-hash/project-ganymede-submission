@@ -10,7 +10,7 @@ sources stay in `contracts/`.
 cd onchain
 npm install
 npm run build   # compile
-npm test        # 62 tests, no network needed
+npm test        # 69 tests, no network needed
 ```
 
 ## Keys
@@ -161,6 +161,26 @@ which runs `unpause()` as a simulation first, sends it from the administrator
 key, reads `paused = false` back at the receipt's block and records the
 transaction.
 
+## In-kind vault (fork of X Layer mainnet)
+
+`GanymedeBasketVault` creates and redeems a basket token in kind: shares are created only by
+delivering the constituents, the first creation at a fixed quantity per share and later ones in
+proportion to the holdings, and redeemed for a proportional share of them (rules in
+`../contracts/README.md`; 7 tests in `test/GanymedeBasketVault.test.ts`, including a multiplier
+token like the xStocks). It is not deployed. Run it against the real xStocks:
+
+```bash
+npm run fork:vault
+```
+
+This forks X Layer mainnet into memory and, with local test accounts, buys AAPLx, MSFTx and NVDAx
+on their Uniswap V3 pools with USDG (taken on the fork from a pool outside the basket) and unwraps
+each pool's ERC-4626 wrapper into the xStock; deploys the vault with MAG3's units per share
+(`../public/baskets/mag3/basket.json`) for the first creation; creates 10 shares; moves 4 shares to
+a second account, which redeems them for 4/10 of the holdings; and redeems the rest, checking every
+amount. It uses no key and broadcasts nothing. The run on 25 September 2026 is recorded in
+`../docs/IN_KIND_VAULT.md`.
+
 ## Verify the sources
 
 Source verification makes the contract readable on the explorer. All eight
@@ -177,6 +197,10 @@ and runtime bytecode) on Sourcify:
 | `GanymedeNavArbitrage` | [verified](https://web3.okx.com/explorer/x-layer-testnet/address/0xaeba15aa92d6f3109e2b992f18933e1abe2fa3d9) | [exact match](https://repo.sourcify.dev/1952/0xaeba15aa92d6f3109e2b992f18933e1abe2fa3d9) |
 | `GanymedeNavFeed` (USTX / USD) | [verified](https://web3.okx.com/explorer/x-layer-testnet/address/0x292c56c5290cc7b73e3ee33c2c2688eb3e04c3c8) | [exact match](https://repo.sourcify.dev/1952/0x292c56c5290cc7b73e3ee33c2c2688eb3e04c3c8) |
 | `GanymedeLendingMarket` | [verified](https://web3.okx.com/explorer/x-layer-testnet/address/0xae2f54ae3d0370295de18510d56de92afb8843c7) | [exact match](https://repo.sourcify.dev/1952/0xae2f54ae3d0370295de18510d56de92afb8843c7) |
+
+MAG3's registry, a second `GanymedeNavRegistry` deployed by the demo issuer wallet at
+[`0xf412ba3857f63f513b93c4a8e3cacc1f162daa60`](https://web3.okx.com/explorer/x-layer-testnet/address/0xf412ba3857f63f513b93c4a8e3cacc1f162daa60),
+also matches exactly on [Sourcify](https://repo.sourcify.dev/1952/0xf412ba3857f63f513b93c4a8e3cacc1f162daa60).
 
 To verify a new deployment, pick one of the options below.
 

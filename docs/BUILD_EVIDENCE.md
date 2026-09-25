@@ -1,6 +1,6 @@
 # Build provenance
 
-Production source revision: `6bcee813f43f1dd65a13d269bbee78868e84648c`.
+Production source revision: `75e919753f78e3cbb78f8aa5886491a2775ea8d1`.
 
 This is a source snapshot, not a claim that the entire project was newly built for this event. The original repository remains private. The entries below were exported from its Git history; reviewers can inspect current implementations and tests, and request original history access from the team if needed. No old secrets, local environment files or full private Git history are published.
 
@@ -447,6 +447,27 @@ Validation of the snapshot source:
 
 - In the development repository, the typecheck, a clean build and 162 tests pass, and lint reports 0 errors. On a local build reading the production data, the fund overview had no horizontal overflow on desktop or phone.
 - After the deployment, the public API reported a ten-minute quote limit, the first record at 16:40:54 UTC was confirmed with no blockers, the main routes returned 200 and the legacy routes redirected.
+- The same tests pass in this public checkout after `npm ci`, and so do the relayer typecheck and 28 tests.
+
+These are point-in-time observations, not continuous availability or a security audit.
+
+## Second price source, second basket and in-kind vault release
+
+Production source: 75e919753f78e3cbb78f8aa5886491a2775ea8d1. Worker version: 4011ca58-6d7f-4b5a-9040-9886f4a40fa2, deployed 2026-09-25; prior a11671f0-2fc9-420e-b458-ad66da1a9731, and before it, on the same day, f9be1c59, cdc2a6f6, 3bbe9250, eb7c548c and a23ce053 after 014ecc17. Relayer and keeper Workers unchanged. This snapshot is exported from 7095bd237b7476db10376440c68d6aface762e48, which adds only documentation to the production source.
+
+This release answers a third review of the submission, eleven items, and two review rounds on the result.
+
+- A second price source. Before each record, the publisher values the basket at the Uniswap V3 pools on X Layer mainnet where the xStocks' ERC-4626 wrappers trade, each pool confirmed by the factory and each wrapper by its xStock, and does not record a NAV more than 1% from that value; if the pools cannot be read, the record goes ahead with a warning. The Transparency page repeats the comparison in the browser, and the public API names the pools and the rule.
+- Record times. A record's time is its oldest price, and the NAV is calculated after the prices arrive. Prices quoted more than a minute apart block the record; the browser and `npm run verify:evidence` reject a price more than a minute older than the record time and a record time more than a minute after its block. The public API adds `calculatedAt` and `validUntil`.
+- Rate limits. The price API answers 429 with Cloudflare's "error code: 1015", counted per egress IP. A limited request is asked again 30 and 90 seconds later in the same cycle, then at the next cycle, and a long cycle renews its job lease before writing.
+- A second basket from one configuration file. MAG3 (AAPLx, MSFTx, NVDAx) is recorded by a demo issuer wallet, separate from Ganymede's keys, in its own `GanymedeNavRegistry` at 0xf412ba3857f63f513b93c4a8e3cacc1f162daa60 on X Layer Testnet (exact Sourcify match), priced from the X Layer pools with `npm run basket:publish`. The developer page checks its latest record with USTX's checks plus a check of its configured units, weights and fixing time, and `/embed/basket?config=/baskets/mag3/basket.json` is its badge.
+- An in-kind vault. `contracts/GanymedeBasketVault.sol` creates shares only against delivery of the constituents and redeems them for a proportional share of the holdings, so an xStock dividend or fee paid through its balance multiplier reaches the holders. `npm run fork:vault` bought real AAPLx, MSFTx and NVDAx on their pools on a fork of X Layer mainnet, created 10 shares and redeemed them from two accounts (`docs/IN_KIND_VAULT.md`). It is not deployed.
+- The issuer page gives a pilot's scope and the measured running cost, About USTX compares one order with buying the six xStocks separately, and the public API splits the recorded shares into wallet tokens and demo balances.
+
+Validation of the snapshot source:
+
+- In the development repository, the typecheck, a clean build and 180 tests pass, and lint reports 0 errors; the relayer typecheck and 28 tests pass; the contract suite's 69 tests pass.
+- After the final deployment, 16 main routes returned 200 and the 4 legacy routes redirected. Transparency showed "NAV verified on X Layer" with the pools agreeing within 0.03%; MAG3 and its badge verified in the browser; axe reported no violations on six changed screens at desktop and phone widths; with a test wallet, a $10 fund investment and redemption and a lending cycle (deposit, borrow, repay, withdraw) succeeded with no page errors; a production evidence file passed `npm run verify:evidence`. NAV records at 18:40, 18:45, 18:50, 18:55 and 19:00 UTC were confirmed.
 - The same tests pass in this public checkout after `npm ci`, and so do the relayer typecheck and 28 tests.
 
 These are point-in-time observations, not continuous availability or a security audit.

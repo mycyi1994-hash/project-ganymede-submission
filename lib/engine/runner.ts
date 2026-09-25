@@ -432,7 +432,7 @@ export async function runUstxNavCycle(env: EngineEnv): Promise<XStocksCycleResul
   const owner = `${newId("cycle")}:scheduled`;
   if (!(await repo.acquireLease("portfolio-engine", owner, LEASE_TTL_SECONDS))) return null;
   try {
-    return await runXStocksCycle(env, repo, new SettlementClient(env));
+    return await runXStocksCycle(env, repo, new SettlementClient(env), undefined, { renewLease: () => repo.acquireLease("portfolio-engine", owner, LEASE_TTL_SECONDS) });
   } finally {
     await repo.releaseLease("portfolio-engine", owner).catch(() => undefined);
   }

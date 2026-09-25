@@ -37,8 +37,11 @@ export function decodeLatestNav(result: string): OnchainNav {
   };
 }
 
-export async function readLatestNav(rpcUrl: string, registry: string, options: { fetcher?: typeof fetch; chainId?: number } = {}): Promise<OnchainNav> {
-  if (XSTOCKS_PRODUCT.id !== "us-tech-x") throw new Error("XSTOCKS_PRODUCT_KEY is stale — recompute it for the new product id");
+/** Reads USTX's record, or with `productKey` another basket's record in the registry it names. */
+export async function readLatestNav(rpcUrl: string, registry: string, options: { fetcher?: typeof fetch; chainId?: number; productKey?: string } = {}): Promise<OnchainNav> {
+  if (!options.productKey && XSTOCKS_PRODUCT.id !== "us-tech-x") throw new Error("XSTOCKS_PRODUCT_KEY is stale — recompute it for the new product id");
+  const productKey = options.productKey ?? XSTOCKS_PRODUCT_KEY;
+  if (!/^0x[0-9a-f]{64}$/i.test(productKey)) throw new Error("Invalid product key");
   if (!/^0x[0-9a-f]{40}$/i.test(registry)) throw new Error("Invalid NAV registry address");
   const fetcher = options.fetcher ?? fetch;
   if (options.chainId !== undefined) {
@@ -58,7 +61,7 @@ export async function readLatestNav(rpcUrl: string, registry: string, options: {
       jsonrpc: "2.0",
       id: 1,
       method: "eth_call",
-      params: [{ to: registry, data: `${LATEST_NAV_SELECTOR}${XSTOCKS_PRODUCT_KEY.slice(2)}` }, "latest"],
+      params: [{ to: registry, data: `${LATEST_NAV_SELECTOR}${productKey.slice(2).toLowerCase()}` }, "latest"],
     }),
   });
   if (!response.ok) throw new Error(`Settlement RPC ${response.status}`);

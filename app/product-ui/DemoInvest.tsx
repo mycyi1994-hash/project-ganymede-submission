@@ -215,7 +215,7 @@ export function DemoPortfolio() {
       {shares > 0n && <section className="gmd-inside" aria-labelledby="inside-title">
         <header className="gmd-section-heading"><div><h3 id="inside-title">Inside your USTX</h3><p>Your {formatShares(shares)} shares, looked through to the six xStocks.</p></div></header>
         {composition ? <BasketTable composition={composition} sharesMicros={shares} label="Your USTX looked through to each xStock" chart /> : <p className="gmd-caption">Waiting for the latest record to show what your shares hold…</p>}
-        <p className="gmd-caption">Each USTX share holds fixed token amounts of each xStock until the next quarterly rebalance. Values use the latest OKX OnchainOS prices recorded on X Layer.</p>
+        <p className="gmd-caption">Each USTX share is valued as fixed token amounts of each xStock until the next quarterly rebalance. Values use the latest OKX OnchainOS prices recorded on X Layer.</p>
       </section>}
       <div className="gmd-demo-activity">
         <header className="gmd-section-heading"><h3>Recent orders</h3><span>{demo.orders.length ? `${demo.orders.length} shown` : "None yet"}</span></header>

@@ -1137,3 +1137,6 @@ html:has(.gmd-drawer[open]) { overflow: hidden; }
 .gmd-position-table.is-loading .gmd-position-row > div { display: grid; gap: 6px; }
 .gmd-position-table.is-loading .gmd-position-name { display: flex !important; align-items: center; gap: 12px; }
 .gmd-position-table.is-loading .gmd-position-name > div { display: grid; gap: 6px; }
+.gmd-app .gmd-pool-check .gmd-section-heading { margin-bottom: 12px; }
+.gmd-app .gmd-pool-summary { font-size: 15px; margin: 4px 0 8px; max-width: 70ch; }
+.gmd-app .gmd-pool-summary .gmd-text-button { width: auto; margin: 0 0 0 6px; min-height: 0; }

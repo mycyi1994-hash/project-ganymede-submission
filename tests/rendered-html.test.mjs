@@ -207,4 +207,12 @@ test("issuer, developer and embed pages render for partners", async () => {
   assert.match(badge, /Checking the record/);
   assert.doesNotMatch(badge, /Primary navigation/);
   assert.equal(embed.headers.get("x-frame-options"), null, "partners can frame the badge");
+  // A second basket, defined by a configuration file, is checked on the developer page and has its own badge.
+  assert.match(developers, /Publish your own basket/);
+  assert.match(developers, /\/embed\/basket\?config=\/baskets\/mag3\/basket\.json/);
+  assert.match(developers, /npm run basket:publish/);
+  const basket = await render("/embed/basket?config=/baskets/mag3/basket.json");
+  assert.equal(basket.status, 200);
+  assert.match(visible(await basket.text()), /Loading the basket/);
+  assert.match(visible(await (await render("/embed/basket?config=https://other.example/basket.json")).text()), /No basket configured/);
 });

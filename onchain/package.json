@@ -13,6 +13,7 @@
     "deploy:lending": "hardhat run scripts/deploy-lending.ts --network xlayerTestnet",
     "activate:lending": "hardhat run scripts/activate-lending.ts --network xlayerTestnet",
     "fork:lending": "hardhat run scripts/fork-lending.ts",
+    "fork:vault": "hardhat run scripts/fork-vault.ts",
     "allowlist": "hardhat run scripts/allowlist.ts --network xlayerTestnet",
     "status": "hardhat run scripts/status.ts --network xlayerTestnet",
     "deploy:giwa": "hardhat run scripts/deploy.ts --network giwaSepolia",

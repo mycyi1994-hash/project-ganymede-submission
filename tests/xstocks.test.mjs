@@ -87,6 +87,17 @@ test("under the default policy a NAV is never published from prices more than te
   assert.equal(fresh.publishable, true);
 });
 
+test("a record carries the time of its oldest price, never later than the calculation", async () => {
+  const constituents = constituentsWithAddresses(ADDRESSES);
+  const now = "2026-09-25T16:00:00.000Z";
+  const older = await evaluateBasket({ constituents, quotes: quotes(PRICES, "2026-09-25T15:57:00.000Z"), previous: null, now, maxQuoteAgeMinutes: 10 });
+  assert.equal(older.composition.asOf, "2026-09-25T15:57:00.000Z");
+  assert.equal(older.basket.fixedAt, "2026-09-25T15:57:00.000Z");
+  // OnchainOS stamps the response a moment after the request, so a fresh record keeps the calculation time.
+  const fresh = await evaluateBasket({ constituents, quotes: quotes(PRICES, "2026-09-25T16:00:00.900Z"), previous: null, now, maxQuoteAgeMinutes: 10 });
+  assert.equal(fresh.composition.asOf, now);
+});
+
 test("unconfigured addresses block publication instead of guessing", async () => {
   const evaluation = await evaluateBasket({ constituents: constituentsWithAddresses(""), quotes: quotes(), previous: null, now: NOW, maxQuoteAgeMinutes: 60 });
   assert.equal(evaluation.status, "awaiting_configuration");
@@ -160,14 +171,27 @@ test("retries once when the price API answers with a transient server error", as
   assert.equal(quotes.get("AAPLx").priceMicros, parseDecimalMicros(PRICES.AAPLx));
 });
 
-test("a rate-limited price request sets a cooldown instead of retrying", async () => {
+test("a rate limit is asked again twice, spaced out, then leaves the next cycle free to try", async () => {
   let calls = 0;
+  const waits = [];
   const fetcher = async () => { calls += 1; return new Response("error code: 1015", { status: 429 }); };
   const before = Date.now();
-  const { quotes, warnings, retryAt } = await fetchXStockQuotes(CREDENTIALS, CONSTITUENTS, fetcher);
-  assert.equal(calls, 1);
+  const { quotes, warnings, retryAt } = await fetchXStockQuotes(CREDENTIALS, CONSTITUENTS, fetcher, async (ms) => { waits.push(ms); });
+  assert.equal(calls, 3);
+  assert.deepEqual(waits, [30_000, 90_000]);
   assert.equal(quotes.size, 0);
   assert.match(warnings[0], /429/);
-  assert.match(warnings[0], /rate limit/);
-  assert.ok(Date.parse(retryAt) - before >= 10 * 60_000, `cooldown until ${retryAt} is shorter than ten minutes`);
+  assert.match(warnings[0], /rate limited on 3 tries/);
+  const pause = Date.parse(retryAt) - before;
+  assert.ok(pause >= 2 * 60_000 && pause < 3 * 60_000, `pause until ${retryAt} should end before the next five-minute cycle`);
+});
+
+test("a rate limit that clears on the next try prices the basket in the same cycle", async () => {
+  const responses = [new Response("error code: 1015", { status: 429 }), priceResponse()];
+  let calls = 0;
+  const { quotes, warnings, retryAt } = await fetchXStockQuotes(CREDENTIALS, CONSTITUENTS, async () => { calls += 1; return responses.shift(); }, async () => {});
+  assert.equal(calls, 2);
+  assert.deepEqual(warnings, []);
+  assert.equal(retryAt, undefined);
+  assert.equal(quotes.size, XSTOCKS_CONSTITUENTS.length);
 });

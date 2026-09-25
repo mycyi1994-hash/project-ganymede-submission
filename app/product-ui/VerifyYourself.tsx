@@ -7,6 +7,7 @@ import { useMarket } from "./MarketProvider";
 import { useRecordCheck } from "./useRecordCheck";
 import TamperExperiment from "./TamperExperiment";
 import TokenContractsCheck from "./TokenContractsCheck";
+import PoolCheck from "./PoolCheck";
 import { Icon } from "./Icons";
 
 // The technical checks behind the Transparency page, for developers and reviewers: the three
@@ -36,6 +37,7 @@ export default function VerifyYourself() {
     <p className="gmd-verify-status"><b>Live result:</b> {status} {record?.effectiveAt ? `Record of ${shortTime(record.effectiveAt)}, NAV ${formatUsdMicros(record.navPerShareMicros, 4)}.` : ""}</p>
     <div className="gmd-check-list">{[{ title: "Direct chain read", check: checks?.chain }, { title: "Document fingerprint", check: checks?.hash }, { title: "Recalculated NAV", check: checks?.nav }].map(row => <article key={row.title}><div><b>{row.title}</b><span className={`gmd-status ${row.check?.state === "pass" ? "is-positive" : "is-waiting"}`}>{row.check?.state === "pass" ? "Matched" : row.check?.state === "fail" ? "Mismatch" : "Not yet verified"}</span></div><p>{row.check?.detail ?? "Waiting for evidence."}</p></article>)}</div>
     <TokenContractsCheck canonical={checks?.canonical ?? null} />
+    <PoolCheck composition={composition} detailed />
     <div className="gmd-evidence-actions"><button className="gmd-small-button" type="button" onClick={downloadEvidence} disabled={!evidenceRecord}><Icon name="download" size={16} />Download evidence</button><span>Re-check the file anywhere with <code>npm run verify:evidence</code>.</span></div>
     <TamperExperiment canonical={checks?.canonical ?? null} record={checks?.record ?? null} />
     <details className="gmd-disclosure"><summary>OKX OnchainOS prices in this record <span>+</span></summary><div className="gmd-data-table-scroll"><p className="gmd-caption">Each row: token units × price, rounded down to USD micros, then summed to the NAV. Price timestamps come from OKX OnchainOS.</p><table className="gmd-table"><thead><tr><th>Token</th><th>Price / USD</th><th>Price timestamp</th></tr></thead><tbody>{composition?.holdings.map(h => <tr key={h.symbol}><th scope="row">{h.symbol}</th><td>{formatUsdMicros(h.priceMicros, 4)}</td><td>{shortTime(h.priceTime)}</td></tr>)}</tbody></table></div></details>

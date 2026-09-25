@@ -1,0 +1,42 @@
+{
+  "schema": "ganymede-basket/v1",
+  "id": "mag3-demo",
+  "name": "Three-stock demo basket",
+  "ticker": "MAG3",
+  "issuer": "Demo issuer, a wallet separate from Ganymede's keys",
+  "productKey": "0xff4259f72153def6feb71e171f34f0c4461a01fc9c6d9be5855e1ab5adfe6dc6",
+  "registry": {
+    "network": "X Layer Testnet",
+    "chainId": 1952,
+    "rpcUrl": "https://testrpc.xlayer.tech/terigon",
+    "address": "0xf412ba3857f63f513b93c4a8e3cacc1f162daa60",
+    "explorerUrl": "https://web3.okx.com/explorer/x-layer-testnet",
+    "deploymentTransaction": "0x8c3aeb610c793823b8d3f4cfd8bfa5e8e8a83f3e4f1b9896f7b0f6b2673c1d56"
+  },
+  "pricing": {
+    "chainIndex": "196",
+    "source": "Uniswap V3 pools on X Layer mainnet"
+  },
+  "fixedAt": "2026-09-25T17:48:04.000Z",
+  "constituents": [
+    {
+      "symbol": "AAPLx",
+      "address": "0x9d275685dc284c8eb1c79f6aba7a63dc75ec890a",
+      "weightBps": 3334,
+      "unitsWad": "98133456909669712"
+    },
+    {
+      "symbol": "MSFTx",
+      "address": "0x5621737f42dae558b81269fcb9e9e70c19aa6b35",
+      "weightBps": 3333,
+      "unitsWad": "64573252953059528"
+    },
+    {
+      "symbol": "NVDAx",
+      "address": "0xc845b2894dbddd03858fd2d643b4ef725fe0849d",
+      "weightBps": 3333,
+      "unitsWad": "148316832896550717"
+    }
+  ],
+  "documents": "/baskets/mag3/documents/{hash}.json"
+}

@@ -1,5 +1,5 @@
 import { sha256Hex, stableJson } from "../engine/fixed";
-import { parseComposition, type Check } from "./proof";
+import { parseComposition, PRICE_CLOCK_TOLERANCE_MS, type Check } from "./proof";
 import type { OnchainNav } from "./onchain";
 
 const WAD = 10n ** 18n;
@@ -83,8 +83,14 @@ export async function layeredChecks(canonical: string, record: OnchainNav): Prom
   }
   if (arithmetic.state === "pass" && total !== BigInt(document.navPerShareMicros)) arithmetic = { state: "fail", detail: "The rows do not sum to the document NAV." };
   const sameTime = Boolean(record.effectiveAt) && Math.floor(Date.parse(document.asOf) / 1000) === Math.floor(Date.parse(record.effectiveAt ?? "") / 1000);
-  const recordCheck: Check = BigInt(document.navPerShareMicros) === BigInt(record.navPerShareMicros) && sameTime
-    ? { state: "pass", detail: "The document NAV and time equal the X Layer record." }
-    : { state: "fail", detail: sameTime ? "The document NAV differs from the NAV recorded on X Layer." : "The document time differs from the X Layer record." };
+  // The same time rules as the browser's check: no price older than the record's time, and no record
+  // time later than the block that wrote it, each beyond a minute of clock difference.
+  const oldPrice = document.holdings.some((row) => Date.parse(row.priceTime) < Date.parse(document.asOf) - PRICE_CLOCK_TOLERANCE_MS);
+  const future = Boolean(record.publishedAt && record.effectiveAt) && Date.parse(record.effectiveAt!) > Date.parse(record.publishedAt!) + PRICE_CLOCK_TOLERANCE_MS;
+  const recordCheck: Check = !sameTime ? { state: "fail", detail: "The document time differs from the X Layer record." }
+    : BigInt(document.navPerShareMicros) !== BigInt(record.navPerShareMicros) ? { state: "fail", detail: "The document NAV differs from the NAV recorded on X Layer." }
+    : oldPrice ? { state: "fail", detail: "A price in the document is older than the record's time." }
+    : future ? { state: "fail", detail: "The record claims a time later than the block it was written in." }
+    : { state: "pass", detail: "The document NAV and time equal the X Layer record." };
   return { fingerprint, arithmetic, record: recordCheck };
 }

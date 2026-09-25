@@ -19,6 +19,7 @@ import {
   type Evaluation,
 } from "./basket";
 import { fetchXStockQuotes, MAX_COOLDOWN_MS, onchainOsCredentials } from "./prices";
+import { comparePrices, formatDifference, POOL_TOLERANCE, readPoolPrices, XSTOCK_POOLS, type PoolPrices } from "./pool-prices";
 import { parseComposition } from "./proof";
 import { updateNavSeries } from "./series";
 import { demoSharesOutstanding } from "../demo/ledger";
@@ -42,7 +43,10 @@ const DEFAULT_MAX_QUOTE_AGE_MINUTES = 10;
 const COOLDOWN_TOLERANCE_MS = 60_000;
 
 export type Publication = {
+  /** The record's time on X Layer: its oldest price, never later than the calculation. */
   asOf: string;
+  /** When the NAV was calculated; absent on records from before this field existed. */
+  calculatedAt?: string;
   navPerShareMicros: string;
   /** USTX outstanding when the NAV was taken: shares in wallets, issued by the fund contract, plus
    *  shares held with demo balances. Recorded beside the NAV on X Layer. */
@@ -167,7 +171,38 @@ async function readWalletShares(repo: EngineRepository, now: string, warnings: s
   }
 }
 
-export async function runXStocksCycle(env: EngineEnv, repo: EngineRepository, settlementClient: SettlementClient, now = new Date().toISOString()): Promise<XStocksCycleResult> {
+/** Bounded, like the wallet-share read: a slow mainnet RPC delays a record by seconds, never a cycle. */
+const readPoolsBounded = () => readPoolPrices((input, init) => fetch(input, { ...init, signal: AbortSignal.timeout(8_000) }));
+
+/**
+ * The second price source. A NAV of the pinned xStocks is recorded only if, valued at the X Layer
+ * pools read now, it is within the tolerance; a document of other tokens has no pools to compare,
+ * and an unreadable RPC leaves a warning rather than stopping the record.
+ */
+async function poolDisagreement(composition: Composition, warnings: string[], read: () => Promise<PoolPrices>): Promise<string | null> {
+  if (!composition.holdings.every((holding) => XSTOCK_POOLS.some((pool) => pool.symbol === holding.symbol && pool.token === holding.address.toLowerCase()))) {
+    warnings.push(`${XSTOCKS_PRODUCT.ticker} prices were not compared with the X Layer pools: a holding has no pinned pool.`);
+    return null;
+  }
+  let pools: PoolPrices;
+  try {
+    pools = await read();
+  } catch (error) {
+    warnings.push(`${XSTOCKS_PRODUCT.ticker} prices were not compared with the X Layer pools: ${error instanceof Error ? error.message : "unknown error"}`);
+    return null;
+  }
+  const comparison = comparePrices(composition, pools);
+  if (!comparison) {
+    warnings.push(`${XSTOCKS_PRODUCT.ticker} prices were not compared with the X Layer pools: the pools returned no price for a holding.`);
+    return null;
+  }
+  if (comparison.agrees) return null;
+  const widest = comparison.rows.reduce((a, b) => (Math.abs(b.differenceBps) > Math.abs(a.differenceBps) ? b : a));
+  return `The NAV at the X Layer pools (block ${pools.blockNumber}) is ${formatDifference(comparison.navDifferenceBps)} from the NAV at OnchainOS prices, beyond ${POOL_TOLERANCE.navBps / 100}% (widest: ${widest.symbol} pool ${formatDifference(widest.differenceBps)})`;
+}
+
+export async function runXStocksCycle(env: EngineEnv, repo: EngineRepository, settlementClient: SettlementClient, now = new Date().toISOString(), sources: { poolPrices?: () => Promise<PoolPrices>; wait?: (ms: number) => Promise<void>; renewLease?: () => Promise<boolean> } = {}): Promise<XStocksCycleResult> {
+  const cycleStarted = Date.now();
   // Reconciling earlier attempts needs no prices, so it runs even during a provider cooldown.
   let settlementsQueued = await reconcileUnresolved(repo, settlementClient);
   const previousLatest = JSON.parse((await repo.getState(STATE_LATEST))?.value ?? "null") as LatestState | null;
@@ -179,9 +214,17 @@ export async function runXStocksCycle(env: EngineEnv, repo: EngineRepository, se
     return { navsPublished: 0, settlementsQueued, warnings: [`GMD USTX price provider cooldown until ${previousLatest!.retryAt}`] };
   }
   const constituents = constituentsWithAddresses(env.XSTOCKS_ADDRESSES);
-  const { quotes, warnings, retryAt } = await fetchXStockQuotes(onchainOsCredentials(env), constituents);
+  const { quotes, warnings, retryAt } = await fetchXStockQuotes(onchainOsCredentials(env), constituents, undefined, sources.wait);
+  // Reconciling earlier attempts and a rate-limited request can take a minute or two, and quotes are
+  // stamped when they arrive. The calculation happens then, so its time moves on by the whole seconds
+  // the cycle has run.
+  const calculatedAt = new Date(Date.parse(now) + Math.floor((Date.now() - cycleStarted) / 1000) * 1000).toISOString();
+  // Waiting for prices can outlast the job lease; renew it before any write so cycles never overlap.
+  if (sources.renewLease && !(await sources.renewLease())) {
+    return { navsPublished: 0, settlementsQueued, warnings: [...warnings, `${XSTOCKS_PRODUCT.ticker} lease lost while waiting for prices; stopped before writing`] };
+  }
   const previous = deserializeBasket((await repo.getState(STATE_BASKET))?.value);
-  const evaluation = await evaluateBasket({ constituents, quotes, previous, now, maxQuoteAgeMinutes: maxQuoteAgeMinutes(env) });
+  const evaluation = await evaluateBasket({ constituents, quotes, previous, now: calculatedAt, maxQuoteAgeMinutes: maxQuoteAgeMinutes(env) });
 
   // Publish only what the browser verifier will accept: the same parser runs here first.
   if (evaluation.publishable && evaluation.canonical) {
@@ -193,6 +236,24 @@ export async function runXStocksCycle(env: EngineEnv, repo: EngineRepository, se
     }
   }
 
+  // The registry accepts only a later time than its latest record; prices no newer than that record
+  // would be refused on chain, so they are not sent.
+  if (evaluation.publishable && evaluation.composition) {
+    const lastConfirmed = JSON.parse((await repo.getState(STATE_CONFIRMED))?.value ?? "null") as Publication | null;
+    if (lastConfirmed && Math.floor(Date.parse(evaluation.composition.asOf) / 1000) <= Math.floor(Date.parse(lastConfirmed.asOf) / 1000)) {
+      evaluation.publishable = false;
+      evaluation.blockers.push("No price is newer than the last NAV record");
+    }
+  }
+
+  if (evaluation.publishable && evaluation.composition) {
+    const disagreement = await poolDisagreement(evaluation.composition, warnings, sources.poolPrices ?? readPoolsBounded);
+    if (disagreement) {
+      evaluation.publishable = false;
+      evaluation.blockers.push(disagreement);
+    }
+  }
+
   let navsPublished = 0;
   let publication: Publication | null = null;
 
@@ -201,7 +262,7 @@ export async function runXStocksCycle(env: EngineEnv, repo: EngineRepository, se
 
     if (evaluation.rebalanced) {
       const canonical = basketDocument(evaluation.basket);
-      const evidence: RebalanceEvidence = { fixedAt: evaluation.basket.fixedAt, effectiveAt: now, canonical, holdingsHash: await sha256Hex(canonical), status: "queued", txHash: null, error: null };
+      const evidence: RebalanceEvidence = { fixedAt: evaluation.basket.fixedAt, effectiveAt: calculatedAt, canonical, holdingsHash: await sha256Hex(canonical), status: "queued", txHash: null, error: null };
       await repo.setState(STATE_REBALANCE, JSON.stringify(evidence));
       const request = rebalanceRequest(evidence);
       const settlement = await settlementClient.settle(request);
@@ -210,16 +271,17 @@ export async function runXStocksCycle(env: EngineEnv, repo: EngineRepository, se
       settlementsQueued += 1;
     }
 
-    const [demoShares, walletShares] = await Promise.all([demoSharesOutstanding((repo as Partial<EngineRepository>).db), readWalletShares(repo, now, warnings)]);
+    const [demoShares, walletShares] = await Promise.all([demoSharesOutstanding((repo as Partial<EngineRepository>).db), readWalletShares(repo, calculatedAt, warnings)]);
     if (demoShares === null) warnings.push(`${XSTOCKS_PRODUCT.ticker} demo-balance shares could not be read; this record carries wallet shares only.`);
     const sharesOutstandingMicros = (BigInt(demoShares ?? "0") + BigInt(walletShares ?? "0")).toString();
-    const request = navRequest({ asOf: now, navPerShareMicros: evaluation.composition.navPerShareMicros, holdingsHash: evaluation.holdingsHash, sharesOutstandingMicros });
+    const asOf = evaluation.composition.asOf;
+    const request = navRequest({ asOf, navPerShareMicros: evaluation.composition.navPerShareMicros, holdingsHash: evaluation.holdingsHash, sharesOutstandingMicros });
     // Save the exact document before sending the transaction. Even if storage
     // fails after broadcast, the on-chain hash still has a recoverable document.
     const history = JSON.parse((await repo.getState(STATE_HISTORY))?.value ?? "[]") as Publication[];
     const confirmed = history.find((entry) => entry.status === "confirmed");
     if (confirmed && !(await repo.getState(STATE_CONFIRMED))) await repo.setState(STATE_CONFIRMED, JSON.stringify(confirmed));
-    const pending: Publication = { asOf: now, navPerShareMicros: evaluation.composition.navPerShareMicros, sharesOutstandingMicros, holdingsHash: evaluation.holdingsHash, canonical: evaluation.canonical, status: "queued", txHash: null, error: null };
+    const pending: Publication = { asOf, calculatedAt, navPerShareMicros: evaluation.composition.navPerShareMicros, sharesOutstandingMicros, holdingsHash: evaluation.holdingsHash, canonical: evaluation.canonical, status: "queued", txHash: null, error: null };
     // Content-addressed evidence survives a lost receipt. Documents are pruned with the
     // rolling history below, except for the latest confirmed one.
     await repo.setState(`${STATE_DOCUMENT_PREFIX}${pending.holdingsHash}`, JSON.stringify(pending));

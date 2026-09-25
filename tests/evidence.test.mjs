@@ -28,10 +28,11 @@ function evidence(canonical, record, transactionHash = "0x" + "ab".repeat(32)) {
 }
 
 const word = (value) => BigInt(value).toString(16).padStart(64, "0");
-function receiptFetcher(logs, chainId = "0x7a0") {
+function receiptFetcher(logs, chainId = "0x7a0", blockTime = "2026-09-23T12:26:20.000Z") {
   return async (_url, init) => {
     const { method } = JSON.parse(init.body);
-    const result = method === "eth_chainId" ? chainId : method === "eth_getTransactionReceipt" ? { status: "0x1", logs } : null;
+    const block = { timestamp: "0x" + Math.floor(Date.parse(blockTime) / 1000).toString(16) };
+    const result = method === "eth_chainId" ? chainId : method === "eth_getTransactionReceipt" ? { status: "0x1", blockNumber: "0x10", logs } : method === "eth_getBlockByNumber" ? block : null;
     return Response.json({ jsonrpc: "2.0", id: 1, result });
   };
 }
@@ -72,6 +73,10 @@ test("the X Layer check needs the matching NavPublished event in the transaction
   assert.equal((await last([navLog(record, { productKey: "0x" + "7".repeat(64) })])).state, "fail");
   assert.equal((await last([{ ...navLog(record), address: "0x" + "2".repeat(40) }])).state, "fail");
   assert.equal((await last([navLog(record)], "0x1")).state, "fail");
+  // A record written in a block five minutes before the time it claims is refused.
+  const early = (await verifyEvidence(bundle, { fetcher: receiptFetcher([navLog(record)], "0x7a0", "2026-09-23T12:21:11.000Z") })).at(-1);
+  assert.equal(early.state, "fail");
+  assert.match(early.detail, /later than the block/);
 });
 
 test("a real NavPublished log from the X Layer Testnet registry decodes to its fields", () => {

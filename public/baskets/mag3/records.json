@@ -1,0 +1,14 @@
+[
+  {
+    "effectiveAt": "2026-09-25T18:35:13.000Z",
+    "navPerShareMicros": "100089480",
+    "holdingsHash": "0xaa5e892f412f7cecfec5a33464f820fe0f07c68c305884f0127114c2cf936f1d",
+    "transactionHash": "0x36b58e1b28e7c02bcfffa6f966d738011bb45f0942ca5a829d1fc14489040299"
+  },
+  {
+    "effectiveAt": "2026-09-25T17:48:23.000Z",
+    "navPerShareMicros": "99999997",
+    "holdingsHash": "0x56fd0fbf344629c76c51f671a8ed0b08f18a72ae45f6d3612d71316a3a13b715",
+    "transactionHash": "0x165ee1b07becec793940627f95b8960656de44d3b7d3b2fd8bc3623ed099e109"
+  }
+]

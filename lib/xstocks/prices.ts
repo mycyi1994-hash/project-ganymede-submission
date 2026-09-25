@@ -71,6 +71,15 @@ export function normalizeQuoteTime(value: unknown): string {
 /** Bounds on how long a rate limit or refused access pauses pricing. */
 export const MIN_COOLDOWN_MS = 10 * 60_000;
 export const MAX_COOLDOWN_MS = 60 * 60_000;
+/**
+ * The price API sits behind Cloudflare, whose rate limit ("error code: 1015") counts requests per
+ * egress IP, and Workers share those IPs, so a limit can hit a single request every five minutes.
+ * A limit without a longer Retry-After is asked again twice within the cycle; if it holds, the next
+ * cycle tries again rather than waiting ten minutes.
+ */
+export const RATE_LIMIT_RETRY_DELAYS_MS = [30_000, 90_000] as const;
+export const RATE_LIMIT_COOLDOWN_MS = 2 * 60_000;
+const sleep = (ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms));
 
 type PriceRow = { chainIndex?: string; tokenContractAddress?: string; price?: string; time?: string | number };
 
@@ -78,6 +87,7 @@ export async function fetchXStockQuotes(
   credentials: OnchainOsCredentials | null,
   constituents: Array<{ symbol: string; address: string | null }>,
   fetcher: typeof fetch = fetch,
+  wait: (ms: number) => Promise<void> = sleep,
 ): Promise<{ quotes: Map<string, Quote>; warnings: string[]; retryAt?: string }> {
   const quotes = new Map<string, Quote>();
   const priced = constituents.filter((constituent): constituent is { symbol: string; address: string } => Boolean(constituent.address));
@@ -86,9 +96,10 @@ export async function fetchXStockQuotes(
 
   const body = JSON.stringify(priced.map((constituent) => ({ chainIndex: XSTOCKS_CHAIN.chainIndex, tokenContractAddress: constituent.address.toLowerCase() })));
   try {
-    // Only transient server errors get one bounded retry. Rate limits wait for
-    // the next scheduled cycle rather than adding pressure to the provider.
+    // Transient server errors get one quick retry, and a rate limit two spaced ones (see
+    // RATE_LIMIT_RETRY_DELAYS_MS) unless the provider asks for a longer wait.
     let response!: Response;
+    let limited = 0;
     for (let attempt = 0; attempt < 2; attempt += 1) {
       response = await fetcher(`${credentials.baseUrl}${PRICE_PATH}`, {
         method: "POST",
@@ -96,18 +107,25 @@ export async function fetchXStockQuotes(
         body,
         signal: AbortSignal.timeout(10_000),
       });
+      if (response.status === 429 && limited < RATE_LIMIT_RETRY_DELAYS_MS.length && retryAfterMs(response) <= RATE_LIMIT_RETRY_DELAYS_MS[limited]) {
+        await response.body?.cancel();
+        await wait(RATE_LIMIT_RETRY_DELAYS_MS[limited]);
+        limited += 1;
+        attempt -= 1;
+        continue;
+      }
       if (![502, 503, 504].includes(response.status) || attempt === 1) break;
       await response.body?.cancel();
-      await new Promise((resolve) => setTimeout(resolve, 500));
+      await wait(500);
     }
     if (!response.ok) {
       if (response.status === 429) {
-        const retryAfter = response.headers.get("Retry-After");
-        const retryMs = retryAfter && /^\d+$/.test(retryAfter) ? Number(retryAfter) * 1000 : retryAfter ? Date.parse(retryAfter) - Date.now() : 0;
-        // Honour the provider's wait, but only within bounds: a missing, huge or far-future
-        // Retry-After must not stop publication for longer than an hour.
-        const waitMs = Math.min(Math.max(MIN_COOLDOWN_MS, Number.isFinite(retryMs) ? retryMs : 0), MAX_COOLDOWN_MS);
-        return { quotes, retryAt: new Date(Date.now() + waitMs).toISOString(), warnings: [`OnchainOS price API HTTP 429: rate limited; waiting ${Math.round(waitMs / 60_000)} minutes before retry`] };
+        const retryMs = retryAfterMs(response);
+        // Honour the provider's wait, but only within bounds: a huge or far-future Retry-After must
+        // not stop publication for longer than an hour, and without one the next cycle tries again.
+        const waitMs = Math.min(Math.max(RATE_LIMIT_COOLDOWN_MS, retryMs), MAX_COOLDOWN_MS);
+        const tries = limited + 1;
+        return { quotes, retryAt: new Date(Date.now() + waitMs).toISOString(), warnings: [`OnchainOS price API HTTP 429: rate limited${tries > 1 ? ` on ${tries} tries` : ""}; waiting ${Math.round(waitMs / 60_000)} minutes before retry`] };
       }
       if (response.status === 401 || response.status === 403) {
         return { quotes, retryAt: new Date(Date.now() + MIN_COOLDOWN_MS).toISOString(), warnings: [`OnchainOS price API HTTP ${response.status}: access refused; check the API key, passphrase and IP allowlist`] };
@@ -141,4 +159,12 @@ export async function fetchXStockQuotes(
   } catch (error) {
     return { quotes, warnings: [`OnchainOS price API unreachable: ${error instanceof Error ? error.message : "unknown error"}`] };
   }
+}
+
+/** The provider's Retry-After in milliseconds, as seconds or a date; 0 when absent or invalid. */
+function retryAfterMs(response: Response): number {
+  const header = response.headers.get("Retry-After");
+  if (!header) return 0;
+  const value = /^\d+$/.test(header) ? Number(header) * 1000 : Date.parse(header) - Date.now();
+  return Number.isFinite(value) && value > 0 ? value : 0;
 }

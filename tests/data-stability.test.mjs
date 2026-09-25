@@ -208,8 +208,13 @@ test("repeated failed publications retain the last confirmed composition", async
   }
   assert.equal(rows.get(STATE_CONFIRMED), lastGood);
   assert.equal(rows.get(STATE_BASKET), basket);
-  t.mock.method(globalThis, "fetch", async () => new Response("rate limited", { status: 429 }));
-  await runXStocksCycle(configured, repo, settlement, now);
+  let limitedAsks = 0;
+  t.mock.method(globalThis, "fetch", async () => { limitedAsks += 1; return new Response("rate limited", { status: 429 }); });
+  const waits = [];
+  await runXStocksCycle(configured, repo, settlement, now, { wait: async (ms) => { waits.push(ms); } });
+  // A rate limit is asked again twice, 30 and 90 seconds apart, before the cycle gives up.
+  assert.equal(limitedAsks, 3);
+  assert.deepEqual(waits, [30_000, 90_000]);
   assert.equal(JSON.parse(rows.get(STATE_LATEST)).status, "awaiting_prices");
   assert.equal(rows.get(STATE_CONFIRMED), lastGood);
   assert.equal(rows.get(STATE_BASKET), basket);

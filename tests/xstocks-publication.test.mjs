@@ -26,7 +26,7 @@ function memoryRepo() {
 const QUOTE_TIME = "2026-09-24T09:59:00.000Z";
 
 function pricesFor(addresses, price = "100", time = QUOTE_TIME) {
-  return async () => Response.json({ code: "0", data: addresses.map((item) => ({ chainIndex: "196", tokenContractAddress: item.address, price, time })) });
+  return async () => Response.json({ code: "0", data: addresses.map((item) => ({ chainIndex: "196", tokenContractAddress: item.address, price, time: typeof time === "function" ? time() : time })) });
 }
 
 function settlementRecorder(outcome) {
@@ -39,16 +39,19 @@ const at = (base, seconds) => new Date(Date.parse(base) + seconds * 1000).toISOS
 test("a publication whose outcome was unknown is asked about again with the same key and recorded as confirmed", async (t) => {
   const repo = memoryRepo();
   const addresses = addressesOf();
-  t.mock.method(globalThis, "fetch", pricesFor(addresses));
+  const start = "2026-09-24T10:00:00.000Z";
+  // Prices stamped at each cycle's own time, as OnchainOS stamps the response, so each record's time is its cycle's.
+  let quoteTime = start;
+  t.mock.method(globalThis, "fetch", pricesFor(addresses, "100", () => quoteTime));
   let answer = { status: "queued", txHash: null, error: "Settlement relayer no answer in time; the result will be checked again" };
   const settlement = settlementRecorder(() => answer);
-  const start = "2026-09-24T10:00:00.000Z";
   await runXStocksCycle(configured(addresses), repo, settlement, start);
   const [first] = JSON.parse(repo.rows.get(STATE_HISTORY));
   assert.equal(first.status, "queued");
   assert.equal(repo.rows.has(STATE_CONFIRMED), false);
 
   answer = { status: "confirmed", txHash: `0x${"ab".repeat(32)}`, error: null };
+  quoteTime = at(start, 300);
   await runXStocksCycle(configured(addresses), repo, settlement, at(start, 300));
   const asked = settlement.requests.filter((request) => request.entityId === `us-tech-x:${start}`);
   assert.equal(asked.length, 2, "the unresolved publication was asked about again");
@@ -141,14 +144,75 @@ test("a corrected address re-fixes at the prevailing NAV and publishes rebalance
 test("stored report documents are pruned to the listed publications and the confirmed one", async (t) => {
   const repo = memoryRepo();
   const addresses = addressesOf();
-  t.mock.method(globalThis, "fetch", pricesFor(addresses));
-  let cycle = 0;
-  const settlement = settlementRecorder(() => ({ status: cycle === 0 ? "confirmed" : "failed", txHash: cycle === 0 ? "0x1" : null, error: cycle === 0 ? null : "rejected" }));
   const start = "2026-09-24T10:00:00.000Z";
+  let cycle = 0;
+  t.mock.method(globalThis, "fetch", pricesFor(addresses, "100", () => at(start, cycle * 300)));
+  const settlement = settlementRecorder(() => ({ status: cycle === 0 ? "confirmed" : "failed", txHash: cycle === 0 ? "0x1" : null, error: cycle === 0 ? null : "rejected" }));
   for (; cycle < 20; cycle += 1) await runXStocksCycle(configured(addresses), repo, settlement, at(start, cycle * 300));
   const documents = [...repo.rows.keys()].filter((key) => key.startsWith(STATE_DOCUMENT_PREFIX));
   assert.ok(documents.length <= 13, `${documents.length} documents kept`);
   const confirmed = JSON.parse(repo.rows.get(STATE_CONFIRMED));
   assert.equal(confirmed.asOf, start);
   assert.ok(repo.rows.has(`${STATE_DOCUMENT_PREFIX}${confirmed.holdingsHash}`), "the confirmed record's document is kept after rotating out of history");
+});
+
+test("prices no newer than the last record are not sent, and each publication keeps its calculation time", async (t) => {
+  const repo = memoryRepo();
+  const addresses = addressesOf();
+  const start = "2026-09-24T10:00:00.000Z";
+  t.mock.method(globalThis, "fetch", pricesFor(addresses, "100", start));
+  const settlement = settlementRecorder(() => ({ status: "confirmed", txHash: "0x1", error: null }));
+  await runXStocksCycle(configured(addresses), repo, settlement, start);
+  const [first] = JSON.parse(repo.rows.get(STATE_HISTORY));
+  assert.equal(first.asOf, start);
+  assert.equal(first.calculatedAt, start);
+  const navsBefore = settlement.requests.filter((request) => request.action === "publish_nav").length;
+  // The source returns the same prices five minutes later: the registry would refuse an earlier or equal time.
+  const result = await runXStocksCycle(configured(addresses), repo, settlement, at(start, 300));
+  assert.equal(settlement.requests.filter((request) => request.action === "publish_nav").length, navsBefore);
+  assert.ok(result.warnings.some((warning) => /No price is newer than the last NAV record/.test(warning)));
+});
+
+test("a price answered after rate-limit retries is valued at the time it arrived", async (t) => {
+  // The request is limited twice and answered two minutes into the cycle, stamped then.
+  t.mock.timers.enable({ apis: ["Date"], now: Date.parse("2026-09-24T10:00:00.000Z") });
+  const repo = memoryRepo();
+  const addresses = addressesOf();
+  let asks = 0;
+  t.mock.method(globalThis, "fetch", async (...args) => {
+    if (String(args[0]).includes("testrpc.xlayer.tech")) return pricesFor(addresses)(...args);
+    asks += 1;
+    if (asks < 3) return new Response("error code: 1015", { status: 429 });
+    return pricesFor(addresses, "100", new Date().toISOString())(...args);
+  });
+  const settlement = settlementRecorder(() => ({ status: "confirmed", txHash: "0x1", error: null }));
+  await runXStocksCycle(configured(addresses), repo, settlement, "2026-09-24T10:00:00.000Z", { wait: async (ms) => { t.mock.timers.tick(ms); } });
+  const [first] = JSON.parse(repo.rows.get(STATE_HISTORY));
+  assert.equal(asks, 3);
+  assert.equal(first.status, "confirmed");
+  assert.equal(first.calculatedAt, "2026-09-24T10:02:00.000Z");
+  assert.equal(first.asOf, "2026-09-24T10:02:00.000Z");
+});
+
+test("prices quoted more than a minute apart are not recorded, with the reason", async (t) => {
+  const addresses = addressesOf();
+  const spread = (index) => index === 0 ? "2026-09-24T09:57:00.000Z" : "2026-09-24T09:59:30.000Z";
+  t.mock.method(globalThis, "fetch", async () => Response.json({ code: "0", data: addresses.map((item, index) => ({ chainIndex: "196", tokenContractAddress: item.address, price: "100", time: spread(index) })) }));
+  const repo = memoryRepo();
+  const settlement = settlementRecorder(() => ({ status: "confirmed", txHash: "0x1", error: null }));
+  const result = await runXStocksCycle(configured(addresses), repo, settlement, "2026-09-24T10:00:00.000Z");
+  assert.equal(result.navsPublished, 0);
+  assert.match(JSON.parse(repo.rows.get(STATE_LATEST)).blockers.join(" "), /Prices were quoted more than a minute apart/);
+});
+
+test("a cycle that loses its lease while waiting for prices stops before writing", async (t) => {
+  const repo = memoryRepo();
+  const addresses = addressesOf();
+  t.mock.method(globalThis, "fetch", pricesFor(addresses, "100", "2026-09-24T10:00:00.000Z"));
+  const settlement = settlementRecorder(() => ({ status: "confirmed", txHash: "0x1", error: null }));
+  const result = await runXStocksCycle(configured(addresses), repo, settlement, "2026-09-24T10:00:00.000Z", { renewLease: async () => false });
+  assert.equal(result.navsPublished, 0);
+  assert.equal(settlement.requests.length, 0);
+  assert.match(result.warnings.join(" "), /lease lost while waiting for prices/);
+  assert.equal(repo.rows.get(STATE_LATEST), undefined);
 });

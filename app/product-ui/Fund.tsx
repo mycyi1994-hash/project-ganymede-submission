@@ -154,7 +154,7 @@ export function FundOverview() {
       <div><dt>Launch date</dt><dd>{since ? day(since.first.at) : "—"}</dd></div>
       <div><dt>Minimum investment</dt><dd>$10</dd></div>
       <div><dt>Management fee</dt><dd>0.00%</dd></div>
-      <div><dt>Dealing</dt><dd>Instant, at the latest NAV on X Layer</dd></div>
+      <div><dt>Dealing</dt><dd>Instant, at the fund’s NAV or the pool’s price</dd></div>
       <div><dt>Market price</dt><dd>{pool.market && pool.market.priceMicros > 0n ? <a className="gmd-inline-tx" href={fundExplorer.address(FUND_DEPLOYMENT.pool)} target="_blank" rel="noreferrer">{formatUsdMicros(pool.market.priceMicros, 2)}{pool.market.premiumPpm !== null ? ` · ${describePremium(pool.market.premiumPpm)}` : ""} · USTX/dUSD pool<Icon name="external" size={12} /><span className="gmd-sr-only"> (opens in a new tab)</span></a> : pool.failed ? "Unavailable right now" : "—"}</dd></div>
       <div><dt>Base currency</dt><dd>USD</dd></div>
       <div><dt>Rebalancing</dt><dd>Quarterly, back to equal weight</dd></div>

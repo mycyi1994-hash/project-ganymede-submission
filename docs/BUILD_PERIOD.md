@@ -25,9 +25,11 @@ The engine's strategies still power the separate paper Lab, and the fund-share c
 | NAV feed | The USTX NAV in the Chainlink `AggregatorV3Interface` on X Layer Testnet, shown on the developer page and in the public API; all five X Layer Testnet contracts source-verified on the OKX explorer and Sourcify | `beff92f`, `b11493b`, `e36c7a3` |
 | Market | A USTX/dUSD pool on X Layer Testnet and a contract that closes its gap to the NAV through the fund in one transaction, like ETF creation and redemption; a keeper Worker checks the pool every five minutes and sends that trade when it earns at least a cent, and closed a 6% gap on its own; the USTX page shows the market price and its premium or discount, and its wallet order panel routes each order to the better of the fund at the NAV and the pool | `ea35938`, `1e2693b`, `2218f1c`, `f7d7c98`, `73d543f` |
 | Fund and ecosystem | Fund overview with size, investors and return since launch; the shares outstanding recorded on X Layer with every NAV; a public NAV API with open CORS, an embeddable self-verifying badge, and issuer and developer pages | `0c38037`, `23d35d2` |
+| Price and time checks | A second price source: the publisher compares every NAV with the xStocks' Uniswap V3 pools on X Layer mainnet and does not record one more than 1% apart, and the browser repeats the comparison; a record's time is its oldest price, the browser and the evidence command reject older prices and a record time later than its block, and a rate-limited price request is asked again within the cycle | `25e0a25`, `521c5cc`, `2024e85`, `5320387` |
+| More baskets and assets | A second basket from one configuration file: MAG3, recorded by a separate demo issuer wallet in its own registry and verified in the browser with its own badge; an in-kind vault that creates and redeems a basket token only against the xStocks, run with the real xStocks on a fork of X Layer mainnet | `ab50aff`, `ecd5a6f`, `5320387` |
 | Hardening | Public reads without writes, identity header gate, relayer retry and nonce handling, paper-ledger integrity, sanitized public errors | `c98e7ea`, `387ec35`, `8cd427f`, `7b18cf9`, `124bebe` |
 
-From `7a33392` to `25b3c8f`: 264 files changed, 27815 insertions(+), 7451 deletions(-).
+From `7a33392` to `75e9197`: 283 files changed, 29829 insertions(+), 7451 deletions(-).
 
 ## Every commit in the build period (UTC)
 
@@ -190,4 +192,21 @@ From `7a33392` to `25b3c8f`: 264 files changed, 27815 insertions(+), 7451 deleti
 | 2026-09-25 16:15 | `d1610bf` | Show the product in the README with five production screenshots | 7 | +16 / −0 |
 | 2026-09-25 16:17 | `d3d15cc` | Note the public snapshot with the README screenshots | 1 | +1 / −1 |
 | 2026-09-25 16:38 | `6bcee81` | Block a NAV built from quotes more than ten minutes old; show wallet and demo shares | 6 | +31 / −12 |
+| 2026-09-25 16:44 | `1501e87` | Regenerate the build-period record with the freshness release | 1 | +5 / −1 |
 | 2026-09-25 16:44 | `25b3c8f` | State what verification covers, compare USTX with six separate xStocks, measure unit cost | 4 | +47 / −14 |
+| 2026-09-25 16:46 | `70640e6` | Note the public snapshot of the freshness release | 1 | +1 / −1 |
+| 2026-09-25 16:58 | `4b31eae` | Say on Transparency and Limitations that a consistently recorded wrong price passes | 2 | +3 / −3 |
+| 2026-09-25 17:00 | `aa720b1` | About USTX compares one USTX order with buying the six xStocks separately | 1 | +1 / −1 |
+| 2026-09-25 17:00 | `c4dccc9` | Public API splits the recorded share count into wallet tokens and demo balances | 3 | +20 / −1 |
+| 2026-09-25 17:01 | `1b6899b` | Say on the USTX and developer pages that the testnet fund holds no xStocks | 2 | +2 / −2 |
+| 2026-09-25 17:02 | `2189746` | Issuer page: a pilot's scope and the measured cost of running a basket | 1 | +1 / −0 |
+| 2026-09-25 17:05 | `e3f1786` | Issuer page: the pilot and the running cost as separate sections | 1 | +2 / −1 |
+| 2026-09-25 17:12 | `25e0a25` | A record carries its oldest price's time; the browser rejects a later claim | 13 | +103 / −18 |
+| 2026-09-25 17:35 | `521c5cc` | A second price source: X Layer pools checked by the publisher and the browser | 14 | +371 / −16 |
+| 2026-09-25 17:54 | `ab50aff` | Baskets from one configuration file: MAG3 in its own registry, checked in the browser | 17 | +629 / −9 |
+| 2026-09-25 18:09 | `ecd5a6f` | In-kind vault: create and redeem against the real xStocks on a mainnet fork | 14 | +575 / −5 |
+| 2026-09-25 18:15 | `2024e85` | Ask a rate-limited price request again within the cycle | 8 | +68 / −23 |
+| 2026-09-25 18:34 | `5320387` | First review round: record times, pool guard, basket checks, proportional vault, copy | 36 | +471 / −230 |
+| 2026-09-25 18:35 | `154d426` | MAG3: a second record at 18:35 UTC, NAV 100.089480 | 2 | +7 / −0 |
+| 2026-09-25 18:44 | `9b050c4` | Evidence CLI checks the record time against its block; limitations name the time and retry rules | 4 | +61 / −11 |
+| 2026-09-25 18:55 | `75e9197` | Second review round: cycle time and lease, vault first share and maximums, copy | 22 | +104 / −88 |

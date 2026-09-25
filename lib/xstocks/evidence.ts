@@ -4,7 +4,7 @@
  * re-run the checks with `npm run verify:evidence -- <file>`, including after the record
  * is no longer the latest, because the transaction receipt carries the NavPublished event.
  */
-import { PROOF_DEPLOYMENT, type Check } from "./proof";
+import { PRICE_CLOCK_TOLERANCE_MS, PROOF_DEPLOYMENT, type Check } from "./proof";
 import { layeredChecks } from "./proof-experiment";
 import { XSTOCKS_PRODUCT } from "./basket";
 import { readLatestNav, XSTOCKS_PRODUCT_KEY, type OnchainNav } from "./onchain";
@@ -43,7 +43,7 @@ export function buildEvidence(input: { record: OnchainNav; document: string; tra
       "For each holding, floor(unitsWad × priceMicros / 10^18) must equal valueMicros, and the values must sum to navPerShareMicros.",
       "The transaction receipt on X Layer Testnet must contain a NavPublished event from the registry with this product key, fingerprint, NAV and time.",
     ],
-    scope: "Consistency of one published document, its arithmetic and its X Layer record. It does not show that the prices are accurate, that any asset is held, or that the NAV can be traded or redeemed.",
+    scope: "Consistency of one published document, its arithmetic and its X Layer record. It does not show that the prices match the stock market, that any asset is held, or that the NAV could be realised in real money.",
   };
 }
 
@@ -107,19 +107,33 @@ export async function verifyEvidence(bundle: EvidenceBundle, options: { offline?
       return results;
     }
     if (bundle.record.transactionHash) {
-      const receipt = await rpc("eth_getTransactionReceipt", [bundle.record.transactionHash]) as { status?: string; logs?: { address: string; topics: string[]; data: string }[] } | null;
+      const receipt = await rpc("eth_getTransactionReceipt", [bundle.record.transactionHash]) as { status?: string; blockNumber?: string; logs?: { address: string; topics: string[]; data: string }[] } | null;
       if (!receipt || receipt.status !== "0x1") {
         results.push({ label: "X Layer record", state: "fail", detail: "The transaction was not found or did not succeed." });
         return results;
       }
       const events = (receipt.logs ?? []).filter(log => log.address.toLowerCase() === PROOF_DEPLOYMENT.registry).map(decodeNavPublished).filter((event): event is NavPublishedEvent => event !== null && event.productKey === XSTOCKS_PRODUCT_KEY);
       const match = events.find(event => event.holdingsHash === bundle.record.holdingsHash.toLowerCase());
-      results.push(match && match.navPerShareMicros === bundle.record.navPerShareMicros && sameSecond(match.effectiveAt, bundle.record.effectiveAt)
-        ? { label: "X Layer record", state: "pass", detail: `Transaction ${bundle.record.transactionHash.slice(0, 10)}… emitted NavPublished from the pinned registry with this fingerprint, NAV and time.` }
-        : { label: "X Layer record", state: "fail", detail: "The transaction has no NavPublished event from the pinned registry that matches this fingerprint, NAV and time." });
+      // The registry only requires times to increase, so the block that wrote the record bounds the time it claims.
+      let blockTimeMs: number | null = null;
+      if (match && receipt.blockNumber) {
+        try {
+          const block = await rpc("eth_getBlockByNumber", [receipt.blockNumber, false]) as { timestamp?: string } | null;
+          if (block?.timestamp) blockTimeMs = Number(BigInt(block.timestamp)) * 1000;
+        } catch { /* The time bound is checked when the block can be read. */ }
+      }
+      const inTime = blockTimeMs === null || Date.parse(bundle.record.effectiveAt) <= blockTimeMs + PRICE_CLOCK_TOLERANCE_MS;
+      results.push(match && match.navPerShareMicros === bundle.record.navPerShareMicros && sameSecond(match.effectiveAt, bundle.record.effectiveAt) && inTime
+        ? { label: "X Layer record", state: "pass", detail: `Transaction ${bundle.record.transactionHash.slice(0, 10)}… emitted NavPublished from the pinned registry with this fingerprint, NAV and time${blockTimeMs === null ? "" : ", no later than its block"}.` }
+        : { label: "X Layer record", state: "fail", detail: match && !inTime ? "The record claims a time later than the block that wrote it." : "The transaction has no NavPublished event from the pinned registry that matches this fingerprint, NAV and time." });
       return results;
     }
     const latest = await readLatestNav(options.rpcUrl ?? PROOF_DEPLOYMENT.rpcUrl, PROOF_DEPLOYMENT.registry, { chainId: PROOF_DEPLOYMENT.chainId, fetcher: options.fetcher });
+    const lateClaim = Boolean(latest.publishedAt) && Date.parse(bundle.record.effectiveAt) > Date.parse(latest.publishedAt!) + PRICE_CLOCK_TOLERANCE_MS;
+    if (lateClaim && latest.holdingsHash.toLowerCase() === bundle.record.holdingsHash.toLowerCase()) {
+      results.push({ label: "X Layer record", state: "fail", detail: "The record claims a time later than the block that wrote it." });
+      return results;
+    }
     const same = latest.holdingsHash.toLowerCase() === bundle.record.holdingsHash.toLowerCase() && latest.navPerShareMicros === bundle.record.navPerShareMicros && Boolean(latest.effectiveAt) && sameSecond(latest.effectiveAt!, bundle.record.effectiveAt);
     results.push(same
       ? { label: "X Layer record", state: "pass", detail: "The registry's latest record equals the file's record." }

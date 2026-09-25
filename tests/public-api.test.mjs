@@ -9,7 +9,7 @@ import { lookThrough, fundValueMicros } from "../lib/demo/basket.ts";
 import { formatUsdRounded } from "../lib/nav-display.ts";
 import { relativeTime, signedPercent, sinceFirstRecord } from "../lib/product-market.ts";
 
-const schema = readFileSync(new URL("../drizzle/0000_giant_speedball.sql", import.meta.url), "utf8");
+const schema = readFileSync(new URL("../drizzle/0000_giant_speedball.sql", import.meta.url), "utf8") + readFileSync(new URL("../drizzle/0001_demo_ledger.sql", import.meta.url), "utf8");
 function database() {
   const sql = new DatabaseSync(":memory:");
   sql.exec(schema);
@@ -56,16 +56,27 @@ test("the public NAV API serves the X Layer record to any origin and never write
     assert.equal(body.nav.perShareUsd, "99.449929");
     assert.equal(body.nav.sharesOutstandingMicros, "152083351");
     assert.equal(body.nav.holdingsHash, HASH);
+    // Orders and loans use the record for an hour after its time; older records have no calculation time.
+    assert.equal(body.nav.validUntil, "2026-09-24T19:05:17.000Z");
+    assert.equal(body.nav.calculatedAt, null);
     assert.equal(body.record.chainId, 1952);
     assert.equal(body.record.transactionHash, TX);
     assert.equal(body.verify.page, "https://ganymede.test/products/ustx/transparency");
     assert.equal(body.shares.token, "0x77eaeba1366bde7818da12d3cbdbea0a2ee97596");
     assert.equal(body.shares.paidWith.symbol, "dUSD");
+    // The recorded count is split into its two kinds; the wallet part is null when the chain cannot be read here.
+    assert.equal(body.shares.outstanding.recordedMicros, "152083351");
+    assert.equal(body.shares.outstanding.inDemoBalancesMicros, "0");
+    assert.ok(body.shares.outstanding.inWalletsMicros === null || /^\d+$/.test(body.shares.outstanding.inWalletsMicros));
     assert.equal(body.feed.address, "0x292c56c5290cc7b73e3ee33c2c2688eb3e04c3c8");
     assert.equal(body.feed.decimals, 8);
     assert.equal(body.market.pool, "0x286f5e7ffdbc30db12665d7a3854217d7cd05cc1");
     assert.equal(body.market.keeper, "0xccf372068496d9bef0f7cf83d697183d358dec1b");
     assert.equal(body.lending.market, "0xae2f54ae3d0370295de18510d56de92afb8843c7");
+    // The second price source is named with its pools, so a partner can repeat the comparison.
+    assert.equal(body.pricing.crossCheck.factory, "0x4b2ab38dbf28d31d467aa8993f6c2585981d6804");
+    assert.deepEqual(body.pricing.crossCheck.pools.map((pool) => pool.symbol), ["AAPLx", "MSFTx", "NVDAx", "AMZNx", "METAx", "TSLAx"]);
+    assert.deepEqual(body.pricing.crossCheck.toleranceBps, { nav: 100 });
     const preflight = OPTIONS();
     assert.equal(preflight.status, 204);
     assert.match(preflight.headers.get("access-control-allow-methods"), /GET/);

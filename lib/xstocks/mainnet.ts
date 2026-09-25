@@ -25,7 +25,7 @@ export const tokenExplorerUrl = (address: string) => `${MAINNET.explorerUrl}/tok
 const SYMBOL = "0x95d89b41";
 const DECIMALS = "0x313ce567";
 const BALANCE_OF = "0x70a08231";
-type Call = { method: string; params: unknown[] };
+export type Call = { method: string; params: unknown[] };
 
 /** The public RPC answers at most 10 calls per batch request. */
 const BATCH_LIMIT = 10;
@@ -45,17 +45,18 @@ async function batchOnce(calls: Call[], fetcher: typeof fetch): Promise<unknown[
   });
 }
 
-async function batch(calls: Call[], fetcher: typeof fetch): Promise<unknown[]> {
+/** Sends any number of calls, ten to a request, and returns the results in order. */
+export async function batch(calls: Call[], fetcher: typeof fetch): Promise<unknown[]> {
   const chunks: Call[][] = [];
   for (let index = 0; index < calls.length; index += BATCH_LIMIT) chunks.push(calls.slice(index, index + BATCH_LIMIT));
   return (await Promise.all(chunks.map(chunk => batchOnce(chunk, fetcher)))).flat();
 }
 
-const hex = (value: unknown) => {
+export const hex = (value: unknown) => {
   if (typeof value !== "string" || !/^0x[0-9a-f]*$/i.test(value)) throw new Error("X Layer RPC returned an invalid value.");
   return value;
 };
-const quantity = (value: unknown) => BigInt(hex(value) === "0x" ? "0x0" : hex(value));
+export const quantity = (value: unknown) => BigInt(hex(value) === "0x" ? "0x0" : hex(value));
 
 const text = (data: string) => new TextDecoder().decode(new Uint8Array(data.match(/../g)?.map(byte => parseInt(byte, 16)) ?? []));
 
@@ -71,7 +72,7 @@ export function decodeSymbol(value: unknown): string | null {
   } catch { return null; }
 }
 
-function chainCheck(results: unknown[]) {
+export function chainCheck(results: unknown[]) {
   if (quantity(results[0]) !== BigInt(MAINNET.chainId)) throw new Error("The RPC is not X Layer mainnet (196).");
 }
 

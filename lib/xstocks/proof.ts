@@ -14,7 +14,10 @@ const integer = (value: unknown): value is string => typeof value === "string" &
 const date = (value: unknown): value is string => typeof value === "string" && Number.isFinite(Date.parse(value));
 const object = (value: unknown): value is Record<string, unknown> => !!value && typeof value === "object" && !Array.isArray(value);
 
-export type ReportProfile = { productId: string; pricingChainIndex: string; symbols: readonly string[] };
+/** Clock difference allowed between the price source and the publisher, both ways. */
+export const PRICE_CLOCK_TOLERANCE_MS = 60_000;
+/** What a document must describe. `addresses`, when given, pins each symbol's token (lowercase). */
+export type ReportProfile = { productId: string; pricingChainIndex: string; symbols: readonly string[]; addresses?: Readonly<Record<string, string>> };
 const USTX_PROFILE: ReportProfile = { productId: XSTOCKS_PRODUCT.id, pricingChainIndex: "196", symbols: XSTOCKS_CONSTITUENTS.map(item => item.symbol) };
 
 /** The live path always uses the pinned USTX profile. */
@@ -33,6 +36,7 @@ export function parseReport(canonical: string, profile: ReportProfile): Composit
   for (const row of doc.holdings) {
     if (!object(row) || typeof row.symbol !== "string" || !profile.symbols.includes(row.symbol)
       || symbols.has(row.symbol) || typeof row.address !== "string" || !/^0x[0-9a-f]{40}$/i.test(row.address) || addresses.has(row.address.toLowerCase())
+      || (profile.addresses && profile.addresses[row.symbol] !== row.address.toLowerCase())
       || !integer(row.unitsWad) || BigInt(row.unitsWad) === 0n || !integer(row.priceMicros) || BigInt(row.priceMicros) === 0n
       || !integer(row.valueMicros) || !Number.isInteger(row.weightBps) || Number(row.weightBps) < 0 || Number(row.weightBps) > 10_000
       || !date(row.priceTime) || Date.parse(row.priceTime) > Date.parse(doc.asOf) + 60_000 || typeof row.priceSource !== "string" || !row.priceSource) throw new Error("A holding has missing, duplicate or invalid fields.");
@@ -65,7 +69,13 @@ export async function verifyReport(canonical: string, record: OnchainNav, profil
     }
     if (total !== BigInt(composition.navPerShareMicros) || total !== BigInt(record.navPerShareMicros)) throw new Error("Recalculated holdings do not sum to both the documented and reference NAV.");
     if (!record.effectiveAt || Math.floor(Date.parse(composition.asOf) / 1000) !== Math.floor(Date.parse(record.effectiveAt) / 1000)) throw new Error("The composition timestamp differs from the reference record.");
-    return { hash, nav: { state: "pass", detail: `All ${composition.holdings.length} units × price calculations, truncated to micro-dollars per holding, sum exactly to the document and ${source === "chain" ? "on-chain" : "example"} NAV. The effective timestamp also matches.` }, composition };
+    // The record's time stands for its prices: none may be older than it, beyond a minute of clock difference.
+    const oldest = Math.min(...composition.holdings.map((holding) => Date.parse(holding.priceTime)));
+    if (oldest < Date.parse(composition.asOf) - PRICE_CLOCK_TOLERANCE_MS) throw new Error("A price in the document is older than the record's time.");
+    // The registry only requires each record's time to be later than the last, so a record could claim
+    // a future time that the fund and lending market would then treat as fresh; its block time bounds it.
+    if (source === "chain" && record.publishedAt && Date.parse(record.effectiveAt) > Date.parse(record.publishedAt) + PRICE_CLOCK_TOLERANCE_MS) throw new Error("The record claims a time later than the block it was written in.");
+    return { hash, nav: { state: "pass", detail: `All ${composition.holdings.length} units × price calculations, truncated to micro-dollars per holding, sum exactly to the document and ${source === "chain" ? "on-chain" : "example"} NAV. The effective timestamp also matches, and no price is older than it.` }, composition };
   } catch (error) {
     return { hash, nav: { state: "fail", detail: error instanceof Error ? error.message : "The NAV could not be recalculated." }, composition };
   }

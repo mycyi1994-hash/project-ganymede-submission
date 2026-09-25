@@ -207,7 +207,9 @@ test("each NAV record carries wallet shares plus demo shares, and the last walle
   const addresses = XSTOCKS_CONSTITUENTS.map((item, i) => ({ ...item, address: "0x" + String(i + 1).repeat(40) }));
   const configured = { OKX_API_KEY: "k", OKX_API_SECRET: "s", OKX_API_PASSPHRASE: "p", XSTOCKS_ADDRESSES: addresses.map((item) => `${item.symbol}=${item.address}`).join(",") };
   const at = new Date().toISOString();
-  const prices = async () => Response.json({ code: "0", data: addresses.map((item) => ({ chainIndex: "196", tokenContractAddress: item.address, price: "100", time: at })) });
+  // Each cycle gets prices stamped at its own time, as OnchainOS stamps the response.
+  let quoteTime = at;
+  const prices = async () => Response.json({ code: "0", data: addresses.map((item) => ({ chainIndex: "196", tokenContractAddress: item.address, price: "100", time: quoteTime })) });
   let rpcUp = true;
   const { fetcher } = chain({ block: 50, supply: 2_005_480n, investors: 1n });
   t.mock.method(globalThis, "fetch", async (url, init) => url === FUND_DEPLOYMENT.rpcUrl ? (rpcUp ? fetcher(url, init) : Promise.reject(new TypeError("fetch failed"))) : prices());
@@ -219,7 +221,8 @@ test("each NAV record carries wallet shares plus demo shares, and the last walle
   assert.equal(JSON.parse(rows.get(STATE_WALLET_SHARES)).sharesMicros, "2005480");
 
   rpcUp = false;
-  const result = await runXStocksCycle(configured, repo, settlement, new Date(Date.parse(at) + 300_000).toISOString());
+  quoteTime = new Date(Date.parse(at) + 300_000).toISOString();
+  const result = await runXStocksCycle(configured, repo, settlement, quoteTime);
   assert.equal(sent.at(-1).sharesOutstandingMicros, "2005480", "the last value read stands in");
   assert.ok(result.warnings.some((warning) => /wallet shares could not be read/.test(warning)));
 });

@@ -162,6 +162,11 @@ test("the product page shows fund figures and Markets shows the OKX and X Layer 
   assert.match(product, /Minimum investment/);
   assert.match(product, /Net flows, 24h/);
   assert.doesNotMatch(product, /Recent investor activity/);
+  // Market activity is read in the browser, so the page arrives with the section and no rows.
+  assert.match(product, /<section id="activity"[^>]*aria-labelledby="activity-title"/);
+  assert.match(product, /Market activity/);
+  assert.match(product, /href="#activity"/);
+  assert.match(product, /Reading market activity from X Layer Testnet/);
   const markets = visible(await (await render("/")).text());
   assert.match(markets, /OKX OnchainOS/);
   assert.match(markets, /href="\/issuers"/);

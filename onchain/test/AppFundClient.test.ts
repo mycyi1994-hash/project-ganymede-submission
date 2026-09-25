@@ -8,12 +8,15 @@ import {
   FUND_DEPLOYMENT, FUND_ERRORS, FUND_EVENTS, FUND_SELECTORS, POOL_EVENTS, POOL_SELECTORS, poolAmountOut, poolCalls, poolFill, routeOrder, type FundReceipt,
 } from "../../lib/xstocks/fund";
 import { LENDING_ALL, LENDING_ERRORS, LENDING_EVENTS, LENDING_SELECTORS, LENDING_TERMS, lendingCalls, lendingFill, lendingPosition } from "../../lib/xstocks/lending";
+import { ACTIVITY_EVENTS, scanActivity } from "../../lib/xstocks/activity";
 import { productKey, toBytes32 } from "../../relayer/src/ids";
 
 // The app carries no keccak, so lib/xstocks/fund.ts hard-codes selectors and addresses.
 // These checks tie them to the compiled contracts and to the deployment record.
 
 const signature = (item: { name: string; inputs: readonly { type: string }[] }) => `${item.name}(${item.inputs.map(input => input.type).join(",")})`;
+/** The app's RPC shape, answered by the Hardhat network. */
+const localRpc = (method: string, params: unknown[]) => hre.network.provider.request({ method, params });
 
 async function abis() {
   const [fund, dollar] = await Promise.all([hre.artifacts.readArtifact("GanymedeBasketFund"), hre.artifacts.readArtifact("GanymedeDemoDollar")]);
@@ -42,6 +45,13 @@ describe("App fund client", () => {
     expect(FUND_EVENTS.redeemed).to.equal(topic("Redeemed"));
     expect(POOL_EVENTS.bought).to.equal(topic("Bought"));
     expect(POOL_EVENTS.sold).to.equal(topic("Sold"));
+    const arbitrage = (await hre.artifacts.readArtifact("GanymedeNavArbitrage")).abi as readonly AbiItem[];
+    const lending = (await hre.artifacts.readArtifact("GanymedeLendingMarket")).abi as readonly AbiItem[];
+    const eventOf = (abi: readonly AbiItem[], name: string) => toEventSelector(signature(abi.find(item => item.type === "event" && item.name === name) as never));
+    expect(ACTIVITY_EVENTS).to.deep.equal({
+      arbitraged: eventOf(arbitrage, "Arbitraged"), liquidityAdded: eventOf(pool, "LiquidityAdded"),
+      liquidityRemoved: eventOf(pool, "LiquidityRemoved"), liquidated: eventOf(lending, "Liquidated"),
+    });
     expect(POOL_SELECTORS.buy).to.equal(toFunctionSelector("buy(uint256,uint256,uint256)"));
     expect(POOL_SELECTORS.sell).to.equal(toFunctionSelector("sell(uint256,uint256,uint256)"));
 
@@ -54,6 +64,7 @@ describe("App fund client", () => {
     const USTX = productKey("us-tech-x");
     const [admin, relayer, trader] = await hre.viem.getWalletClients();
     const publicClient = await hre.viem.getPublicClient();
+    const firstBlock = Number(await publicClient.getBlockNumber()) + 1;
     const registry = await hre.viem.deployContract("GanymedeNavRegistry", [admin.account.address, relayer.account.address]);
     const dollar = await hre.viem.deployContract("GanymedeDemoDollar", [admin.account.address]);
     const fund = await hre.viem.deployContract("GanymedeBasketFund", ["Ganymede US Tech Basket", "USTX", dollar.address, registry.address, USTX, admin.account.address]);
@@ -108,6 +119,39 @@ describe("App fund client", () => {
     // A slippage limit above the quote is refused with the error the app explains.
     await expect(trader.sendTransaction({ to: pool.address, data: poolCalls.buy(100n * USD, 10n ** 12n, deadline).data as `0x${string}` })).to.be.rejectedWith("SlippageExceeded");
     expect(FUND_ERRORS["0x8199f5f3"]).to.match(/price changed/);
+
+    // The arbitrage contract runs at its pinned address too. Its constructor approved the fund and
+    // the pool from where it was deployed, so the pinned address approves them again.
+    const arbitrageCode = await hre.viem.deployContract("GanymedeNavArbitrage", [pool.address]);
+    const pinned = FUND_DEPLOYMENT.arbitrage as Address;
+    await hre.network.provider.request({ method: "hardhat_setCode", params: [pinned, await publicClient.getCode({ address: arbitrageCode.address })] });
+    await hre.network.provider.request({ method: "hardhat_impersonateAccount", params: [pinned] });
+    await hre.network.provider.request({ method: "hardhat_setBalance", params: [pinned, "0xde0b6b3a7640000"] });
+    await dollar.write.approve([fund.address, maxUint256], { account: pinned });
+    await dollar.write.approve([pool.address, maxUint256], { account: pinned });
+    await fund.write.approve([pool.address, maxUint256], { account: pinned });
+    await hre.network.provider.request({ method: "hardhat_stopImpersonatingAccount", params: [pinned] });
+    const arbitrage = await hre.viem.getContractAt("GanymedeNavArbitrage", pinned);
+    // A sale takes the pool below the NAV; a keeper buys there and redeems at the fund.
+    await send(pool.address, poolCalls.sell(5n * USD, 0n, deadline).data);
+    const [buyInPool, dollarsIn] = await arbitrage.read.quote();
+    expect(buyInPool).to.equal(true);
+    await dollar.write.approve([pinned, maxUint256], { account: trader.account });
+    await arbitrage.write.buyAndRedeem([dollarsIn, 0n], { account: trader.account });
+
+    // Market activity reads it all back from the chain's logs, the arbitrage as one row.
+    const rows = await scanActivity(localRpc, firstBlock, Number(await publicClient.getBlockNumber()));
+    expect(rows.map(row => row.kind)).to.deep.equal(["arbitrage", "sell", "buy", "sell", "addLiquidity"]);
+    const [arbitraged] = await arbitrage.getEvents.Arbitraged();
+    const [boughtByArbitrage] = (await pool.getEvents.Bought({}, { fromBlock: arbitraged.blockNumber, toBlock: arbitraged.blockNumber }));
+    expect(rows[0]).to.deep.include({
+      account: trader.account.address.toLowerCase(), hash: arbitraged.transactionHash, dollarsMicros: dollarsIn, dollarsOutMicros: arbitraged.args.dollarsOut,
+      navMicros: nav, boughtInPool: true, sharesMicros: boughtByArbitrage.args.sharesOut,
+    });
+    expect(rows.some(row => row.account === pinned)).to.equal(false);
+    expect(rows[2]).to.deep.include({ kind: "buy", account: trader.account.address.toLowerCase(), dollarsMicros: 100n * USD, sharesMicros: route.pool });
+    expect(rows[4]).to.deep.include({ kind: "addLiquidity", account: admin.account.address.toLowerCase(), dollarsMicros: 5_000n * USD, sharesMicros: 50n * USD });
+    expect(new Date(rows[0].at).getTime() / 1000).to.equal(Number((await publicClient.getBlock({ blockNumber: arbitraged.blockNumber })).timestamp));
   });
 
   it("reads, encodes and decodes the lending market as its contract does", async () => {
@@ -127,6 +171,7 @@ describe("App fund client", () => {
 
     const [admin, relayer, borrower, lender] = await hre.viem.getWalletClients();
     const publicClient = await hre.viem.getPublicClient();
+    const firstBlock = Number(await publicClient.getBlockNumber()) + 1;
     const registry = await hre.viem.deployContract("GanymedeNavRegistry", [admin.account.address, relayer.account.address]);
     const dollar = await hre.viem.deployContract("GanymedeDemoDollar", [admin.account.address]);
     const fund = await hre.viem.deployContract("GanymedeBasketFund", ["Ganymede US Tech Basket", "USTX", dollar.address, registry.address, USTX, admin.account.address]);
@@ -194,6 +239,13 @@ describe("App fund client", () => {
     // The lender takes everything back, interest included.
     const lent = lendingFill(await send(lender, pinned, lendingCalls.withdraw(LENDING_ALL).data), "withdraw");
     expect(lent!.micros > 5_000n * USD).to.equal(true);
+
+    // Market activity lists each step, newest first, with the amounts the market reported.
+    const rows = await scanActivity(localRpc, firstBlock, Number(await publicClient.getBlockNumber()));
+    expect(rows.map(row => row.kind)).to.deep.equal(["withdraw", "withdrawCollateral", "repay", "withdrawCollateral", "repay", "borrow", "borrow", "deposit", "lend"]);
+    expect(rows[0]).to.deep.include({ account: lender.account.address.toLowerCase(), dollarsMicros: lent!.micros });
+    expect(rows[2]).to.deep.include({ account: borrower.account.address.toLowerCase(), dollarsMicros: repaid!.micros });
+    expect(rows[7]).to.deep.include({ account: borrower.account.address.toLowerCase(), sharesMicros: 20n * USD });
   });
 
   it("points at the recorded deployment", () => {

@@ -19,6 +19,7 @@
       // The app's fund client, pinned against the compiled contracts in test/AppFundClient.test.ts.
       "../lib/xstocks/fund.ts": "cjs",
       "../lib/xstocks/lending.ts": "cjs",
+      "../lib/xstocks/activity.ts": "cjs",
       "../lib/chains.ts": "cjs"
     }
   },

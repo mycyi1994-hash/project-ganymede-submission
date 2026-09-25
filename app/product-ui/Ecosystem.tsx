@@ -121,7 +121,7 @@ export function DevelopersPage() {
         <section id="api"><h2>Public NAV API</h2><p>The latest USTX record, read from the registry on X Layer when you call it. No key, no cookies, CORS open to every origin, cacheable for 30 seconds.</p>
           <Code label="Request">{`curl ${SITE}/api/v1/ustx`}</Code>
           <Code label="Response (abridged)">{apiExample}</Code>
-          <p>Also available: <code>GET /api/xstocks</code> returns the full market snapshot with the composition documents behind recent records, and <code>GET /api/demo/fund</code> returns fund totals and 24-hour flows.</p>
+          <p>Also available: <code>GET /api/v1/ustx/activity</code> returns the latest market activity (orders at the fund, pool trades, the keeper’s arbitrage and loans) read from the contracts’ events on X Layer Testnet, with the blocks it covers; <code>GET /api/xstocks</code> returns the full market snapshot with the composition documents behind recent records; and <code>GET /api/demo/fund</code> returns fund totals and 24-hour flows.</p>
           <a className="gmd-inline-link" href="/api/v1/ustx" target="_blank" rel="noreferrer">Open the live response <Icon name="external" size={14} /></a>
         </section>
         <section id="chain"><h2>Read the record from X Layer yourself</h2><p>You do not have to trust our API. The registry is a public contract on X Layer Testnet (chain {PROOF_DEPLOYMENT.chainId}); its <code>latestNav</code> getter returns the NAV per share, the shares outstanding, the composition fingerprint and the effective time.</p>

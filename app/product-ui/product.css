@@ -918,3 +918,25 @@
   .gmd-app .gmd-wallet-connect svg { display: none; }
 }
 @media (max-width: 400px) { .gmd-network { display: none; } }
+
+/* Market activity on the USTX page: orders, pool trades, arbitrage and loans from X Layer Testnet */
+.gmd-market-activity ul { list-style: none; margin: 0; padding: 0; border-top: 1px solid var(--gmd-line); }
+.gmd-market-activity li > a { display: grid; grid-template-columns: 38px minmax(0,1fr) auto 14px; gap: 14px; align-items: center; padding: 14px 0; border-bottom: 1px solid var(--gmd-line); color: inherit; text-decoration: none; }
+.gmd-market-activity li > a > span:nth-child(3) { text-align: right; white-space: nowrap; font-variant-numeric: tabular-nums; }
+.gmd-market-activity li > a > svg { color: var(--gmd-copy); }
+.gmd-market-activity b { font-size: 15px; font-weight: 600; }
+.gmd-market-activity li small { display: block; margin-top: 3px; font-size: 12px; color: var(--gmd-copy); overflow-wrap: anywhere; }
+.gmd-market-activity .gmd-transaction-symbol.is-arbitrage { background: #efe8d6; color: #7a5b17; }
+.gmd-market-activity .gmd-transaction-symbol:is(.is-deposit,.is-withdrawCollateral,.is-borrow,.is-repay,.is-lend,.is-withdraw,.is-liquidate) { background: #e6ecf1; color: #34505f; }
+.gmd-app .gmd-market-activity > .gmd-text-button { width: auto; display: block; margin-inline: auto; }
+@media (hover:hover) and (pointer:fine) {
+  .gmd-app .gmd-market-activity li > a:hover { background: #edf3f180; text-decoration: none; }
+  .gmd-app .gmd-market-activity li > a:hover > span:nth-child(2) > b { text-decoration: underline; text-underline-offset: 3px; }
+}
+@media (max-width: 600px) {
+  .gmd-market-activity li > a { grid-template-columns: 30px minmax(0,1fr) auto; gap: 10px; }
+  .gmd-market-activity li > a > svg:last-of-type { display: none; }
+  .gmd-market-activity .gmd-transaction-symbol { width: 30px; height: 30px; }
+  .gmd-market-activity b { font-size: 13px; }
+  .gmd-market-activity li small { font-size: 11px; }
+}

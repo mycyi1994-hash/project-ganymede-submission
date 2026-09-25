@@ -8,6 +8,7 @@ Ganymede sells USTX, the US Tech Basket: one share holds six tokenized US tech s
 
 - Investors connect OKX Wallet, get demo dollars (dUSD, no value) on X Layer Testnet, and invest or redeem through the USTX contract, which issues shares only at the NAV in the registry. Without a wallet, a private demo balance of $10,000 fills orders the same way, off chain. The confirmation and the Portfolio look through each holding to the six xStocks.
 - The product page shows the fund like a real fund: size (shares outstanding × NAV, both recorded on X Layer), investors, return since launch, key terms, 24-hour flows and look-through holdings.
+- Market activity on the same page lists what happened on chain: investments and redemptions at the NAV, pool trades, the arbitrage keeper closing the pool's gap to the NAV (with what it earned) and every lending step, each linked to its transaction on the OKX explorer.
 - Every five minutes the six xStocks are priced through OKX OnchainOS on X Layer mainnet.
 - The NAV, the shares outstanding and a SHA-256 fingerprint of the full composition document are recorded in a registry on X Layer Testnet.
 - A visitor's browser reads that record directly and recalculates the NAV row by row.
@@ -15,7 +16,7 @@ Ganymede sells USTX, the US Tech Basket: one share holds six tokenized US tech s
 - A tamper experiment on the developer page shows which check catches which kind of change. When every number and the NAV are kept, only the fingerprint on X Layer catches the edit.
 - The result can be downloaded as an evidence file that `npm run verify:evidence` re-checks against the publishing transaction.
 - Portfolio shows the wallet's USTX on X Layer Testnet and values any wallet's real xStocks on X Layer mainnet at those verified prices, with a downloadable statement.
-- Partners get a public NAV API (`/api/v1/ustx`, open CORS), an embeddable badge that verifies the NAV in the visitor's browser (`/embed/ustx`), and issuer and developer pages.
+- Partners get a public NAV API (`/api/v1/ustx`, open CORS) and a market activity API (`/api/v1/ustx/activity`), an embeddable badge that verifies the NAV in the visitor's browser (`/embed/ustx`), and issuer and developer pages.
 
 **Intended users.** Investors who want tokenized-stock exposure they can check; issuers or operators of tokenized-stock baskets who need to publish a value that others can check; wallets and apps on X Layer that want to show a verified NAV.
 
@@ -31,7 +32,7 @@ Ganymede sells USTX, the US Tech Basket: one share holds six tokenized US tech s
 - Verify it yourself (the three checks, tamper experiment, evidence download): https://ganymede-xlayer.gana003.workers.dev/developers#verify
 - Portfolio (wallet USTX and demo balance with look-through, xStocks valuation on X Layer mainnet): https://ganymede-xlayer.gana003.workers.dev/portfolio
 - For issuers: https://ganymede-xlayer.gana003.workers.dev/issuers
-- Developers & API: https://ganymede-xlayer.gana003.workers.dev/developers (public API https://ganymede-xlayer.gana003.workers.dev/api/v1/ustx, badge https://ganymede-xlayer.gana003.workers.dev/embed/ustx)
+- Developers & API: https://ganymede-xlayer.gana003.workers.dev/developers (public API https://ganymede-xlayer.gana003.workers.dev/api/v1/ustx, market activity https://ganymede-xlayer.gana003.workers.dev/api/v1/ustx/activity, badge https://ganymede-xlayer.gana003.workers.dev/embed/ustx)
 - Methodology: https://ganymede-xlayer.gana003.workers.dev/methodology
 - Limitations: https://ganymede-xlayer.gana003.workers.dev/limitations
 - Source: https://github.com/mycyi1994-hash/project-ganymede-submission

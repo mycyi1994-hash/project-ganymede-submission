@@ -3,6 +3,7 @@ import { handleImageOptimization, DEFAULT_DEVICE_SIZES, DEFAULT_IMAGE_SIZES } fr
 import handler from "vinext/server/app-router-entry";
 import { runEngineCycle } from "../lib/engine/runner";
 import type { EngineEnv } from "../lib/engine/types";
+import { ACTIVITY_CRON, runActivityIndex } from "../lib/xstocks/activity-index";
 
 interface Env extends EngineEnv {
   ASSETS: Fetcher;
@@ -55,6 +56,14 @@ const worker = {
   async scheduled(controller: ScheduledController, env: Env, ctx: ExecutionContext): Promise<void> {
     if (!env.DB) {
       controller.noRetry();
+      return;
+    }
+    // Market activity has a cron of its own, so its reads never hold up the NAV record.
+    if (controller.cron === ACTIVITY_CRON) {
+      ctx.waitUntil(runActivityIndex(env).catch((error) => {
+        console.error("Ganymede market activity run failed", error);
+        throw error;
+      }));
       return;
     }
     ctx.waitUntil(runEngineCycle(env, "scheduled", { force: true }).catch((error) => {

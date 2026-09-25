@@ -42,7 +42,9 @@ const localBindingConfig = {
       ]
     : [],
   triggers: {
-    crons: ["*/5 * * * *"],
+    // The engine cycle and NAV record every five minutes; market activity four minutes past
+    // (ACTIVITY_CRON in lib/xstocks/activity-index.ts).
+    crons: ["*/5 * * * *", "4-59/5 * * * *"],
   },
 };
 

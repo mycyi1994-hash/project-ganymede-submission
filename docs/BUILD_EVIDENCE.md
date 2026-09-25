@@ -1,6 +1,6 @@
 # Build provenance
 
-Production source revision: `3211c6fbdd93bbc5ac09d1a24b08c9eab228b3a2`.
+Production source revision: `852d53e64c25ee4e0999f97514cbc6569e56d867`.
 
 This is a source snapshot, not a claim that the entire project was newly built for this event. The original repository remains private. The entries below were exported from its Git history; reviewers can inspect current implementations and tests, and request original history access from the team if needed. No old secrets, local environment files or full private Git history are published.
 
@@ -333,6 +333,28 @@ Validation of the snapshot source:
 - In the development repository, the typecheck, clean build and 146 tests pass, lint reports 0 errors, and the 62 contract tests pass.
 - On production, Portfolio for the test wallet showed 1.003298 USTX in the wallet and 1.000000 USTX as collateral, with a $10.00 loan at 10.00% of its value, and looked through both. There was no overflow or page error on desktop or mobile.
 - After the deployment, the main public routes and APIs returned 200 and the legacy routes redirected. Seven screens on desktop and mobile, with and without a wallet, had no axe violations.
+- The same tests pass in this public checkout after `npm ci`, and so do the relayer typecheck and 28 tests.
+
+These are point-in-time observations, not continuous availability or a security audit.
+
+## Market activity release
+
+Production source: 852d53e64c25ee4e0999f97514cbc6569e56d867. Worker version: afb8f68a-8b18-4eba-80d5-a731e76d1528, deployed 2026-09-25; prior 15ae856c-d433-4f10-a3c1-deb825c170b8. Relayer and keeper Workers unchanged. This snapshot is exported from ab843ec4c7b77b97b8123cce7af50c7420d60995, which adds only documentation to the production source.
+
+- The USTX page lists the market's latest events from X Layer Testnet, each linked to its transaction on the OKX explorer.
+  - Investments and redemptions at the NAV.
+  - Pool trades, with their price.
+  - The keeper's arbitrage as one row, with what it earned.
+  - Every lending step.
+- The public RPC answers at most 100 blocks per log request and X Layer makes a block a second. A scheduled job on the app Worker's second cron (`4-59/5 * * * *`, apart from the NAV cycle) reads new blocks, then history back to the fund's deployment, and keeps the latest 40 rows.
+- `GET /api/v1/ustx/activity` serves those rows read-only with open CORS. The page reads only the blocks since, so a visitor's own order appears within seconds.
+
+Validation of the snapshot source:
+
+- In the development repository, the typecheck, clean build and 154 tests pass (8 new, one of them calling the built Worker's scheduled handler with the new cron), lint reports 0 errors, and the 62 contract tests pass. The contract tests read a real arbitrage and a lending cycle back through the app's decoder.
+- Reading every market log since launch on X Layer Testnet gave 45 rows; each of the four keeper arbitrages became one row.
+- On a local build, a throwaway test wallet bought $20 of USTX in the pool and sold it back; each trade appeared at the top of the list, as "You", within seconds.
+- On production, the first scheduled run finished ok and the API began serving rows; NAV records stayed on the five-minute marks. The main public routes and APIs returned 200 and the legacy routes redirected. Seven screens on desktop and mobile, with and without a wallet, had no axe violations.
 - The same tests pass in this public checkout after `npm ci`, and so do the relayer typecheck and 28 tests.
 
 These are point-in-time observations, not continuous availability or a security audit.

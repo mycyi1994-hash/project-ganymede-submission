@@ -1,6 +1,6 @@
 # Build provenance
 
-Production source revision: `1e0465f26ae1276e8d0e9fb653535c7d68e22ed3`.
+Production source revision: `73d543f4cdfcced41c76df3a148360c6730b839e`.
 
 This is a source snapshot, not a claim that the entire project was newly built for this event. The original repository remains private. The entries below were exported from its Git history; reviewers can inspect current implementations and tests, and request original history access from the team if needed. No old secrets, local environment files or full private Git history are published.
 
@@ -274,5 +274,24 @@ Validation of the snapshot source:
 - In the development repository, the contract typecheck and 60 contract tests pass. The deploy script ran first on a local fork of X Layer Testnet with a key holding no real funds, and `npm run fork:lending` ran supply, collateral bought at the live NAV, a loan, a 30% lower NAV, liquidation with the 8% bonus, redemption of the seized USTX at the fund, repayment and withdrawal against the live contracts in memory, broadcasting nothing.
 - After the deployment, the chain returned the expected dUSD, fund and administrator addresses and `paused = true`.
 - The application and relayer tests pass in this public checkout after `npm ci`.
+
+These are point-in-time observations, not continuous availability or a security audit.
+
+## Best-price routing release
+
+Production source: 73d543f4cdfcced41c76df3a148360c6730b839e. Worker version: 5d7eebbc-b2c4-49fa-b7c1-23fe78270fb8, deployed 2026-09-25; prior b203515c-1232-4301-a9f6-6db509f13575. Relayer and keeper Workers unchanged. This snapshot is exported from 4aa5d6b5e62ee41b88f81a3a183040bc6a46d912, which adds only documentation to the production source.
+
+- The USTX wallet order panel quotes each order at both venues and routes it to the one that gives more, marked "Best price"; the visitor can pick the other.
+  - The fund, at the NAV recorded on X Layer, with no fee.
+  - The USTX/dUSD pool, at its price after the 0.3% fee and the order's own price impact, computed with the pool's own integer arithmetic.
+- Pool orders approve demo dollars (buying) or USTX (selling) to the pool, then call `buy` or `sell`. They take a 1% minimum and a ten-minute deadline counted from the chain's clock, and the fill is read from the pool's `Bought` or `Sold` event. The pool still trades while the fund waits for a NAV record.
+- The lending market's source is now verified on the OKX explorer too, so all eight X Layer Testnet contracts are verified there and match exactly on Sourcify.
+
+Validation of the snapshot source:
+
+- In the development repository, the typecheck, clean build and 140 tests pass, lint reports 0 errors, and the 61 contract tests pass. One contract test sends the app's own calldata, unchanged, to pool bytecode placed at the pinned pool address, and checks the app's quotes against `quoteBuy` and `quoteSell`.
+- A throwaway test wallet traded through the interface on X Layer Testnet, on a local build and then on production. Its allowances to the pool were first set to zero. A $20 purchase in the pool (approve, then buy) and a full sale (approve, then sell) each completed without page errors.
+- After the deployment, the main public routes and APIs returned 200 and the legacy routes redirected. Seven screens on desktop and mobile, with and without a wallet, had no axe violations, horizontal overflow or page errors.
+- The same tests pass in this public checkout after `npm ci`, and so do the relayer typecheck and 28 tests.
 
 These are point-in-time observations, not continuous availability or a security audit.

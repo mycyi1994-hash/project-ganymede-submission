@@ -7,8 +7,8 @@ import { shortTime } from "@/lib/product-market";
 import { parseUsd } from "@/lib/xstocks/wallet";
 import { DEMO_ORDER_EVENT, formatShares, parseShares } from "@/lib/demo/format";
 import {
-  FUND_CLAIM_MICROS, FUND_DEPLOYMENT, FUND_MIN_INVESTMENT_MICROS, FUND_WALLET_CHAIN, dollarsFor, fundCalls, fundErrorMessage, fundExplorer, fundFill,
-  readFundAccount, sharesFor, simulateFundCall, waitForFundReceipt, withSlippage, type FundAccount, type FundFill, type TransactionCall,
+  FUND_CLAIM_MICROS, FUND_DEPLOYMENT, FUND_MIN_INVESTMENT_MICROS, FUND_WALLET_CHAIN, POOL_ORDER_SECONDS, dollarsFor, fundCalls, fundErrorMessage, fundExplorer, fundFill,
+  poolCalls, poolFill, pricePerShare, readChainTime, readFundAccount, routeOrder, simulateFundCall, waitForFundReceipt, withSlippage, type FundAccount, type TransactionCall, type Venue,
 } from "@/lib/xstocks/fund";
 import { Icon } from "./Icons";
 import { useMarket } from "./MarketProvider";
@@ -16,12 +16,28 @@ import { BasketList, useRecordComposition } from "./Basket";
 import { useWalletAccount } from "./WalletAccount";
 
 // Investing from the visitor's own wallet on X Layer Testnet: demo dollars (no value) buy USTX
-// from the fund contract at the NAV recorded on X Layer, and the shares land in the wallet.
+// either from the fund contract at the NAV recorded on X Layer or on the USTX/dUSD pool at its
+// price, whichever gives more, and the shares land in the wallet. Selling works the same way:
+// redeem at the fund or sell in the pool.
 
 type Provider = NonNullable<Window["ethereum"]>;
 type Side = "buy" | "sell";
 type Phase = "form" | "review" | "working" | "filled";
 type Step = { key: "approve" | "order"; label: string; state: "idle" | "wallet" | "chain" | "done"; hash?: string };
+type Filled = { venue: Venue; bought: boolean; sharesMicros: bigint; dollarsMicros: bigint; navMicros: bigint | null; navEffectiveAt: string | null; hash: string; block: number };
+
+const VENUE_NAMES: Record<Side, Record<Venue, string>> = {
+  buy: { fund: "Fund at the NAV", pool: "USTX/dUSD pool" },
+  sell: { fund: "Redeem at the NAV", pool: "Sell in the pool" },
+};
+const ORDER_LABELS: Record<Side, Record<Venue, string>> = {
+  buy: { fund: "Invest in USTX", pool: "Buy USTX in the pool" },
+  sell: { fund: "Redeem USTX", pool: "Sell USTX in the pool" },
+};
+const REVIEW_HEADINGS: Record<Side, Record<Venue, string>> = {
+  buy: { fund: "Review investment", pool: "Review purchase" },
+  sell: { fund: "Review redemption", pool: "Review sale" },
+};
 
 const noSubscription = () => () => {};
 /** The injected wallet, OKX Wallet first; null on the server and in browsers without one. */
@@ -98,10 +114,12 @@ export function WalletInvest({ tabs, onUseDemo }: { tabs: ReactNode; onUseDemo: 
   const [claim, setClaim] = useState<{ state: "wallet" | "chain" | "failed"; message?: string } | null>(null);
   const [side, setSide] = useState<Side>("buy");
   const [amount, setAmount] = useState("1,000");
+  // The venue the visitor picked; null follows the better price.
+  const [venueChoice, setVenueChoice] = useState<Venue | null>(null);
   const [phase, setPhase] = useState<Phase>("form");
   const [steps, setSteps] = useState<Step[]>([]);
   const [failure, setFailure] = useState<string | null>(null);
-  const [filled, setFilled] = useState<{ fill: FundFill; hash: string; block: number } | null>(null);
+  const [filled, setFilled] = useState<Filled | null>(null);
 
   useEffect(() => {
     if (!ready) return;
@@ -129,10 +147,18 @@ export function WalletInvest({ tabs, onUseDemo }: { tabs: ReactNode; onUseDemo: 
   const problem = !account ? null
     : side === "buy" ? (usd === null ? "Enter an amount in dollars, such as 1,000." : usd < FUND_MIN_INVESTMENT_MICROS ? "The minimum order is $10." : usd > dollars ? "That is more than your demo dollars." : null)
     : (held === 0n ? "This wallet holds no USTX yet." : shares === null || shares === 0n ? "Enter a number of shares, up to six decimals." : shares > held ? "That is more than this wallet holds." : null);
-  const quote = nav === null || problem ? null : side === "buy" && usd ? sharesFor(usd, nav) : side === "sell" && shares ? dollarsFor(shares, nav) : null;
-  const needsApproval = side === "buy" && usd !== null && account !== null && account.allowanceMicros < usd;
+  const amountIn = side === "buy" ? usd : shares;
+  // Both venues priced for this order; the pool still trades while the fund waits for a NAV record.
+  const route = account && !problem && amountIn ? routeOrder(side, amountIn, nav, account.pool) : null;
+  const venue: Venue | null = !route ? null : venueChoice && route[venueChoice] !== null ? venueChoice : route.best;
+  const quote = route && venue ? route[venue] : null;
+  const approved = !account || !venue ? null : side === "buy" ? (venue === "fund" ? account.allowanceMicros : account.poolDollarAllowanceMicros) : venue === "pool" ? account.poolShareAllowanceMicros : null;
+  const needsApproval = amountIn !== null && approved !== null && approved < amountIn;
   const claimable = account !== null && account.nextClaimAt * 1000 <= now;
-  const choose = (next: Side) => { setSide(next); setAmount(next === "buy" ? "1,000" : ""); setPhase("form"); setFailure(null); };
+  const choose = (next: Side) => { setSide(next); setAmount(next === "buy" ? "1,000" : ""); setVenueChoice(null); setPhase("form"); setFailure(null); };
+  /** The price per share an order gets: the NAV at the fund, the average price after the fee and its impact in the pool. */
+  const priceOf = (at: Venue, out: bigint) => at === "fund" ? nav ?? 0n : side === "buy" ? pricePerShare(amountIn ?? 0n, out) : pricePerShare(out, amountIn ?? 0n);
+  const outText = (out: bigint) => side === "buy" ? `${formatShares(out)} USTX` : `${formatUsdMicros(out, 2)} dUSD`;
 
   async function switchNetwork() {
     if (!provider) return;
@@ -154,32 +180,49 @@ export function WalletInvest({ tabs, onUseDemo }: { tabs: ReactNode; onUseDemo: 
   }
 
   async function run() {
-    if (!provider || !account || quote === null) return;
+    if (!provider || !account || quote === null || venue === null || amountIn === null) return;
     const from = address;
-    const order = side === "buy" ? fundCalls.invest(usd!, withSlippage(quote)) : fundCalls.redeem(shares!, withSlippage(quote));
+    const at = venue;
+    const size = amountIn;
+    const minimum = withSlippage(quote);
+    // A pool order carries a deadline, set when it is signed rather than when it was reviewed, and
+    // counted from the chain's clock as well as this device's, so a slow device clock cannot expire it.
+    const order = async () => {
+      if (at === "fund") return side === "buy" ? fundCalls.invest(size, minimum) : fundCalls.redeem(size, minimum);
+      const deadline = Math.max(Math.floor(Date.now() / 1000), await readChainTime().catch(() => 0)) + POOL_ORDER_SECONDS;
+      return side === "buy" ? poolCalls.buy(size, minimum, deadline) : poolCalls.sell(size, minimum, deadline);
+    };
+    const approval = side === "buy" ? (at === "fund" ? fundCalls.approve(size) : poolCalls.approveDollars(size)) : poolCalls.approveShares(size);
     const mark = (key: Step["key"], state: Step["state"], hash?: string) => setSteps(current => current.map(step => step.key === key ? { ...step, state, hash: hash ?? step.hash } : step));
-    setSteps([...(needsApproval ? [{ key: "approve", label: "Approve demo dollars", state: "idle" } as Step] : []), { key: "order", label: side === "buy" ? "Invest in USTX" : "Redeem USTX", state: "idle" }]);
+    setSteps([...(needsApproval ? [{ key: "approve", label: side === "buy" ? "Approve demo dollars" : "Approve USTX", state: "idle" } as Step] : []), { key: "order", label: ORDER_LABELS[side][at], state: "idle" }]);
     setPhase("working"); setFailure(null);
     let block = Math.max(watermark, account.block);
     try {
       if (needsApproval) {
         mark("approve", "wallet");
-        const hash = await send(provider, from, fundCalls.approve(usd!));
+        const hash = await send(provider, from, approval);
         mark("approve", "chain", hash);
         const receipt = await waitForFundReceipt(hash);
         if (receipt.status !== "success") throw new Error("The approval failed on X Layer Testnet.");
         block = Math.max(block, receipt.block);
         mark("approve", "done");
       }
-      await simulateFundCall(from, order, { minBlock: block });
+      const request = await order();
+      await simulateFundCall(from, request, { minBlock: block });
       mark("order", "wallet");
-      const hash = await send(provider, from, order);
+      const hash = await send(provider, from, request);
       mark("order", "chain", hash);
       const receipt = await waitForFundReceipt(hash);
-      const fill = receipt.status === "success" ? fundFill(receipt) : null;
+      const fundFilled = receipt.status === "success" && at === "fund" ? fundFill(receipt) : null;
+      const poolFilled = receipt.status === "success" && at === "pool" ? poolFill(receipt) : null;
+      const fill: Filled | null = fundFilled
+        ? { venue: "fund", bought: fundFilled.side === "invest", sharesMicros: fundFilled.sharesMicros, dollarsMicros: fundFilled.dollarsMicros, navMicros: fundFilled.navMicros, navEffectiveAt: fundFilled.navEffectiveAt, hash, block: receipt.block }
+        : poolFilled
+          ? { venue: "pool", bought: poolFilled.side === "buy", sharesMicros: poolFilled.sharesMicros, dollarsMicros: poolFilled.dollarsMicros, navMicros: null, navEffectiveAt: null, hash, block: receipt.block }
+          : null;
       if (!fill) throw new Error("The order did not fill on X Layer Testnet. See the transaction on the OKX explorer.");
       mark("order", "done");
-      setFilled({ fill, hash, block: receipt.block });
+      setFilled(fill);
       setPhase("filled");
       setAmount(side === "buy" ? "1,000" : "");
       setWatermark(current => Math.max(current, receipt.block));
@@ -192,7 +235,7 @@ export function WalletInvest({ tabs, onUseDemo }: { tabs: ReactNode; onUseDemo: 
     }
   }
 
-  const heading = phase === "filled" ? "Order filled" : phase === "working" ? "Confirm in your wallet" : phase === "review" ? `Review ${side === "buy" ? "investment" : "redemption"}` : "Invest in USTX";
+  const heading = phase === "filled" ? "Order filled" : phase === "working" ? "Confirm in your wallet" : phase === "review" && venue ? REVIEW_HEADINGS[side][venue] : "Invest in USTX";
   const head = <div className="gmd-order-heading"><h2 id="invest-title">{heading}</h2><Icon name="wallet" /></div>;
 
   if (!provider) return <>{head}{tabs}<div className="gmd-wallet-gate">
@@ -215,23 +258,28 @@ export function WalletInvest({ tabs, onUseDemo }: { tabs: ReactNode; onUseDemo: 
     : <p className="gmd-caption" role="status">Reading your wallet on X Layer Testnet…</p>}</>;
 
   if (phase === "filled" && filled) {
-    const { fill, hash, block } = filled;
-    const bought = fill.side === "invest";
+    const fill = filled;
+    const { bought, hash, block } = fill;
     return <>{head}<div className="gmd-order-review" role="status">
-      <span>{bought ? "You bought" : "You redeemed"}</span>
+      <span>{bought ? "You bought" : fill.venue === "fund" ? "You redeemed" : "You sold"}</span>
       <strong>{formatShares(fill.sharesMicros)}</strong><span>USTX</span>
       <dl className="gmd-facts">
         <div><dt>{bought ? "Paid" : "Received"}</dt><dd>{formatUsdMicros(fill.dollarsMicros, 2)} dUSD</dd></div>
-        <div><dt>NAV per share</dt><dd>{formatUsdMicros(fill.navMicros, 4)}</dd></div>
-        <div><dt>Priced by</dt><dd>OKX OnchainOS</dd></div>
-        <div><dt>Recorded on X Layer</dt><dd>{shortTime(fill.navEffectiveAt)}</dd></div>
+        {fill.navMicros !== null && fill.navEffectiveAt !== null ? <>
+          <div><dt>NAV per share</dt><dd>{formatUsdMicros(fill.navMicros, 4)}</dd></div>
+          <div><dt>Priced by</dt><dd>OKX OnchainOS</dd></div>
+          <div><dt>Recorded on X Layer</dt><dd>{shortTime(fill.navEffectiveAt)}</dd></div>
+        </> : <>
+          <div><dt>Price per share</dt><dd>{formatUsdMicros(pricePerShare(fill.dollarsMicros, fill.sharesMicros), 4)}</dd></div>
+          <div><dt>Traded on</dt><dd>USTX/dUSD pool, 0.3% fee</dd></div>
+        </>}
         <div><dt>USTX in your wallet</dt><dd>{account.block >= block ? formatShares(account.sharesMicros) : "Updating…"}</dd></div>
         <div><dt>Transaction</dt><dd><TxLink hash={hash} /></dd></div>
       </dl>
       {composition && <div className="gmd-order-basket">
         <h3>{bought ? "Added to your basket" : "Taken out of your basket"}</h3>
-        <BasketList composition={composition} sharesMicros={fill.sharesMicros} label={bought ? "Tokens this order added" : "Tokens this redemption removed"} />
-        <p className="gmd-caption">{holdingsHash && composition.navPerShareMicros === fill.navMicros.toString() ? "At the OKX OnchainOS prices in the record your order filled at." : "Token amounts per share are fixed until the next rebalance; values use the latest OKX OnchainOS prices."}</p>
+        <BasketList composition={composition} sharesMicros={fill.sharesMicros} label={bought ? "Tokens this order added" : "Tokens this order removed"} />
+        <p className="gmd-caption">{holdingsHash && fill.navMicros !== null && composition.navPerShareMicros === fill.navMicros.toString() ? "At the OKX OnchainOS prices in the record your order filled at." : "Token amounts per share are fixed until the next rebalance; values use the latest OKX OnchainOS prices."}</p>
       </div>}
       {bought && <button type="button" className="gmd-text-button" onClick={() => watchToken(provider, FUND_DEPLOYMENT.fund, "USTX")}>Show USTX in my wallet</button>}
       <Link prefetch={false} className="gmd-button" href="/portfolio">View portfolio <Icon name="arrow" size={16} /></Link>
@@ -244,21 +292,26 @@ export function WalletInvest({ tabs, onUseDemo }: { tabs: ReactNode; onUseDemo: 
     <div><b>{step.label}</b><small>{({ idle: "Next", wallet: "Confirm in your wallet", chain: "Confirming on X Layer Testnet…", done: "Done" })[step.state]}</small>{step.hash && <TxLink hash={step.hash}>View transaction</TxLink>}</div>
   </li>)}</ol><p className="gmd-caption">Keep this page open. Each step takes a few seconds on X Layer Testnet.</p></>;
 
-  if (phase === "review" && quote !== null && nav !== null) return <>{head}<div className="gmd-order-review">
-    <span>{side === "buy" ? "You pay" : "You redeem"}</span>
-    <strong>{side === "buy" ? formatUsdMicros(usd!, 2) : formatShares(shares!)}</strong><span>{side === "buy" ? "demo dollars (dUSD)" : "USTX"}</span>
+  if (phase === "review" && quote !== null && venue !== null && amountIn !== null) return <>{head}<div className="gmd-order-review">
+    <span>{side === "buy" ? "You pay" : venue === "fund" ? "You redeem" : "You sell"}</span>
+    <strong>{side === "buy" ? formatUsdMicros(amountIn, 2) : formatShares(amountIn)}</strong><span>{side === "buy" ? "demo dollars (dUSD)" : "USTX"}</span>
     <dl className="gmd-facts">
-      <div><dt>NAV per share</dt><dd>{formatUsdMicros(nav, 4)}{navAt ? ` · ${shortTime(navAt)}` : ""}</dd></div>
-      <div><dt>Priced by</dt><dd>OKX OnchainOS</dd></div>
-      <div><dt>You receive</dt><dd>{side === "buy" ? `${formatShares(quote)} USTX` : `${formatUsdMicros(quote, 2)} dUSD`}</dd></div>
-      <div><dt>Minimum accepted</dt><dd>{side === "buy" ? `${formatShares(withSlippage(quote))} USTX` : `${formatUsdMicros(withSlippage(quote), 2)} dUSD`}</dd></div>
+      <div><dt>Venue</dt><dd>{VENUE_NAMES[side][venue]}{route?.best === venue && route.fund !== null && route.pool !== null ? " · best price" : ""}</dd></div>
+      {venue === "fund" && nav !== null ? <>
+        <div><dt>NAV per share</dt><dd>{formatUsdMicros(nav, 4)}{navAt ? ` · ${shortTime(navAt)}` : ""}</dd></div>
+        <div><dt>Priced by</dt><dd>OKX OnchainOS</dd></div>
+      </> : <div><dt>Price per share</dt><dd>{formatUsdMicros(priceOf("pool", quote), 4)} with the 0.3% fee</dd></div>}
+      <div><dt>You receive</dt><dd>{outText(quote)}</dd></div>
+      <div><dt>Minimum accepted</dt><dd>{outText(withSlippage(quote))}</dd></div>
       <div><dt>Network</dt><dd>X Layer Testnet, fee in test OKB</dd></div>
-      <div><dt>Wallet confirmations</dt><dd>{needsApproval ? "2: approve, then invest" : "1"}</dd></div>
+      <div><dt>Wallet confirmations</dt><dd>{needsApproval ? `2: approve, then ${side === "buy" ? (venue === "fund" ? "invest" : "buy") : "sell"}` : "1"}</dd></div>
     </dl>
     {failure && <p className="gmd-inline-error" role="alert">{failure}</p>}
     <button type="button" className="gmd-button" onClick={() => void run()}>Confirm in wallet <Icon name="arrow" size={17} /></button>
     <button type="button" className="gmd-text-button" onClick={() => { setPhase("form"); setFailure(null); }}>Edit order</button>
-    <p className="gmd-caption">The order fills at the NAV recorded on X Layer when it is mined. If the NAV moves more than 1% first, it does not fill.</p>
+    <p className="gmd-caption">{venue === "fund"
+      ? "The order fills at the NAV recorded on X Layer when it is mined. If the NAV moves more than 1% first, it does not fill."
+      : "The order fills at the pool price when it is mined. If the price moves more than 1% first, or 10 minutes pass, it does not fill."}</p>
   </div></>;
 
   const unavailable = account.nav.navMicros === null ? account.nav.reason : null;
@@ -276,25 +329,38 @@ export function WalletInvest({ tabs, onUseDemo }: { tabs: ReactNode; onUseDemo: 
     {unavailable && <p className="gmd-inline-error" role="status">{unavailable}</p>}
     <div className="gmd-segmented" role="group" aria-label="Order type">
       <button type="button" aria-pressed={side === "buy"} onClick={() => choose("buy")}>Buy</button>
-      <button type="button" aria-pressed={side === "sell"} onClick={() => choose("sell")}>Redeem</button>
+      <button type="button" aria-pressed={side === "sell"} onClick={() => choose("sell")}>Sell</button>
     </div>
     <div className="gmd-order-input">
-      <label htmlFor="wallet-amount">{side === "buy" ? "You invest" : "Shares to redeem"}</label>
+      <label htmlFor="wallet-amount">{side === "buy" ? "You pay" : "Shares to sell"}</label>
       <div><input id="wallet-amount" inputMode="decimal" autoComplete="off" value={amount} onChange={event => { setAmount(event.target.value); setFailure(null); }} aria-invalid={Boolean(problem)} aria-describedby="wallet-help" /><span>{side === "buy" ? "dUSD" : "USTX"}</span></div>
       <p id="wallet-help">{problem ?? (side === "buy" ? `In your wallet: ${formatUsdMicros(dollars, 2)} dUSD` : `In your wallet: ${formatShares(held)} USTX`)}</p>
     </div>
-    <div className="gmd-order-presets" aria-label={side === "buy" ? "Investment amounts" : "Redemption amounts"}>
+    <div className="gmd-order-presets" aria-label={side === "buy" ? "Investment amounts" : "Amounts to sell"}>
       {side === "buy"
         ? [["$250", "250"], ["$1,000", "1,000"], ["Max", (dollars / 1_000_000n).toLocaleString("en-US")]].map(([label, value]) => <button type="button" key={label} aria-pressed={amount === value} onClick={() => setAmount(value)}>{label}</button>)
         : [["Half", held / 2n], ["All", held]].map(([label, value]) => <button type="button" key={String(label)} disabled={held === 0n} aria-pressed={amount === formatShares(value as bigint).replace(/,/g, "")} onClick={() => setAmount(formatShares(value as bigint).replace(/,/g, ""))}>{String(label)}</button>)}
     </div>
-    <div className="gmd-order-estimate"><span>{side === "buy" ? "Estimated shares" : "Estimated proceeds"}</span><strong>{quote === null ? "—" : side === "buy" ? `${formatShares(quote)} USTX` : `${formatUsdMicros(quote, 2)} dUSD`}</strong></div>
+    <div className="gmd-order-estimate"><span>{side === "buy" ? "Estimated shares" : "Estimated proceeds"}</span><strong>{quote === null ? "—" : outText(quote)}</strong></div>
+    {route && <fieldset className="gmd-route">
+      <legend>Where the order fills</legend>
+      {(["fund", "pool"] as const).map(at => {
+        const out = route[at];
+        return <label key={at} className={venue === at ? "is-selected" : undefined}>
+          <input type="radio" name="wallet-venue" value={at} checked={venue === at} disabled={out === null} onChange={() => setVenueChoice(at)} />
+          <span className="gmd-route-name"><b>{VENUE_NAMES[side][at]}</b><small>{out === null
+            ? (at === "fund" ? (account.nav.navMicros === null ? "Waiting for the next NAV record" : "Unavailable") : "No liquidity")
+            : `${formatUsdMicros(priceOf(at, out), 2)} per share${at === "pool" ? ", 0.3% fee" : ", no fee"}`}</small></span>
+          <span className="gmd-route-out">{out === null ? "—" : outText(out)}{route.best === at && route.fund !== null && route.pool !== null && <em>Best price</em>}</span>
+        </label>;
+      })}
+    </fieldset>}
     <dl className="gmd-facts">
       <div><dt>NAV per share</dt><dd>{nav === null ? "—" : formatUsdMicros(nav, 4)}</dd></div>
       <div><dt>Recorded on X Layer</dt><dd>{navAt ? shortTime(navAt) : "—"}</dd></div>
       <div><dt>Shares issued by</dt><dd><a className="gmd-inline-tx" href={fundExplorer.address(FUND_DEPLOYMENT.fund)} target="_blank" rel="noreferrer">USTX contract<Icon name="external" size={12} /><span className="gmd-sr-only"> (opens in a new tab)</span></a></dd></div>
     </dl>
-    <button type="button" className="gmd-button" disabled={Boolean(problem) || quote === null} onClick={() => { setFailure(null); setPhase("review"); }}>Review {side === "buy" ? "investment" : "redemption"} <Icon name="arrow" size={17} /></button>
+    <button type="button" className="gmd-button" disabled={Boolean(problem) || quote === null} onClick={() => { setFailure(null); setPhase("review"); }}>Review order <Icon name="arrow" size={17} /></button>
     <p className="gmd-caption">On X Layer Testnet with demo dollars, which have no value. Network fees are paid in test OKB.</p>
   </>;
 }

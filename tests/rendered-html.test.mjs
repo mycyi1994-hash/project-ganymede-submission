@@ -181,6 +181,7 @@ test("issuer, developer and embed pages render for partners", async () => {
   assert.match(developers, /Read the NAV from a contract/);
   assert.match(developers, /Trade USTX on X Layer/);
   assert.match(developers, /A keeper checks the pool every five minutes and sends that trade when closing the gap earns at least a cent/);
+  assert.match(developers, /quotes both the fund and the pool for each order and routes it to the better price/);
   assert.match(developers, /0x286f5e7ffdbc30db12665d7a3854217d7cd05cc1/);
   assert.match(developers, /address\/0xccf372068496d9bef0f7cf83d697183d358dec1b/);
   assert.match(developers, /tx\/0xbec5c89a1546e65c1f03a4131c85c1ef50e1ac9e3f4e6e09f929b33f7c33d26f/);

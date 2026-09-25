@@ -23,11 +23,11 @@ Those modules still power the separate paper Lab. They are not part of the submi
 | Investing | Wallet investing on X Layer Testnet: a USTX share contract that issues and redeems only at the NAV in the registry, no-value demo dollars, and an order panel that runs approve and invest from OKX Wallet. Demo-balance investing with private accounts, instant orders at the recorded NAV, idempotent retries and a daily cap. Order confirmations and a Portfolio that look through each holding to the six xStocks | `1327a6a`, `0c38037`, `2fed796`, `bc3bf08` |
 | Lending | A demo-dollar lending market that takes USTX as collateral at the recorded NAV, with a jump-rate curve and liquidations that the fund's redemption at NAV pays out; tested, run against the live contracts on a local fork, and deployed paused on X Layer Testnet | `8706a43`, `97a2fee` |
 | NAV feed | The USTX NAV in the Chainlink `AggregatorV3Interface` on X Layer Testnet, shown on the developer page and in the public API; all five X Layer Testnet contracts source-verified on the OKX explorer and Sourcify | `beff92f`, `b11493b`, `e36c7a3` |
-| Market | A USTX/dUSD pool on X Layer Testnet and a contract that closes its gap to the NAV through the fund in one transaction, like ETF creation and redemption; a keeper Worker checks the pool every five minutes and sends that trade when it earns at least a cent, and closed a 6% gap on its own; the USTX page shows the market price and its premium or discount | `ea35938`, `1e2693b`, `2218f1c`, `f7d7c98` |
+| Market | A USTX/dUSD pool on X Layer Testnet and a contract that closes its gap to the NAV through the fund in one transaction, like ETF creation and redemption; a keeper Worker checks the pool every five minutes and sends that trade when it earns at least a cent, and closed a 6% gap on its own; the USTX page shows the market price and its premium or discount, and its wallet order panel routes each order to the better of the fund at the NAV and the pool | `ea35938`, `1e2693b`, `2218f1c`, `f7d7c98`, `73d543f` |
 | Fund and ecosystem | Fund overview with size, investors and return since launch; the shares outstanding recorded on X Layer with every NAV; a public NAV API with open CORS, an embeddable self-verifying badge, and issuer and developer pages | `0c38037`, `23d35d2` |
 | Hardening | Public reads without writes, identity header gate, relayer retry and nonce handling, paper-ledger integrity, sanitized public errors | `c98e7ea`, `387ec35`, `8cd427f`, `7b18cf9`, `124bebe` |
 
-From `7a33392` to `97a2fee`: 240 files changed, 24683 insertions(+), 7375 deletions(-).
+From `7a33392` to `7dafdcc`: 240 files changed, 25006 insertions(+), 7375 deletions(-).
 
 ## Every commit in the build period (UTC)
 
@@ -149,4 +149,7 @@ From `7a33392` to `97a2fee`: 240 files changed, 24683 insertions(+), 7375 deleti
 | 2026-09-25 06:27 | `1e0465f` | Link the keeper wallet and its live trade; record the keeper releases | 11 | +47 / −7 |
 | 2026-09-25 06:32 | `1dac876` | Regenerate the build-period commit list with the keeper | 1 | +9 / −2 |
 | 2026-09-25 06:32 | `232379f` | Record the keeper link release b203515c | 1 | +8 / −3 |
+| 2026-09-25 06:50 | `3999d59` | Regenerate the build-period commit list with the lending deployment | 1 | +4 / −2 |
 | 2026-09-25 06:50 | `97a2fee` | Deploy the lending market on X Layer Testnet, paused | 12 | +115 / −29 |
+| 2026-09-25 07:14 | `73d543f` | Route wallet orders to the better of the fund and the pool | 13 | +375 / −72 |
+| 2026-09-25 07:19 | `7dafdcc` | Record the best-price routing release 5d7eebbc | 1 | +21 / −3 |

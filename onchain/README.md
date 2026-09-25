@@ -10,7 +10,7 @@ sources stay in `contracts/`.
 cd onchain
 npm install
 npm run build   # compile
-npm test        # 60 tests, no network needed
+npm test        # 61 tests, no network needed
 ```
 
 ## Keys
@@ -152,8 +152,8 @@ decision.
 ## Verify the sources
 
 Source verification makes the contract readable on the explorer. All eight
-deployed contracts match exactly (creation and runtime bytecode) on Sourcify,
-and all but the newly deployed lending market are verified on the OKX explorer:
+deployed contracts are verified on the OKX explorer and match exactly (creation
+and runtime bytecode) on Sourcify:
 
 | Contract | OKX explorer | Sourcify |
 | --- | --- | --- |
@@ -164,7 +164,7 @@ and all but the newly deployed lending market are verified on the OKX explorer:
 | `GanymedeUstxPool` (USTX/dUSD) | [verified](https://web3.okx.com/explorer/x-layer-testnet/address/0x286f5e7ffdbc30db12665d7a3854217d7cd05cc1) | [exact match](https://repo.sourcify.dev/1952/0x286f5e7ffdbc30db12665d7a3854217d7cd05cc1) |
 | `GanymedeNavArbitrage` | [verified](https://web3.okx.com/explorer/x-layer-testnet/address/0xaeba15aa92d6f3109e2b992f18933e1abe2fa3d9) | [exact match](https://repo.sourcify.dev/1952/0xaeba15aa92d6f3109e2b992f18933e1abe2fa3d9) |
 | `GanymedeNavFeed` (USTX / USD) | [verified](https://web3.okx.com/explorer/x-layer-testnet/address/0x292c56c5290cc7b73e3ee33c2c2688eb3e04c3c8) | [exact match](https://repo.sourcify.dev/1952/0x292c56c5290cc7b73e3ee33c2c2688eb3e04c3c8) |
-| `GanymedeLendingMarket` (paused) | [upload pending](https://web3.okx.com/explorer/x-layer-testnet/address/0xae2f54ae3d0370295de18510d56de92afb8843c7) | [exact match](https://repo.sourcify.dev/1952/0xae2f54ae3d0370295de18510d56de92afb8843c7) |
+| `GanymedeLendingMarket` (paused) | [verified](https://web3.okx.com/explorer/x-layer-testnet/address/0xae2f54ae3d0370295de18510d56de92afb8843c7) | [exact match](https://repo.sourcify.dev/1952/0xae2f54ae3d0370295de18510d56de92afb8843c7) |
 
 To verify a new deployment, pick one of the options below.
 

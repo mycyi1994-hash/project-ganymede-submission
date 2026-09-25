@@ -1,8 +1,9 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import {
-  FUND_DEPLOYMENT, FUND_EVENTS, FUND_SELECTORS, POOL_SELECTORS, STATE_WALLET_SHARES, describePremium, dollarsFor, fundCalls, fundErrorMessage, fundFill, fundRpc,
-  parseStoredWalletTotals, readFundAccount, readFundTotals, readPoolMarket, sharesFor, simulateFundCall, waitForFundReceipt, withSlippage,
+  FUND_DEPLOYMENT, FUND_EVENTS, FUND_SELECTORS, POOL_EVENTS, POOL_SELECTORS, STATE_WALLET_SHARES, describePremium, dollarsFor, fundCalls, fundErrorMessage, fundFill, fundRpc,
+  parseStoredWalletTotals, poolAmountOut, poolCalls, poolFill, pricePerShare, readChainTime, readFundAccount, readFundTotals, readPoolMarket, routeOrder, sharesFor, simulateFundCall,
+  waitForFundReceipt, withSlippage,
 } from "../lib/xstocks/fund.ts";
 import { combineFund } from "../lib/demo/api.ts";
 import { runXStocksCycle } from "../lib/xstocks/cycle.ts";
@@ -29,13 +30,16 @@ function chain(state) {
       case "eth_blockNumber": return answer(hex(state.block));
       case "eth_getBalance": return answer(hex(state.gas ?? 10n ** 15n));
       case "eth_getTransactionReceipt": return answer(state.receipts?.shift() ?? null);
+      case "eth_getBlockByNumber": return answer({ number: hex(state.block), timestamp: hex(state.time ?? 0) });
       case "eth_call": {
         const selector = first.data.slice(0, 10);
         if (state.revert?.[selector]) return fail("execution reverted", state.revert[selector]);
         if (first.to === FUND_DEPLOYMENT.pool && selector === POOL_SELECTORS.getReserves) return answer(`0x${word(state.poolShares ?? 0)}${word(state.poolDollars ?? 0)}`);
-        if (first.to === FUND_DEPLOYMENT.dollar) return answer(`0x${word({ [FUND_SELECTORS.balanceOf]: state.dollars, [FUND_SELECTORS.allowance]: state.allowance, [FUND_SELECTORS.nextClaimAt]: state.nextClaimAt }[selector] ?? 0)}`);
+        // allowance(owner, spender): the spender is the second word.
+        const toPool = selector === FUND_SELECTORS.allowance && first.data.slice(-40) === FUND_DEPLOYMENT.pool.slice(2);
+        if (first.to === FUND_DEPLOYMENT.dollar) return answer(`0x${word({ [FUND_SELECTORS.balanceOf]: state.dollars, [FUND_SELECTORS.allowance]: toPool ? state.poolAllowance : state.allowance, [FUND_SELECTORS.nextClaimAt]: state.nextClaimAt }[selector] ?? 0)}`);
         if (selector === FUND_SELECTORS.currentNav) return answer(`0x${word(state.nav)}${word(state.navAt)}`);
-        return answer(`0x${word({ [FUND_SELECTORS.balanceOf]: state.shares, [FUND_SELECTORS.totalSupply]: state.supply, [FUND_SELECTORS.investorCount]: state.investors }[selector] ?? 0)}`);
+        return answer(`0x${word({ [FUND_SELECTORS.balanceOf]: state.shares, [FUND_SELECTORS.totalSupply]: state.supply, [FUND_SELECTORS.investorCount]: state.investors, [FUND_SELECTORS.allowance]: state.shareAllowance }[selector] ?? 0)}`);
       }
       default: throw new Error(`unexpected ${body.method}`);
     }
@@ -58,11 +62,18 @@ test("orders are encoded for the pinned contracts and priced with the contract's
 });
 
 test("a wallet is read at one block, never below the newest block the page has seen", async () => {
-  const { rpc, calls } = chain({ block: 100, dollars: 9_000_000_000n, allowance: 0n, nextClaimAt: 1_790_000_000n, shares: 10_055_311n, nav: 99_449_929n, navAt: 1_790_300_000n, lagging: [hex(120)] });
+  const { rpc, calls } = chain({
+    block: 100, dollars: 9_000_000_000n, allowance: 0n, poolAllowance: 7n, shareAllowance: 9n, nextClaimAt: 1_790_000_000n, shares: 10_055_311n,
+    nav: 99_449_929n, navAt: 1_790_300_000n, poolShares: 50_000_000n, poolDollars: 4_986_500_000n, lagging: [hex(120)],
+  });
   const account = await readFundAccount(ALICE, { rpc, minBlock: 120 });
   assert.equal(account.block, 120, "the receipt's block, although the node reported 100");
   assert.equal(account.dollarsMicros, 9_000_000_000n);
   assert.equal(account.sharesMicros, 10_055_311n);
+  assert.equal(account.allowanceMicros, 0n);
+  assert.equal(account.poolDollarAllowanceMicros, 7n);
+  assert.equal(account.poolShareAllowanceMicros, 9n);
+  assert.deepEqual(account.pool, { sharesMicros: 50_000_000n, dollarsMicros: 4_986_500_000n });
   assert.equal(account.nextClaimAt, 1_790_000_000);
   assert.deepEqual(account.nav, { navMicros: 99_449_929n, effectiveAt: new Date(1_790_300_000 * 1000).toISOString() });
   const reads = calls.filter((call) => call.method === "eth_call" || call.method === "eth_getBalance");
@@ -81,7 +92,7 @@ test("a stale or missing NAV is a reason to show, not a failure", async () => {
 test("fund totals come from the contract; a dry run surfaces the revert reason", async () => {
   const { rpc } = chain({ block: 7, supply: 2_005_480n, investors: 1n, revert: { [FUND_SELECTORS.invest]: "0x8199f5f3" } });
   assert.deepEqual(await readFundTotals({ rpc }), { block: 7, sharesMicros: 2_005_480n, investors: 1 });
-  await assert.rejects(simulateFundCall(ALICE, fundCalls.invest(10_000_000n, 1n), { rpc }), (error) => fundErrorMessage(error).includes("NAV changed"));
+  await assert.rejects(simulateFundCall(ALICE, fundCalls.invest(10_000_000n, 1n), { rpc }), (error) => fundErrorMessage(error).includes("price changed"));
 });
 
 test("the pool's market price is read at one block and set against the NAV", async () => {
@@ -95,6 +106,60 @@ test("the pool's market price is read at one block and set against the NAV", asy
   const stale = await readPoolMarket({ rpc: chain({ block: 9, poolShares: 50_000_000n, poolDollars: 4_986_500_000n, revert: { [FUND_SELECTORS.currentNav]: "0x220d4d06" + word(1_790_000_000n) } }).rpc });
   assert.equal(stale.priceMicros, 99_730_000n);
   assert.equal(stale.premiumPpm, null);
+});
+
+test("the pool is quoted with its own arithmetic, and an order goes where it gets more", () => {
+  const pool = { sharesMicros: 50_000_000n, dollarsMicros: 4_986_500_000n }; // $99.73 a share, 0.27% under a $100 NAV
+  // (x × 9,970 × reserveOut) / (reserveIn × 10,000 + x × 9,970), rounded down.
+  assert.equal(poolAmountOut(100_000_000n, pool.dollarsMicros, pool.sharesMicros), 980_103n);
+  assert.equal(poolAmountOut(0n, 1n, 1n), 0n);
+  assert.equal(poolAmountOut(5n, 0n, 1n), 0n);
+  const nav = 100_000_000n;
+  // Buying $100: the fund gives 1.000000 USTX, the $5,000 pool 0.980103 after its fee and the order's 2% price impact.
+  assert.deepEqual(routeOrder("buy", 100_000_000n, nav, pool), { fund: 1_000_000n, pool: 980_103n, best: "fund" });
+  // 6% below the NAV, the pool is the better buy and the fund the better place to sell.
+  const cheap = { sharesMicros: 50_000_000n, dollarsMicros: 4_700_000_000n };
+  assert.deepEqual(routeOrder("buy", 100_000_000n, nav, cheap), { fund: 1_000_000n, pool: 1_038_606n, best: "pool" });
+  assert.deepEqual(routeOrder("sell", 1_000_000n, nav, cheap), { fund: 100_000_000n, pool: 91_885_797n, best: "fund" });
+  // The fund takes no buy under $10 and nothing without a NAV; the pool still trades.
+  assert.deepEqual(routeOrder("buy", 5_000_000n, nav, pool), { fund: null, pool: 49_935n, best: "pool" });
+  assert.equal(routeOrder("sell", 1_000_000n, null, pool).best, "pool");
+  assert.deepEqual(routeOrder("sell", 1_000_000n, null, { sharesMicros: 0n, dollarsMicros: 0n }), { fund: null, pool: null, best: null });
+  // An exact tie goes to the fund.
+  assert.deepEqual(routeOrder("buy", 100_000_000n, nav, { sharesMicros: 2_000_000n, dollarsMicros: 99_700_000n }), { fund: 1_000_000n, pool: 1_000_000n, best: "fund" });
+  assert.equal(pricePerShare(100_000_000n, 980_103n), 102_030_092n);
+  assert.equal(pricePerShare(1n, 0n), 0n);
+});
+
+test("pool orders are encoded for the pinned pool, token and dollar", () => {
+  assert.deepEqual(poolCalls.buy(100_000_000n, 987_613n, 1_790_000_600), { to: FUND_DEPLOYMENT.pool, data: `${POOL_SELECTORS.buy}${word(100_000_000n)}${word(987_613n)}${word(1_790_000_600n)}` });
+  assert.deepEqual(poolCalls.sell(1_000_000n, 98_000_000n, 1_790_000_600), { to: FUND_DEPLOYMENT.pool, data: `${POOL_SELECTORS.sell}${word(1_000_000n)}${word(98_000_000n)}${word(1_790_000_600n)}` });
+  assert.deepEqual(poolCalls.approveDollars(5n), { to: FUND_DEPLOYMENT.dollar, data: `${FUND_SELECTORS.approve}${FUND_DEPLOYMENT.pool.slice(2).padStart(64, "0")}${word(5n)}` });
+  assert.deepEqual(poolCalls.approveShares(5n), { to: FUND_DEPLOYMENT.fund, data: `${FUND_SELECTORS.approve}${FUND_DEPLOYMENT.pool.slice(2).padStart(64, "0")}${word(5n)}` });
+});
+
+test("a pool trade is read back from the pool's event", () => {
+  const trader = `0x${ALICE.slice(2).padStart(64, "0")}`;
+  const bought = { hash: "0x", block: 1, status: "success", logs: [
+    { address: FUND_DEPLOYMENT.dollar, topics: ["0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef"], data: "0x" },
+    { address: FUND_DEPLOYMENT.pool.toUpperCase().replace("0X", "0x"), topics: [POOL_EVENTS.bought, trader], data: `0x${word(100_000_000n)}${word(980_103n)}` },
+  ] };
+  assert.deepEqual(poolFill(bought), { side: "buy", trader: ALICE, dollarsMicros: 100_000_000n, sharesMicros: 980_103n });
+  const sold = { ...bought, logs: [{ address: FUND_DEPLOYMENT.pool, topics: [POOL_EVENTS.sold, trader], data: `0x${word(1_000_000n)}${word(99_430_000n)}` }] };
+  assert.deepEqual(poolFill(sold), { side: "sell", trader: ALICE, dollarsMicros: 99_430_000n, sharesMicros: 1_000_000n });
+  // Another contract's event with the same topic is not a fill.
+  assert.equal(poolFill({ ...bought, logs: [{ ...bought.logs[1], address: FUND_DEPLOYMENT.fund }] }), null);
+  assert.equal(fundFill(bought), null);
+});
+
+test("a pool order's deadline counts from the chain's clock", async () => {
+  assert.equal(await readChainTime({ rpc: chain({ block: 3, time: 1_790_000_123 }).rpc }), 1_790_000_123);
+});
+
+test("pool errors read as a customer would need them", () => {
+  assert.match(fundErrorMessage({ data: "0x203d82d8" }), /expired/);
+  assert.match(fundErrorMessage({ data: "0xbb55fd27" }), /no liquidity/);
+  assert.match(fundErrorMessage({ data: "0x8199f5f3" }), /price changed/);
 });
 
 test("a mined order is read back from the fund's event", async () => {

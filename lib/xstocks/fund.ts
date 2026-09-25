@@ -42,24 +42,38 @@ export const FUND_SELECTORS = {
 
 export const POOL_SELECTORS = {
   getReserves: "0x0902f1ac",
+  buy: "0x40993b26",
+  sell: "0xd3c9727c",
 } as const;
+
+/** GanymedeUstxPool's fee to liquidity providers, in basis points. */
+export const POOL_FEE_BPS = 30n;
+/** Pool orders expire this long after the wallet signs them. */
+export const POOL_ORDER_SECONDS = 600;
 
 export const FUND_EVENTS = {
   invested: "0x67bdca1ea1476f51b861369ec435902e65ace4e0b24955f5c21a7293fd053bf0",
   redeemed: "0x8b21d3b09c941202aae6703f703103df5365b7988b1c3e28674cf965bd8205f1",
 } as const;
 
-/** Custom errors of both contracts, by selector, in the words a customer needs. */
+export const POOL_EVENTS = {
+  bought: "0xa9a40dec7a304e5915d11358b968c1e8d365992abf20f82285d1df1b30c8e24c",
+  sold: "0xbac9694ac0daa55169abd117086fe32c89401d9a3b15dd1d34e55e0aa4e47a9d",
+} as const;
+
+/** Custom errors of the fund, the demo dollar and the pool, by selector, in the words a customer needs. */
 export const FUND_ERRORS: Record<string, string> = {
   "0x854f3dd0": "You already received demo dollars in the last 24 hours.",
   "0x860b82a9": "The minimum order is $10.",
   "0x27053676": "No NAV has been recorded yet. Try again in a few minutes.",
-  "0x220d4d06": "The latest NAV record is over an hour old. Orders reopen with the next record.",
-  "0x8199f5f3": "The NAV changed before your order was confirmed. Review the order again.",
+  "0x220d4d06": "The latest NAV record is over an hour old. Orders at the NAV reopen with the next record.",
+  "0x8199f5f3": "The price changed before your order was confirmed. Review the order again.",
   "0xf4d678b8": "Your balance is too low for this order.",
-  "0x13be252b": "Approve the demo dollars before investing.",
+  "0x13be252b": "Approve the tokens before placing this order.",
   "0xab35696f": "Orders are paused right now.",
   "0x2c5211c6": "Enter an amount greater than zero.",
+  "0x203d82d8": "The order expired before it was confirmed. Review it again.",
+  "0xbb55fd27": "The pool has no liquidity right now.",
 };
 
 export type TransactionCall = { to: string; data: string };
@@ -79,10 +93,50 @@ export const fundCalls = {
   redeem: (sharesMicros: bigint, minDollarsMicros: bigint): TransactionCall => ({ to: FUND_DEPLOYMENT.fund, data: `${FUND_SELECTORS.redeem}${word(sharesMicros)}${word(minDollarsMicros)}` }),
 };
 
+/** Orders on the USTX/dUSD pool. The pool pulls demo dollars (buying) or USTX (selling) approved to it. */
+export const poolCalls = {
+  approveDollars: (dollarsMicros: bigint): TransactionCall => ({ to: FUND_DEPLOYMENT.dollar, data: `${FUND_SELECTORS.approve}${addressWord(FUND_DEPLOYMENT.pool)}${word(dollarsMicros)}` }),
+  approveShares: (sharesMicros: bigint): TransactionCall => ({ to: FUND_DEPLOYMENT.fund, data: `${FUND_SELECTORS.approve}${addressWord(FUND_DEPLOYMENT.pool)}${word(sharesMicros)}` }),
+  buy: (dollarsMicros: bigint, minSharesMicros: bigint, deadline: number): TransactionCall => ({ to: FUND_DEPLOYMENT.pool, data: `${POOL_SELECTORS.buy}${word(dollarsMicros)}${word(minSharesMicros)}${word(BigInt(deadline))}` }),
+  sell: (sharesMicros: bigint, minDollarsMicros: bigint, deadline: number): TransactionCall => ({ to: FUND_DEPLOYMENT.pool, data: `${POOL_SELECTORS.sell}${word(sharesMicros)}${word(minDollarsMicros)}${word(BigInt(deadline))}` }),
+};
+
 /** The contract's own arithmetic: shares = dollars × 10^6 / NAV, dollars = shares × NAV / 10^6, rounded down. */
 export const sharesFor = (dollarsMicros: bigint, navMicros: bigint) => navMicros > 0n ? dollarsMicros * 1_000_000n / navMicros : 0n;
 export const dollarsFor = (sharesMicros: bigint, navMicros: bigint) => sharesMicros * navMicros / 1_000_000n;
 export const withSlippage = (quote: bigint) => quote * (10_000n - FUND_SLIPPAGE_BPS) / 10_000n;
+
+export type PoolReserves = { sharesMicros: bigint; dollarsMicros: bigint };
+
+/** The pool's own arithmetic (GanymedeUstxPool._amountOut): constant product after the 0.3% fee, rounded down; 0 when it cannot trade. */
+export function poolAmountOut(amountIn: bigint, reserveIn: bigint, reserveOut: bigint): bigint {
+  if (amountIn <= 0n || reserveIn <= 0n || reserveOut <= 0n) return 0n;
+  const inAfterFee = amountIn * (10_000n - POOL_FEE_BPS);
+  return inAfterFee * reserveOut / (reserveIn * 10_000n + inAfterFee);
+}
+
+export type Venue = "fund" | "pool";
+/** What each venue gives for an order now (null where it cannot take it) and the better one. */
+export type OrderRoute = { fund: bigint | null; pool: bigint | null; best: Venue | null };
+
+/**
+ * Routes an order to the better of the fund, at the NAV recorded on X Layer, and the USTX/dUSD
+ * pool, at its price after the fee and the order's own price impact. Buying, `amount` is demo
+ * dollars and the quotes are USTX; selling, the reverse. The fund takes no buy under $10 and
+ * nothing without a usable NAV. A tie goes to the fund.
+ */
+export function routeOrder(side: "buy" | "sell", amount: bigint, navMicros: bigint | null, pool: PoolReserves): OrderRoute {
+  const fundQuote = navMicros === null || navMicros <= 0n || amount <= 0n || (side === "buy" && amount < FUND_MIN_INVESTMENT_MICROS) ? 0n
+    : side === "buy" ? sharesFor(amount, navMicros) : dollarsFor(amount, navMicros);
+  const poolQuote = side === "buy" ? poolAmountOut(amount, pool.dollarsMicros, pool.sharesMicros) : poolAmountOut(amount, pool.sharesMicros, pool.dollarsMicros);
+  const fund = fundQuote > 0n ? fundQuote : null;
+  const onPool = poolQuote > 0n ? poolQuote : null;
+  const best: Venue | null = fund === null ? (onPool === null ? null : "pool") : onPool !== null && onPool > fund ? "pool" : "fund";
+  return { fund, pool: onPool, best };
+}
+
+/** Demo-dollar micros per USTX for a trade of `dollarsMicros` against `sharesMicros`; 0 without shares. */
+export const pricePerShare = (dollarsMicros: bigint, sharesMicros: bigint) => sharesMicros > 0n ? dollarsMicros * 1_000_000n / sharesMicros : 0n;
 
 export type Rpc = (method: string, params: unknown[]) => Promise<unknown>;
 type RpcOptions = { fetcher?: typeof fetch; signal?: AbortSignal };
@@ -134,10 +188,15 @@ export type FundAccount = {
   block: number;
   gasWei: bigint;
   dollarsMicros: bigint;
+  /** Demo dollars approved to the fund. */
   allowanceMicros: bigint;
+  /** Demo dollars and USTX approved to the pool. */
+  poolDollarAllowanceMicros: bigint;
+  poolShareAllowanceMicros: bigint;
   nextClaimAt: number;
   sharesMicros: bigint;
   nav: FundNav;
+  pool: PoolReserves;
 };
 
 async function readNav(rpc: Rpc, block: string): Promise<FundNav> {
@@ -166,15 +225,22 @@ export async function readFundAccount(account: string, options: { rpc?: Rpc; min
   const block = await readBlock(rpc, options.minBlock);
   const tag = hexBlock(block);
   return atBlock(async () => {
-    const [gas, dollars, allowance, nextClaim, shares, nav] = await Promise.all([
+    const pool = addressWord(FUND_DEPLOYMENT.pool);
+    const [gas, dollars, allowance, poolDollarAllowance, poolShareAllowance, nextClaim, shares, nav, [poolShares, poolDollars]] = await Promise.all([
       rpc("eth_getBalance", [account, tag]).then(quantity),
       call(rpc, FUND_DEPLOYMENT.dollar, `${FUND_SELECTORS.balanceOf}${owner}`, tag).then(value => words(value, 1)[0]),
       call(rpc, FUND_DEPLOYMENT.dollar, `${FUND_SELECTORS.allowance}${owner}${addressWord(FUND_DEPLOYMENT.fund)}`, tag).then(value => words(value, 1)[0]),
+      call(rpc, FUND_DEPLOYMENT.dollar, `${FUND_SELECTORS.allowance}${owner}${pool}`, tag).then(value => words(value, 1)[0]),
+      call(rpc, FUND_DEPLOYMENT.fund, `${FUND_SELECTORS.allowance}${owner}${pool}`, tag).then(value => words(value, 1)[0]),
       call(rpc, FUND_DEPLOYMENT.dollar, `${FUND_SELECTORS.nextClaimAt}${owner}`, tag).then(value => words(value, 1)[0]),
       call(rpc, FUND_DEPLOYMENT.fund, `${FUND_SELECTORS.balanceOf}${owner}`, tag).then(value => words(value, 1)[0]),
       readNav(rpc, tag),
+      call(rpc, FUND_DEPLOYMENT.pool, POOL_SELECTORS.getReserves, tag).then(value => words(value, 2)),
     ]);
-    return { block, gasWei: gas, dollarsMicros: dollars, allowanceMicros: allowance, nextClaimAt: Number(nextClaim), sharesMicros: shares, nav };
+    return {
+      block, gasWei: gas, dollarsMicros: dollars, allowanceMicros: allowance, poolDollarAllowanceMicros: poolDollarAllowance, poolShareAllowanceMicros: poolShareAllowance,
+      nextClaimAt: Number(nextClaim), sharesMicros: shares, nav, pool: { sharesMicros: poolShares, dollarsMicros: poolDollars },
+    };
   });
 }
 
@@ -242,6 +308,13 @@ export async function readFundTotals(options: { rpc?: Rpc } = {}): Promise<FundT
   });
 }
 
+/** The latest block's timestamp in seconds: the clock a pool order's deadline is checked against. */
+export async function readChainTime(options: { rpc?: Rpc } = {}): Promise<number> {
+  const rpc = options.rpc ?? fundRpc();
+  const block = await rpc("eth_getBlockByNumber", ["latest", false]) as { timestamp?: unknown } | null;
+  return Number(quantity(block?.timestamp));
+}
+
 /** Dry-runs a call from `from`, so a revert shows its reason before the wallet opens. */
 export async function simulateFundCall(from: string, request: TransactionCall, options: { rpc?: Rpc; minBlock?: number } = {}): Promise<void> {
   const rpc = options.rpc ?? fundRpc();
@@ -282,6 +355,23 @@ export function fundFill(receipt: FundReceipt): FundFill | null {
     return topic === FUND_EVENTS.invested
       ? { side: "invest", investor, dollarsMicros: first, sharesMicros: second, navMicros: nav, navEffectiveAt: new Date(Number(effectiveAt) * 1000).toISOString() }
       : { side: "redeem", investor, sharesMicros: first, dollarsMicros: second, navMicros: nav, navEffectiveAt: new Date(Number(effectiveAt) * 1000).toISOString() };
+  }
+  return null;
+}
+
+export type PoolFill = { side: "buy" | "sell"; trader: string; dollarsMicros: bigint; sharesMicros: bigint };
+
+/** The Bought or Sold event the pool emitted in a receipt. */
+export function poolFill(receipt: FundReceipt): PoolFill | null {
+  for (const log of receipt.logs) {
+    if (typeof log.address !== "string" || log.address.toLowerCase() !== FUND_DEPLOYMENT.pool) continue;
+    const topic = log.topics?.[0]?.toLowerCase();
+    if (topic !== POOL_EVENTS.bought && topic !== POOL_EVENTS.sold) continue;
+    const trader = `0x${String(log.topics[1]).slice(-40)}`.toLowerCase();
+    const [first, second] = words(log.data, 2);
+    return topic === POOL_EVENTS.bought
+      ? { side: "buy", trader, dollarsMicros: first, sharesMicros: second }
+      : { side: "sell", trader, sharesMicros: first, dollarsMicros: second };
   }
   return null;
 }

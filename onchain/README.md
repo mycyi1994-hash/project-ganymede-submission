@@ -96,7 +96,10 @@ Deployed: the pool at [`0x286f5e7ffdbc30db12665d7a3854217d7cd05cc1`](https://web
 [`0xaeba15aa92d6f3109e2b992f18933e1abe2fa3d9`](https://web3.okx.com/explorer/x-layer-testnet/address/0xaeba15aa92d6f3109e2b992f18933e1abe2fa3d9). In [an arbitrage on X Layer
 Testnet](https://web3.okx.com/explorer/x-layer-testnet/tx/0x3c604c934a1ef7576a173e0b513c419ad89376f1c6bea17464f8c5afbb9f6c2e) a seller had pushed the pool 17.3% below the NAV;
 `buyAndRedeem` put in $447.82, got back $491.80 and left the pool 0.27% below
-the NAV, inside the 0.3% fee.
+the NAV, inside the 0.3% fee. The arbitrage keeper (`relayer/src/keeper.ts`)
+sends the same trade on its own: after a sale left the pool 6.02% below the NAV,
+[its next run](https://web3.okx.com/explorer/x-layer-testnet/tx/0xbec5c89a1546e65c1f03a4131c85c1ef50e1ac9e3f4e6e09f929b33f7c33d26f)
+put in $145.92, got back $150.30 and left the pool 0.29% below the NAV.
 
 ```bash
 npm run deploy:pool
@@ -141,9 +144,9 @@ unpauses it; activating the market is a separate decision.
 
 ## Verify the sources
 
-Source verification makes the contract readable on the explorer. Every deployed
-contract matches exactly (creation and runtime bytecode) on Sourcify, and all
-but the two newest are verified on the OKX explorer too:
+Source verification makes the contract readable on the explorer. All seven
+deployed contracts are verified on the OKX explorer and match exactly (creation
+and runtime bytecode) on Sourcify:
 
 | Contract | OKX explorer | Sourcify |
 | --- | --- | --- |
@@ -151,8 +154,8 @@ but the two newest are verified on the OKX explorer too:
 | `GanymedeFundShare` | [verified](https://web3.okx.com/explorer/x-layer-testnet/address/0x68c4e8c904b3eddb1146ef52a76a0a2755a55b59) | [exact match](https://repo.sourcify.dev/1952/0x68c4e8c904b3eddb1146ef52a76a0a2755a55b59) |
 | `GanymedeDemoDollar` (dUSD) | [verified](https://web3.okx.com/explorer/x-layer-testnet/address/0xf07535080f74e8b0f571e58dfa600f47e72ea9bf) | [exact match](https://repo.sourcify.dev/1952/0xf07535080f74e8b0f571e58dfa600f47e72ea9bf) |
 | `GanymedeBasketFund` (USTX) | [verified](https://web3.okx.com/explorer/x-layer-testnet/address/0x77eaeba1366bde7818da12d3cbdbea0a2ee97596) | [exact match](https://repo.sourcify.dev/1952/0x77eaeba1366bde7818da12d3cbdbea0a2ee97596) |
-| `GanymedeUstxPool` (USTX/dUSD) | [upload pending](https://web3.okx.com/explorer/x-layer-testnet/address/0x286f5e7ffdbc30db12665d7a3854217d7cd05cc1) | [exact match](https://repo.sourcify.dev/1952/0x286f5e7ffdbc30db12665d7a3854217d7cd05cc1) |
-| `GanymedeNavArbitrage` | [upload pending](https://web3.okx.com/explorer/x-layer-testnet/address/0xaeba15aa92d6f3109e2b992f18933e1abe2fa3d9) | [exact match](https://repo.sourcify.dev/1952/0xaeba15aa92d6f3109e2b992f18933e1abe2fa3d9) |
+| `GanymedeUstxPool` (USTX/dUSD) | [verified](https://web3.okx.com/explorer/x-layer-testnet/address/0x286f5e7ffdbc30db12665d7a3854217d7cd05cc1) | [exact match](https://repo.sourcify.dev/1952/0x286f5e7ffdbc30db12665d7a3854217d7cd05cc1) |
+| `GanymedeNavArbitrage` | [verified](https://web3.okx.com/explorer/x-layer-testnet/address/0xaeba15aa92d6f3109e2b992f18933e1abe2fa3d9) | [exact match](https://repo.sourcify.dev/1952/0xaeba15aa92d6f3109e2b992f18933e1abe2fa3d9) |
 | `GanymedeNavFeed` (USTX / USD) | [verified](https://web3.okx.com/explorer/x-layer-testnet/address/0x292c56c5290cc7b73e3ee33c2c2688eb3e04c3c8) | [exact match](https://repo.sourcify.dev/1952/0x292c56c5290cc7b73e3ee33c2c2688eb3e04c3c8) |
 
 To verify a new deployment, pick one of the options below.

@@ -23,11 +23,11 @@ Those modules still power the separate paper Lab. They are not part of the submi
 | Investing | Wallet investing on X Layer Testnet: a USTX share contract that issues and redeems only at the NAV in the registry, no-value demo dollars, and an order panel that runs approve and invest from OKX Wallet. Demo-balance investing with private accounts, instant orders at the recorded NAV, idempotent retries and a daily cap. Order confirmations and a Portfolio that look through each holding to the six xStocks | `1327a6a`, `0c38037`, `2fed796`, `bc3bf08` |
 | Lending | A demo-dollar lending market that takes USTX as collateral at the recorded NAV, with a jump-rate curve and liquidations that the fund's redemption at NAV pays out; written and tested, run against the live contracts on a local fork, not deployed | `8706a43` |
 | NAV feed | The USTX NAV in the Chainlink `AggregatorV3Interface` on X Layer Testnet, shown on the developer page and in the public API; all five X Layer Testnet contracts source-verified on the OKX explorer and Sourcify | `beff92f`, `b11493b`, `e36c7a3` |
-| Market | A USTX/dUSD pool on X Layer Testnet and a contract that closes its gap to the NAV through the fund in one transaction, like ETF creation and redemption; the USTX page shows the market price and its premium or discount | `ea35938`, `1e2693b` |
+| Market | A USTX/dUSD pool on X Layer Testnet and a contract that closes its gap to the NAV through the fund in one transaction, like ETF creation and redemption; a keeper Worker checks the pool every five minutes and sends that trade when it earns at least a cent, and closed a 6% gap on its own; the USTX page shows the market price and its premium or discount | `ea35938`, `1e2693b`, `2218f1c`, `f7d7c98` |
 | Fund and ecosystem | Fund overview with size, investors and return since launch; the shares outstanding recorded on X Layer with every NAV; a public NAV API with open CORS, an embeddable self-verifying badge, and issuer and developer pages | `0c38037`, `23d35d2` |
 | Hardening | Public reads without writes, identity header gate, relayer retry and nonce handling, paper-ledger integrity, sanitized public errors | `c98e7ea`, `387ec35`, `8cd427f`, `7b18cf9`, `124bebe` |
 
-From `7a33392` to `fdd06b2`: 235 files changed, 24105 insertions(+), 7373 deletions(-).
+From `7a33392` to `232379f`: 238 files changed, 24590 insertions(+), 7375 deletions(-).
 
 ## Every commit in the build period (UTC)
 
@@ -140,4 +140,11 @@ From `7a33392` to `fdd06b2`: 235 files changed, 24105 insertions(+), 7373 deleti
 | 2026-09-25 04:44 | `bdf7ac0` | Record the NAV feed release (6f647815) and its explorer verification | 4 | +31 / −10 |
 | 2026-09-25 05:01 | `ea35938` | Add a USTX/dUSD pool and one-transaction NAV arbitrage | 9 | +850 / −1 |
 | 2026-09-25 05:15 | `1e2693b` | Deploy the USTX pool and show its market price against the NAV | 18 | +252 / −18 |
+| 2026-09-25 05:21 | `3df5967` | Bring the build-period record up to the latest commit | 1 | +6 / −1 |
 | 2026-09-25 05:21 | `fdd06b2` | Record the USTX market release (f460620d) | 1 | +26 / −5 |
+| 2026-09-25 05:53 | `529c917` | Record the explorer verification of the pool and arbitrage contracts | 4 | +8 / −8 |
+| 2026-09-25 05:56 | `2218f1c` | Add an arbitrage keeper that keeps the USTX pool near the NAV | 3 | +295 / −0 |
+| 2026-09-25 05:59 | `205ebe1` | Describe the arbitrage keeper on the site and in the docs | 9 | +36 / −14 |
+| 2026-09-25 06:16 | `f7d7c98` | Keeper: trade only for a cent or more, simulate first, run after the NAV record | 11 | +183 / −67 |
+| 2026-09-25 06:27 | `1e0465f` | Link the keeper wallet and its live trade; record the keeper releases | 11 | +47 / −7 |
+| 2026-09-25 06:32 | `232379f` | Record the keeper link release b203515c | 1 | +8 / −3 |

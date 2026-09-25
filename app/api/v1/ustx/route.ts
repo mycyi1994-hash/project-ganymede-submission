@@ -77,9 +77,10 @@ export async function GET(request: Request) {
       market: {
         pool: FUND_DEPLOYMENT.pool,
         arbitrage: FUND_DEPLOYMENT.arbitrage,
+        keeper: FUND_DEPLOYMENT.keeper,
         network: FUND_DEPLOYMENT.name,
         chainId: FUND_DEPLOYMENT.chainId,
-        rule: "A constant-product USTX/dUSD pool with a 0.3% fee; premiumBps() gives its gap to the NAV, and the arbitrage contract closes it through the fund in one transaction.",
+        rule: "A constant-product USTX/dUSD pool with a 0.3% fee; premiumBps() gives its gap to the NAV, and the arbitrage contract closes it through the fund in one transaction; a keeper checks every five minutes and does so when closing the gap earns at least a cent.",
         explorerUrl: `${FUND_DEPLOYMENT.explorerUrl}/address/${FUND_DEPLOYMENT.pool}`,
       },
       verify: {

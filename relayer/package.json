@@ -2,7 +2,7 @@
   "name": "ganymede-settlement-relayer",
   "version": "0.1.0",
   "private": true,
-  "description": "Signs and submits Ganymede settlement transactions to X Layer (or GIWA). The only component in the system that holds an EVM private key.",
+  "description": "Signs and submits Ganymede settlement transactions to X Layer (or GIWA). With the arbitrage keeper (wrangler.keeper.jsonc), the only components that hold an EVM private key.",
   "type": "module",
   "scripts": {
     "test": "node --experimental-transform-types --experimental-loader ../tests/cloudflare-loader.mjs --test tests/*.test.mjs",

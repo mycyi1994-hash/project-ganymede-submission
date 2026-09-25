@@ -17,6 +17,8 @@ export const FUND_DEPLOYMENT = {
   // GanymedeUstxPool (the USTX/dUSD market) and GanymedeNavArbitrage, which closes its gap to the NAV.
   pool: "0x286f5e7ffdbc30db12665d7a3854217d7cd05cc1",
   arbitrage: "0xaeba15aa92d6f3109e2b992f18933e1abe2fa3d9",
+  // The arbitrage keeper's wallet (relayer/src/keeper.ts): no role on any contract, testnet OKB and demo dollars only.
+  keeper: "0xccf372068496d9bef0f7cf83d697183d358dec1b",
   faucetUrl: "https://web3.okx.com/xlayer/faucet",
 } as const;
 

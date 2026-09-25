@@ -1,0 +1,20 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "ganymede-arbitrage-keeper",
+  "main": "src/keeper.ts",
+  "compatibility_date": "2026-07-01",
+  "compatibility_flags": ["nodejs_compat"],
+
+  // Every five minutes, three minutes past each mark: the app's NAV record for the mark lands
+  // within two, so a trade never races the next record. See src/keeper.ts.
+  "triggers": { "crons": ["3-59/5 * * * *"] },
+
+  "vars": {
+    // GanymedeNavArbitrage and GanymedeDemoDollar on X Layer Testnet
+    // (onchain/deployments/xlayer-testnet.json).
+    "ARBITRAGE_ADDRESS": "0xaeba15aa92d6f3109e2b992f18933e1abe2fa3d9",
+    "DOLLAR_ADDRESS": "0xf07535080f74e8b0f571e58dfa600f47e72ea9bf"
+    // KEEPER_PRIVATE_KEY is a secret, never a var:
+    //   npx wrangler secret put KEEPER_PRIVATE_KEY -c wrangler.keeper.jsonc
+  }
+}

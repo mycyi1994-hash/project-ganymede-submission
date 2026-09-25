@@ -1,6 +1,6 @@
 # Build provenance
 
-Production source revision: `1e2693b518a1a272cefa07d47d174a2b45baeb7e`.
+Production source revision: `1e0465f26ae1276e8d0e9fb653535c7d68e22ed3`.
 
 This is a source snapshot, not a claim that the entire project was newly built for this event. The original repository remains private. The entries below were exported from its Git history; reviewers can inspect current implementations and tests, and request original history access from the team if needed. No old secrets, local environment files or full private Git history are published.
 
@@ -239,5 +239,24 @@ Validation of the snapshot source:
 - In the development repository, the typecheck, clean build and 135 tests pass, lint reports 0 errors, and the 60 contract tests pass. Deliberate breaks of 11 pool and arbitrage rules each made the contract tests fail.
 - The same tests pass in this public checkout after `npm ci`, and so do the relayer typecheck and 16 tests.
 - After the deployment, the main public routes and APIs returned 200 and the legacy routes redirected. The USTX page's market price read "$99.49 · 0.27% below NAV". Seven screens on desktop and mobile, with and without a wallet, had no axe violations, horizontal overflow or page errors. The first cycle after the deployment recorded the NAV at 05:16 UTC with the pool's USTX in the shares outstanding.
+
+These are point-in-time observations, not continuous availability or a security audit.
+
+## Arbitrage keeper release
+
+Production source: 1e0465f26ae1276e8d0e9fb653535c7d68e22ed3. Worker version: b203515c-1232-4301-a9f6-6db509f13575, deployed 2026-09-25 after 09816f8c-cbcd-458d-8a19-2e1bf14c28ba and e7c29424-d4f4-4dfe-8815-824f3747bc1f the same morning. Relayer Worker version: cb38524c-cb75-4350-a9ee-a363f49a5c93, unchanged. New keeper Worker `ganymede-arbitrage-keeper`: version 0f36c825-08fd-4aa7-ab82-9c0947343458 from source f7d7c986141e62e4f19a16411c4828ea1daf36d3, whose keeper code is unchanged in the production source. This snapshot is exported from f9828dd93ab0a599d858be76c20a7318f5ab3db6, which adds only documentation to the production source.
+
+- An arbitrage keeper, `relayer/src/keeper.ts` with `relayer/wrangler.keeper.jsonc`, is a second Worker with its own key (a Worker secret) and no role on any contract. The wallet `0xccf372068496d9bef0f7cf83d697183d358dec1b` holds only testnet OKB for gas and no-value demo dollars.
+  - Every five minutes, three minutes past each mark so that the app's NAV record for the mark has landed, it asks `GanymedeNavArbitrage.quote()` for the trade that closes the USTX pool's gap to the NAV.
+  - It trades only when closing the gap earns at least a cent. It runs the trade as a call first and skips it if the call reverts. It insists on half the profit the call showed, and quotes again after it claims demo dollars or approves the arbitrage contract.
+- The first release's first trade, a $1.83 `buyAndRedeem`, reverted with `Unprofitable(1834955, 1834943)` (transaction `0x56437e76bde092960bd1967526922b21e2176b1d2d9fba6434a655fd62977941`): the app's NAV record for 06:05 UTC landed between the keeper's quote and its trade. The contract's no-loss rule held and only gas was spent. The schedule, the call-first check and the one-cent minimum above came from that run.
+- A live run with a throwaway test wallet: a sale left the pool 6.02% below the NAV (transaction `0xb467547f88971d511199fbaf1e21d68c264bccfe3be6d5b9d60cf2aa1e727ff4`). At 06:23 UTC the keeper's scheduled run put in $145.92 and got back $150.30 (transaction `0xbec5c89a1546e65c1f03a4131c85c1ef50e1ac9e3f4e6e09f929b33f7c33d26f`), leaving the pool 0.29% below the NAV, inside the 0.3% fee.
+- The developer page states the keeper's rule and links that trade and the keeper wallet. `GET /api/v1/ustx` returns the wallet as `market.keeper`.
+
+Validation of the snapshot source:
+
+- In the development repository, the typecheck, clean build and 135 tests pass and lint reports 0 errors. The relayer typecheck and 28 tests pass; 12 of the tests cover the keeper, including a skipped trade whose call reverts and the decoding of the real revert data. A run with writes refused, against live X Layer Testnet and the keeper's own address, returned call results and a decoded `Unprofitable(500000000, 454840736)`.
+- The same tests pass in this public checkout after `npm ci`, and so do the relayer typecheck and 28 tests.
+- After each deployment, the main public routes and APIs returned 200 and the legacy routes redirected. On b203515c, seven screens on desktop and mobile, with and without a wallet, had no axe violations, horizontal overflow or page errors.
 
 These are point-in-time observations, not continuous availability or a security audit.

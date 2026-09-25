@@ -1,6 +1,6 @@
 # Build provenance
 
-Production source revision: `0d989a74f56272427cfd9bfc02b6d7ef100cf93d`.
+Production source revision: `3211c6fbdd93bbc5ac09d1a24b08c9eab228b3a2`.
 
 This is a source snapshot, not a claim that the entire project was newly built for this event. The original repository remains private. The entries below were exported from its Git history; reviewers can inspect current implementations and tests, and request original history access from the team if needed. No old secrets, local environment files or full private Git history are published.
 
@@ -313,6 +313,26 @@ Validation of the snapshot source:
 - In the development repository, the typecheck, clean build and 146 tests pass, lint reports 0 errors, and the 62 contract tests pass. One contract test places the market's bytecode and constructor state at the pinned address and runs a full cycle with the app's own calldata, including the app's maximum borrow and withdrawal after an hour of interest.
 - A throwaway test wallet ran the same cycle through the interface on X Layer Testnet, on a local build and then on production: 2.003298 USTX deposited, $20 borrowed at a 10.00% loan to value, repaid in full and the USTX withdrawn. It saw fresh figures after each step and no page errors.
 - After the deployment, the main public routes and APIs returned 200 and the legacy routes redirected. Seven screens on desktop and mobile, with and without a wallet, had no axe violations, horizontal overflow or page errors.
+- The same tests pass in this public checkout after `npm ci`, and so do the relayer typecheck and 28 tests.
+
+These are point-in-time observations, not continuous availability or a security audit.
+
+## Portfolio lending release
+
+Production source: 3211c6fbdd93bbc5ac09d1a24b08c9eab228b3a2. Worker version: 15ae856c-d433-4f10-a3c1-deb825c170b8, deployed 2026-09-25; prior 5f124eee-407a-4a12-bbb6-483f8c5642aa, and before it de3e16c9-b6bd-4fe3-a025-7de5d3eb38a5. Relayer and keeper Workers unchanged. This snapshot is exported from fba33e4d68ff029e7d46e1b10ef7514dc0b67ca3, which adds only documentation to the production source.
+
+- Portfolio's wallet section also reads the lending market.
+  - USTX posted as collateral gets its own row: its value, borrow limit, the loan with its loan to value, and a link to manage it.
+  - Demo dollars the wallet lends are named below the rows.
+  - The look-through covers the wallet's USTX plus its collateral.
+- Rates under 0.01% a year read as such instead of 0.00%.
+- A throwaway test wallet keeps 1 USTX posted and $10 borrowed as a live example (transaction `0x4f761f4dccfd65054c68c6aa961dd5e91f2800e7cadfe6179664dbd3cb06f018`). Liquidation would need the NAV to fall more than 84.6%.
+
+Validation of the snapshot source:
+
+- In the development repository, the typecheck, clean build and 146 tests pass, lint reports 0 errors, and the 62 contract tests pass.
+- On production, Portfolio for the test wallet showed 1.003298 USTX in the wallet and 1.000000 USTX as collateral, with a $10.00 loan at 10.00% of its value, and looked through both. There was no overflow or page error on desktop or mobile.
+- After the deployment, the main public routes and APIs returned 200 and the legacy routes redirected. Seven screens on desktop and mobile, with and without a wallet, had no axe violations.
 - The same tests pass in this public checkout after `npm ci`, and so do the relayer typecheck and 28 tests.
 
 These are point-in-time observations, not continuous availability or a security audit.

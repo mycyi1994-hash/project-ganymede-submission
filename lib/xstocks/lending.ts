@@ -170,9 +170,10 @@ export function lendingPosition(collateralMicros: bigint, debtMicros: bigint, na
   return { valueMicros, borrowLimitMicros, liquidationLimitMicros, borrowableMicros, withdrawableMicros, loanToValueWad, liquidationNavMicros };
 }
 
-/** "3.90%" from an 18-decimal fraction, to two decimals, rounded down. */
+/** "3.90%" from an 18-decimal fraction, to two decimals, rounded down; "under 0.01%" for a smaller rate above zero. */
 export function formatWadPercent(wad: bigint): string {
   const basisPoints = wad * 10_000n / WAD;
+  if (wad > 0n && basisPoints === 0n) return "under 0.01%";
   return `${basisPoints / 100n}.${(basisPoints % 100n).toString().padStart(2, "0")}%`;
 }
 

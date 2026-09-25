@@ -75,6 +75,8 @@ test("rates read as percentages", () => {
   assert.equal(formatWadPercent(39n * WAD / 1_000n), "3.90%");
   assert.equal(formatWadPercent(2n * WAD / 100n), "2.00%");
   assert.equal(formatWadPercent(0n), "0.00%");
+  // The market's first lending rate: 0.0036% a year.
+  assert.equal(formatWadPercent(36_360_003_672_000n), "under 0.01%");
   assert.equal(formatWadPercent(WAD * 21n / 10n), "210.00%");
 });
 

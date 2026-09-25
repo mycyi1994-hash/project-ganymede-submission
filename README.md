@@ -4,9 +4,24 @@ Ganymede sells **USTX, the US Tech Basket**: one share holds Apple, Microsoft, N
 
 [Markets](https://ganymede-xlayer.gana003.workers.dev/) · [USTX](https://ganymede-xlayer.gana003.workers.dev/products/ustx) · [Transparency](https://ganymede-xlayer.gana003.workers.dev/products/ustx/transparency) · [Portfolio](https://ganymede-xlayer.gana003.workers.dev/portfolio) · [For issuers](https://ganymede-xlayer.gana003.workers.dev/issuers) · [Docs & API](https://ganymede-xlayer.gana003.workers.dev/developers) · [Methodology](https://ganymede-xlayer.gana003.workers.dev/methodology) · [Risks](https://ganymede-xlayer.gana003.workers.dev/limitations)
 
+![Markets: USTX priced by OKX OnchainOS and recorded on X Layer, with the countdown to the next record, the NAV history and the six xStocks](docs/images/markets.png)
+
 Investing uses demo dollars with no value. From a wallet, the USTX contract on X Layer Testnet issues shares at the NAV recorded on X Layer; with a demo balance, nothing is issued on chain. No real money moves.
 
 **Built for OKX Dev Day 2026 (Build a Market).** Ganymede existed before the event. The new work of the 17–25 September build period is listed with its commits in [docs/BUILD_PERIOD.md](docs/BUILD_PERIOD.md) and summarized below.
+
+<table>
+<tr>
+<td width="50%"><img src="docs/images/ustx.png" alt="The USTX page: NAV history with the keeper's arbitrage and orders of $1,000 or more marked, and the order panel"><br><sub>USTX: the NAV history with the keeper's arbitrage and orders of $1,000 or more marked, and the order panel.</sub></td>
+<td width="50%"><img src="docs/images/detail.png" alt="An xStock's detail panel: OKX price, change since the units were fixed, weight against the equal-weight target and its token contract on X Layer mainnet"><br><sub>Each xStock: its OKX price, change since the units were fixed, weight against the target and token contract on X Layer mainnet.</sub></td>
+</tr>
+<tr>
+<td width="50%"><img src="docs/images/portfolio.png" alt="Portfolio for a public test address: USTX in the wallet and as lending collateral, looked through to the six xStocks"><br><sub>Portfolio: a wallet's USTX and its lending collateral, looked through to the six xStocks.</sub></td>
+<td width="50%"><img src="docs/images/transparency.png" alt="Transparency: the visitor's browser checks the NAV against the record on X Layer"><br><sub>Transparency: the visitor's browser checks the NAV against the record on X Layer.</sub></td>
+</tr>
+</table>
+
+<sub>The production site on 25 September 2026: X Layer Testnet, demo funds with no value.</sub>
 
 ## Try it in two minutes
 

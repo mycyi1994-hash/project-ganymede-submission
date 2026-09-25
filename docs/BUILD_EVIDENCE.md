@@ -417,16 +417,18 @@ These are point-in-time observations, not continuous availability or a security 
 
 ## NAV recovery release
 
-Production source: fd465594405ac6896b9eb40d28cffa74023940b1. Worker version: 28351ac7-ee9f-4b72-b926-9e26c229a283, deployed 2026-09-25; prior ae1dae8a-29c8-4a30-90b8-bf39503cafb5. Relayer and keeper Workers unchanged. This snapshot is exported from 03ec9f843f54371c14b6221320b5a3899de20ebf, which adds only documentation and a test to the production source.
+Production source: fd465594405ac6896b9eb40d28cffa74023940b1. Worker version: 28351ac7-ee9f-4b72-b926-9e26c229a283, deployed 2026-09-25; prior ae1dae8a-29c8-4a30-90b8-bf39503cafb5. Relayer and keeper Workers unchanged. This snapshot is exported from 2a9e3444f6abae9a8719605e4b5b7431a95a8b9f, which adds only documentation, screenshots and a test to the production source.
 
 - From 14:10 UTC on 25 September, Cloudflare stopped the scheduled engine cycle at about 10 ms of CPU time, the per-invocation limit of the Workers Free plan; the same version had run that cycle at 100–170 ms until 14:05. No USTX NAV was recorded from 14:01 to 14:45 UTC. The fund and the lending market refuse a NAV older than one hour, so wallet orders and loans would have stopped at 15:01.
 - The five-minute cron now runs the USTX step alone under the engine's lease (`runUstxNavCycle`); the earlier engine's paper strategies run through the operator API. The NAV series appends new points without rebuilding and re-sorting the stored week.
 - The reuse statements now say that the USTX step uses the earlier engine's D1 state store and job lease, and ran inside the engine's own five-minute cycle until 25 September.
+- The README opens with five screenshots of the production site in `docs/images/`: Markets, the USTX page, an xStock's detail panel, a wallet's Portfolio look-through and the Transparency check.
 
 Validation of the snapshot source:
 
 - In the development repository, the typecheck and 161 tests pass, including a check that appending to the series gives the same result as a full merge, and lint reports 0 errors.
 - After the deployment, the 14:45, 14:50 and 14:55 UTC crons succeeded and recorded the NAV at 14:45:56, 14:50:54 and 14:55:54.
+- At 16:00 UTC, a production end-to-end run with a test wallet bought and sold USTX in the pool, invested and redeemed through the fund, and deposited, borrowed, repaid and withdrew in the lending market; each transaction appeared at the top of the market activity within seconds, with no page errors.
 - The same tests pass in this public checkout after `npm ci`, and so do the relayer typecheck and 28 tests.
 
 These are point-in-time observations, not continuous availability or a security audit.

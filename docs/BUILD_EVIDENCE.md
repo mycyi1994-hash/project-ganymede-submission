@@ -1,6 +1,6 @@
 # Build provenance
 
-Production source revision: `a20712fbc950aaf06c1f19b5f7a259be0b400f15`.
+Production source revision: `ba59333137fdf4290e8ab1f05c784f92083df684`.
 
 This is a source snapshot, not a claim that the entire project was newly built for this event. The original repository remains private. The entries below were exported from its Git history; reviewers can inspect current implementations and tests, and request original history access from the team if needed. No old secrets, local environment files or full private Git history are published.
 
@@ -395,6 +395,22 @@ Validation of the snapshot source:
 - In the development repository, the typecheck, clean build and 160 tests pass, lint reports 0 errors, and the 62 contract tests pass.
 - On a local build reading the production market data, seven screens on desktop and mobile, with and without a wallet, had no axe violations, nor did the open detail panel; placeholders gave way to data, and a simulated new record flashed the NAV.
 - After the deployment, the main public routes and APIs returned 200 and the legacy routes redirected. The same seven screens, the open detail panel and Portfolio for a public test address had no axe violations.
+- The same tests pass in this public checkout after `npm ci`, and so do the relayer typecheck and 28 tests.
+
+These are point-in-time observations, not continuous availability or a security audit.
+
+## Submission tidy release
+
+Production source: ba59333137fdf4290e8ab1f05c784f92083df684. Worker version: ae1dae8a-29c8-4a30-90b8-bf39503cafb5, deployed 2026-09-25; prior 5225c560-1d20-48e7-9e52-a61ae7b79979. Relayer and keeper Workers unchanged. This snapshot is exported from 2e3789a687bdb1cd4e58976e119938600b40ecc8, which adds only documentation to the production source.
+
+- The OKX Dev Day rules allow existing projects and ask them for the list of new work and its commits, so every statement that Ganymede existed before the event stays.
+- Files nothing used are removed: four July social images with the earlier "Ganymede Index" branding, three starter-template icons and the starter's D1 example. The package takes the project's name instead of the starter template's.
+- The reuse is stated exactly. USTX records its NAV to the pre-event NAV registry contract, redeployed to X Layer Testnet without changes, through the settlement relayer, which was extended for X Layer, and uses the same fixed-point helpers; the earlier strategy engine runs only the separate paper Lab. The README, BUILD_PERIOD.md and OKX_DEV_DAY.md say the same.
+
+Validation of the snapshot source:
+
+- In the development repository, the typecheck, clean build and 160 tests pass, and lint reports 0 errors.
+- After the deployment, the main public routes and APIs returned 200, the legacy routes redirected, and the removed files returned 404. Seven screens on desktop and mobile, with and without a wallet, had no axe violations.
 - The same tests pass in this public checkout after `npm ci`, and so do the relayer typecheck and 28 tests.
 
 These are point-in-time observations, not continuous availability or a security audit.

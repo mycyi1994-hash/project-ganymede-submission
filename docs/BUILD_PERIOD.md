@@ -10,7 +10,7 @@ The last commit before the event was `7a33392` on 30 July 2026, "Add GIWA testne
 - fixed-point accounting and the D1 database schema;
 - fund-share and NAV registry contracts and a settlement relayer, deployed to the GIWA Sepolia testnet with a Dojang verified-address eligibility check.
 
-Those modules still power the separate paper Lab. They are not part of the submission's new work.
+The strategy engine still powers the separate paper Lab, and the fund-share contract is the GMDCORE test ledger. USTX reuses the other pieces: its NAV is recorded to the NAV registry contract, redeployed to X Layer Testnet without changes, through the settlement relayer, which was extended for X Layer; its arithmetic uses the same fixed-point helpers, and its state is kept in the same D1 database next to new tables. These are the starting point, not the submission's new work.
 
 ## What was built during the event
 
@@ -27,7 +27,7 @@ Those modules still power the separate paper Lab. They are not part of the submi
 | Fund and ecosystem | Fund overview with size, investors and return since launch; the shares outstanding recorded on X Layer with every NAV; a public NAV API with open CORS, an embeddable self-verifying badge, and issuer and developer pages | `0c38037`, `23d35d2` |
 | Hardening | Public reads without writes, identity header gate, relayer retry and nonce handling, paper-ledger integrity, sanitized public errors | `c98e7ea`, `387ec35`, `8cd427f`, `7b18cf9`, `124bebe` |
 
-From `7a33392` to `b31e2d0`: 250 files changed, 27636 insertions(+), 7376 deletions(-).
+From `7a33392` to `9aa7fe5`: 259 files changed, 27657 insertions(+), 7449 deletions(-).
 
 ## Every commit in the build period (UTC)
 
@@ -171,3 +171,8 @@ From `7a33392` to `b31e2d0`: 250 files changed, 27636 insertions(+), 7376 deleti
 | 2026-09-25 11:59 | `6671a26` | Detail panels, a live NAV and clearer charts across the product | 17 | +778 / −112 |
 | 2026-09-25 12:00 | `a20712f` | Describe the activity API's chart highlights for developers | 2 | +2 / −2 |
 | 2026-09-25 12:10 | `b31e2d0` | Record the product detail release and describe it in the README | 3 | +29 / −10 |
+| 2026-09-25 12:11 | `758f880` | Show the new product layers in the demo script and status | 1 | +14 / −13 |
+| 2026-09-25 12:11 | `8fc48d0` | Regenerate the build-period record with the product detail release | 1 | +7 / −2 |
+| 2026-09-25 12:16 | `104c2cf` | Note the public snapshot of the product detail release | 1 | +1 / −1 |
+| 2026-09-25 12:48 | `ba59333` | Tidy the submission: drop unused pre-event files, state reuse precisely | 14 | +11 / −81 |
+| 2026-09-25 12:53 | `9aa7fe5` | Record the submission tidy release ae1dae8a | 1 | +15 / −3 |

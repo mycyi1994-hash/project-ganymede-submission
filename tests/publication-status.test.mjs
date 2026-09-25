@@ -22,7 +22,7 @@ test("pending, failed and unreadable publications do not appear current", () => 
 });
 
 test("public quote-age policy uses the publisher's configured value and fallback", () => {
-  assert.equal(maxQuoteAgeMinutes({}), 360);
+  assert.equal(maxQuoteAgeMinutes({}), 10);
   assert.equal(maxQuoteAgeMinutes({ XSTOCKS_MAX_QUOTE_AGE_MINUTES: "30" }), 30);
-  for (const value of ["0", "-1", "invalid"]) assert.equal(maxQuoteAgeMinutes({ XSTOCKS_MAX_QUOTE_AGE_MINUTES: value }), 360);
+  for (const value of ["0", "-1", "invalid"]) assert.equal(maxQuoteAgeMinutes({ XSTOCKS_MAX_QUOTE_AGE_MINUTES: value }), 10);
 });

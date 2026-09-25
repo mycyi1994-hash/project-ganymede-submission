@@ -21,12 +21,12 @@ function memoryRepo() {
   };
 }
 
-// Quotes are stamped just before every cycle time used below, never with the wall clock:
-// a quote later than the cycle is rejected as invalid, so a real-time stamp fails once the day passes 10:00 UTC.
+// Quotes are stamped just before each cycle time used below, never with the wall clock: a quote later
+// than the cycle is rejected as invalid, and one more than ten minutes older blocks the NAV.
 const QUOTE_TIME = "2026-09-24T09:59:00.000Z";
 
-function pricesFor(addresses, price = "100") {
-  return async () => Response.json({ code: "0", data: addresses.map((item) => ({ chainIndex: "196", tokenContractAddress: item.address, price, time: QUOTE_TIME })) });
+function pricesFor(addresses, price = "100", time = QUOTE_TIME) {
+  return async () => Response.json({ code: "0", data: addresses.map((item) => ({ chainIndex: "196", tokenContractAddress: item.address, price, time })) });
 }
 
 function settlementRecorder(outcome) {
@@ -118,12 +118,12 @@ test("a corrected address re-fixes at the prevailing NAV and publishes rebalance
   const original = addressesOf();
   t.mock.method(globalThis, "fetch", pricesFor(original, "100"));
   await runXStocksCycle(configured(original), repo, settlement, "2026-09-24T10:00:00.000Z");
-  t.mock.method(globalThis, "fetch", pricesFor(original, "110"));
+  t.mock.method(globalThis, "fetch", pricesFor(original, "110", "2026-09-24T10:04:00.000Z"));
   await runXStocksCycle(configured(original), repo, settlement, "2026-09-24T10:05:00.000Z");
   const navBefore = BigInt(JSON.parse(repo.rows.get(STATE_HISTORY))[0].navPerShareMicros);
 
   const corrected = addressesOf({ TSLAx: `0x${"9aBcDe".repeat(6)}9aBc` });
-  t.mock.method(globalThis, "fetch", pricesFor(corrected, "110"));
+  t.mock.method(globalThis, "fetch", pricesFor(corrected, "110", "2026-09-24T10:09:00.000Z"));
   await runXStocksCycle(configured(corrected), repo, settlement, "2026-09-24T10:10:00.000Z");
   const navAfter = BigInt(JSON.parse(repo.rows.get(STATE_HISTORY))[0].navPerShareMicros);
   assert.ok(navAfter <= navBefore && navBefore - navAfter < 10n, `NAV jumped from ${navBefore} to ${navAfter}`);

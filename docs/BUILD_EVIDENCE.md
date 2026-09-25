@@ -1,6 +1,6 @@
 # Build provenance
 
-Production source revision: `fd465594405ac6896b9eb40d28cffa74023940b1`.
+Production source revision: `6bcee813f43f1dd65a13d269bbee78868e84648c`.
 
 This is a source snapshot, not a claim that the entire project was newly built for this event. The original repository remains private. The entries below were exported from its Git history; reviewers can inspect current implementations and tests, and request original history access from the team if needed. No old secrets, local environment files or full private Git history are published.
 
@@ -429,6 +429,24 @@ Validation of the snapshot source:
 - In the development repository, the typecheck and 161 tests pass, including a check that appending to the series gives the same result as a full merge, and lint reports 0 errors.
 - After the deployment, the 14:45, 14:50 and 14:55 UTC crons succeeded and recorded the NAV at 14:45:56, 14:50:54 and 14:55:54.
 - At 16:00 UTC, a production end-to-end run with a test wallet bought and sold USTX in the pool, invested and redeemed through the fund, and deposited, borrowed, repaid and withdrew in the lending market; each transaction appeared at the top of the market activity within seconds, with no page errors.
+- The same tests pass in this public checkout after `npm ci`, and so do the relayer typecheck and 28 tests.
+
+These are point-in-time observations, not continuous availability or a security audit.
+
+## Freshness release
+
+Production source: 6bcee813f43f1dd65a13d269bbee78868e84648c. Worker version: 014ecc17-08dd-4289-9cf1-a4fe5f1168d1, deployed 2026-09-25; prior 28351ac7-ee9f-4b72-b926-9e26c229a283. Relayer and keeper Workers unchanged. This snapshot is exported from 089d1bbdab435bf5c469547490e613adce0ee6c3, which adds only documentation to the production source.
+
+This release answers a second review of the submission.
+
+- A NAV record carries the time it was calculated, and the fund and the lending market accept it for an hour after that. With the earlier 360-minute quote limit, prices stamped at 11:00 could have been recorded as a 16:00 NAV. OnchainOS stamps each quote with the time of its response, and in production the price time is about a second after the calculation, so the default limit is now ten minutes, two cycles. A test covers the reviewed case: prices stamped at 11:00 with a NAV calculated at 16:00 are blocked, as are prices eleven minutes old, and prices thirty seconds old publish.
+- The fund size shows how many shares are USTX tokens in wallets, which trade in the pool and serve as loan collateral, and how many are in demo balances, which stay in the app. The X Layer record counts both.
+- The README now states that a publisher recording wrong prices in a consistent document passes every check, and that the testnet fund burns and mints demo dollars without holding xStocks. It compares one USTX order with buying the six xStocks separately, using measured gas, and gives the measured unit cost of recording a basket every five minutes on X Layer: about $1.40 of gas a month at 0.02 gwei.
+
+Validation of the snapshot source:
+
+- In the development repository, the typecheck, a clean build and 162 tests pass, and lint reports 0 errors. On a local build reading the production data, the fund overview had no horizontal overflow on desktop or phone.
+- After the deployment, the public API reported a ten-minute quote limit, the first record at 16:40:54 UTC was confirmed with no blockers, the main routes returned 200 and the legacy routes redirected.
 - The same tests pass in this public checkout after `npm ci`, and so do the relayer typecheck and 28 tests.
 
 These are point-in-time observations, not continuous availability or a security audit.

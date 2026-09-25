@@ -33,8 +33,12 @@ export const STATE_REBALANCE = "xstocks:rebalance";
 const HISTORY_LIMIT = 12;
 /** Publications whose outcome was unknown are asked about again, a few per cycle. */
 const RECONCILE_LIMIT = 3;
-/** OnchainOS stamps each quote with the response time, so this bounds the quote's age, not the last trade's. */
-const DEFAULT_MAX_QUOTE_AGE_MINUTES = 360;
+/**
+ * OnchainOS stamps each quote with the response time, so a fresh request is seconds old. Ten minutes,
+ * two cycles, allows for clock differences; an older quote means the source is stale and blocks the
+ * NAV, so a record's time is never more than ten minutes after the prices in it.
+ */
+const DEFAULT_MAX_QUOTE_AGE_MINUTES = 10;
 const COOLDOWN_TOLERANCE_MS = 60_000;
 
 export type Publication = {

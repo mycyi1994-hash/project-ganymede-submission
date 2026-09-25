@@ -46,6 +46,21 @@ The command repeats the fingerprint and arithmetic checks against the verifier's
 
 Nothing needs a sign-up. Wallet orders are transactions on X Layer Testnet; everything else needs no signature.
 
+## USTX or six separate xStocks
+
+The same exposure, $1,000 spread equally over the six xStocks, measured on X Layer Testnet on 25 September 2026 and priced at X Layer mainnet's gas price then (0.02 gwei, with OKB at $120.49):
+
+| | Six xStocks bought separately | One USTX order through the fund |
+| --- | --- | --- |
+| Wallet confirmations to buy | 7 or more: a token approval and six swaps | 2: an approval and the investment (1 once the approval exists) |
+| Wallet confirmations to sell | 6 swaps, plus an approval for each token the first time | 1 redemption |
+| Positions to follow | 6 | 1, looked through to the six on Portfolio |
+| Back to equal weight | up to 6 more swaps every quarter | done in the basket at each quarterly re-fixing |
+| Price check | each pool's price, separately | one NAV recorded on X Layer and checked in the browser |
+| Network fees | six swaps, not measured here | investment 75,500 gas and approval 46,200 gas: about $0.0003 |
+
+Network fees on X Layer are a fraction of a cent on either path, so they do not decide the choice; confirmations, positions and rebalancing do. Trading cost is the open question. Each separate swap pays its pool's fee and price impact. The testnet fund pays none because it holds no assets, but a mainnet fund would buy the xStocks and carry those costs itself, netting many orders into fewer trades. The order panel's "Best price" compares what the two USTX routes pay out, the fund at the NAV and the pool after its 0.3% fee and price impact; network fees are paid in OKB and are not part of that comparison.
+
 ## For partners
 
 - **Public NAV API.** `GET /api/v1/ustx` returns the latest record read from X Layer at request time: NAV, shares outstanding, fingerprint, transaction and verification links. No key, CORS open to every origin.
@@ -98,7 +113,11 @@ On X Layer Testnet: NAV registry [`0xf320d2a7f280b7ab61e24374986869d7be34289c`](
 
 A match shows that one published document, its arithmetic and its X Layer record agree, and that the document was not changed after publication. It does **not** show that the prices are accurate (there is one provider), that anyone holds the tokens, or that the NAV can be traded or redeemed.
 
-- **USTX** is a model basket. On X Layer Testnet its contract issues shares for demo dollars at the recorded NAV; it holds no assets, and shares give no rights. Demo-balance orders issue nothing on chain.
+In particular, a publisher that records wrong prices in a document whose arithmetic, NAV and fingerprint agree passes every check: the checks catch changes after publication and arithmetic that does not add up, not a wrong input. Catching that needs a second, independent price source, which is one of the next steps below.
+
+A record's time is when its NAV was calculated. OnchainOS stamps each quote with the time of its response, and a quote more than ten minutes old blocks the record, so every price in a record is at most ten minutes older than its time. The USTX fund and the lending market accept a record for one hour after that time, and the NAV feed reports it as `updatedAt`.
+
+- **USTX** is a model basket. On X Layer Testnet its contract issues shares for demo dollars at the recorded NAV; it holds no assets, and shares give no rights. An investment's demo dollars are burned and a redemption mints new ones, so no xStock is bought or sold. Demo-balance orders issue nothing on chain. The fund size counts both kinds of shares, and the USTX page shows how many are tokens in wallets, which trade in the pool and serve as loan collateral, and how many are in demo balances, which stay in the app.
 - **xStocks** carry the rights their issuer's documents describe. Ganymede does not hold them.
 - **GMDCORE** is an issuer-controlled test share ledger from the earlier settlement work. Its supply is zero, and it is not a claim on USTX.
 - **Portfolio valuations** price the six xStocks at the recorded prices. A valuation is not an executable quote and does not prove who controls an address.
@@ -115,9 +134,11 @@ Ganymede's contribution is narrower. Any visitor can reproduce a published baske
 
 Ganymede is built to become the verification and distribution layer for tokenized-stock baskets on X Layer. The intended pricing is a free sandbox (today's testnet product), a per-basket subscription for issuers publishing on X Layer mainnet, and a distribution fee on assets raised through licensed partners. The [issuer page](https://ganymede-xlayer.gana003.workers.dev/issuers) lists these plans with a contact route.
 
+The first thing to sell is the NAV record and its verification to basket issuers; the investing app shows it working. The unit cost is small and measured. One NAV record on X Layer uses about 68,200 gas. At X Layer mainnet's gas price on 25 September 2026 (0.02 gwei) and OKB at $120.49, that is about $0.00016 a record, so a basket recorded every five minutes, 288 times a day, costs about $0.05 a day, or $1.40 a month, in gas. Each record also makes one OnchainOS price request and a few database writes, and one Cloudflare Workers Paid plan ($5 a month) hosts every basket. The costs that grow with each issuer are onboarding, monitoring and support, not chain fees. No customers or prices are claimed.
+
 1. Publish the registry on X Layer mainnet and keep every document in a public archive, so any past record can be verified in the interface.
-2. Add a second price source and a written policy for corporate actions and constituent changes.
-3. An issuer console so other basket operators can launch their own baskets on the same registry format.
+2. Add a second, independent price source, so a verifier re-prices the basket itself and flags a NAV that disagrees with the publisher's, and a written policy for corporate actions and constituent changes.
+3. An issuer console so other basket operators can launch their own baskets on the same registry format. The registry already keeps products apart by key, and the offline verifier takes a basket profile; the live verifier, API and badge are still configured for USTX's six xStocks, so a second basket needs its definition and publishing key separated from USTX's code first.
 4. With an issuer, custody and legal structure in place, take the USTX token to mainnet behind a vault that holds the xStocks, with rebalancing through OKX DEX. The testnet token already mints and redeems at the verified NAV; the mainnet vault has not started.
 5. Lending against USTX. `GanymedeLendingMarket` lends demo dollars against USTX valued at the recorded NAV, and liquidators who repay an unhealthy loan redeem the seized USTX at the fund. It is live on X Layer Testnet at [`0xae2f54ae3d0370295de18510d56de92afb8843c7`](https://web3.okx.com/explorer/x-layer-testnet/address/0xae2f54ae3d0370295de18510d56de92afb8843c7): the USTX page's Borrow section deposits USTX from OKX Wallet, borrows against it, repays and withdraws, or lends demo dollars, and a test wallet supplied the first $5,000. `npm run fork:lending` runs a full cycle, liquidation included, against the live testnet contracts in memory.
 
@@ -144,7 +165,7 @@ See `.env.example` for setting names and [the engine reference](docs/ENGINE_REFE
 
 ## Source and release
 
-This public review snapshot corresponds to production source commit `fd465594405ac6896b9eb40d28cffa74023940b1`. Application code matches the recorded source; documentation may be newer. The original development history remains private, and public-hosting identifiers are adjusted. See [snapshot provenance](docs/BUILD_EVIDENCE.md). Cloudflare deployment messages identify the production source commit. [Release rules and identity model](docs/release-identity.md).
+This public review snapshot corresponds to production source commit `6bcee813f43f1dd65a13d269bbee78868e84648c`. Application code matches the recorded source; documentation may be newer. The original development history remains private, and public-hosting identifiers are adjusted. See [snapshot provenance](docs/BUILD_EVIDENCE.md). Cloudflare deployment messages identify the production source commit. [Release rules and identity model](docs/release-identity.md).
 
 - [Dev Day submission notes](docs/OKX_DEV_DAY.md) and [build-period work](docs/BUILD_PERIOD.md)
 - [Asset credits](public/ASSET-CREDITS.md)

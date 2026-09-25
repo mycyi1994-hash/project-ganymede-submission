@@ -27,7 +27,7 @@ The engine's strategies still power the separate paper Lab, and the fund-share c
 | Fund and ecosystem | Fund overview with size, investors and return since launch; the shares outstanding recorded on X Layer with every NAV; a public NAV API with open CORS, an embeddable self-verifying badge, and issuer and developer pages | `0c38037`, `23d35d2` |
 | Hardening | Public reads without writes, identity header gate, relayer retry and nonce handling, paper-ledger integrity, sanitized public errors | `c98e7ea`, `387ec35`, `8cd427f`, `7b18cf9`, `124bebe` |
 
-From `7a33392` to `d1610bf`: 264 files changed, 27760 insertions(+), 7452 deletions(-).
+From `7a33392` to `25b3c8f`: 264 files changed, 27815 insertions(+), 7451 deletions(-).
 
 ## Every commit in the build period (UTC)
 
@@ -186,4 +186,8 @@ From `7a33392` to `d1610bf`: 264 files changed, 27760 insertions(+), 7452 deleti
 | 2026-09-25 14:54 | `ad384c9` | Record the NAV recovery deploy and the Workers plan limit | 6 | +45 / −11 |
 | 2026-09-25 14:59 | `f9ff2b0` | Note the public snapshot of the NAV recovery release | 1 | +1 / −1 |
 | 2026-09-25 15:16 | `5416be6` | Answer why testnet with the builder kit's own terms | 1 | +3 / −3 |
+| 2026-09-25 16:15 | `1d112d0` | Regenerate the build-period record with the README screenshots | 1 | +5 / −1 |
 | 2026-09-25 16:15 | `d1610bf` | Show the product in the README with five production screenshots | 7 | +16 / −0 |
+| 2026-09-25 16:17 | `d3d15cc` | Note the public snapshot with the README screenshots | 1 | +1 / −1 |
+| 2026-09-25 16:38 | `6bcee81` | Block a NAV built from quotes more than ten minutes old; show wallet and demo shares | 6 | +31 / −12 |
+| 2026-09-25 16:44 | `25b3c8f` | State what verification covers, compare USTX with six separate xStocks, measure unit cost | 4 | +47 / −14 |

@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
+import { maxQuoteAgeMinutes } from "../lib/xstocks/cycle.ts";
 import {
   basketNavMicros,
   constituentsWithAddresses,
@@ -71,6 +72,19 @@ test("a missing or stale price blocks publication", async () => {
   const stale = await evaluateBasket({ constituents, quotes: quotes(PRICES, "2026-09-23T06:00:00.000Z"), previous: null, now: NOW, maxQuoteAgeMinutes: 60 });
   assert.equal(stale.publishable, false);
   assert.equal(stale.status, "awaiting_prices");
+});
+
+test("under the default policy a NAV is never published from prices more than ten minutes old", async () => {
+  const constituents = constituentsWithAddresses(ADDRESSES);
+  const policy = maxQuoteAgeMinutes({});
+  // Prices stamped 11:00 and a NAV calculated at 16:00: the record would carry 16:00, so it must not publish.
+  const hoursOld = await evaluateBasket({ constituents, quotes: quotes(PRICES, "2026-09-25T11:00:00.000Z"), previous: null, now: "2026-09-25T16:00:00.000Z", maxQuoteAgeMinutes: policy });
+  assert.equal(hoursOld.publishable, false);
+  assert.match(hoursOld.blockers.join(" "), /300 minutes old/);
+  const elevenMinutes = await evaluateBasket({ constituents, quotes: quotes(PRICES, "2026-09-25T15:49:00.000Z"), previous: null, now: "2026-09-25T16:00:00.000Z", maxQuoteAgeMinutes: policy });
+  assert.equal(elevenMinutes.publishable, false);
+  const fresh = await evaluateBasket({ constituents, quotes: quotes(PRICES, "2026-09-25T15:59:30.000Z"), previous: null, now: "2026-09-25T16:00:00.000Z", maxQuoteAgeMinutes: policy });
+  assert.equal(fresh.publishable, true);
 });
 
 test("unconfigured addresses block publication instead of guessing", async () => {

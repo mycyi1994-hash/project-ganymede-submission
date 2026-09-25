@@ -6,7 +6,7 @@ import { EngineRepository } from "../lib/engine/repository.ts";
 import { NAV_PUBLISHED_TOPIC } from "../lib/xstocks/evidence.ts";
 import { XSTOCKS_PRODUCT_KEY } from "../lib/xstocks/onchain.ts";
 import { decodeMarketSnapshot, publicationHistory, publishedRecordCount } from "../lib/product-market.ts";
-import { downsampleSeries, mergeSeries, parseSeries, SERIES_LIMIT, STATE_SERIES, STATE_SERIES_CURSOR, updateNavSeries } from "../lib/xstocks/series.ts";
+import { appendSeries, downsampleSeries, mergeSeries, parseSeries, SERIES_LIMIT, STATE_SERIES, STATE_SERIES_CURSOR, updateNavSeries } from "../lib/xstocks/series.ts";
 import { runXStocksCycle, STATE_HISTORY } from "../lib/xstocks/cycle.ts";
 import { XSTOCKS_CONSTITUENTS } from "../lib/xstocks/basket.ts";
 
@@ -52,6 +52,18 @@ test("series points are one per second, oldest first, capped and thinned with th
   assert.ok(thin.length <= 301);
   assert.deepEqual(thin.at(-1), long.at(-1));
   assert.deepEqual(parseSeries("not json"), []);
+});
+
+test("appending newer points gives the same series as a full merge", () => {
+  const stored = Array.from({ length: 50 }, (_, index) => [base + index * 300, String(100_000_000 + index)]);
+  const newer = [[base + 51 * 300, "100000051"], [base + 50 * 300, "100000050"]];
+  const same = [stored[49], stored[48]];
+  for (const added of [newer, [...same, ...newer], same, [], [["bad", "1"], ...newer]]) assert.deepEqual(appendSeries(stored, added), mergeSeries(stored, added));
+  // A changed value for a stored second, a missing older second or an unsorted series takes the full merge.
+  const unsorted = [stored[1], stored[0], ...stored.slice(2)];
+  for (const [series, added] of [[stored, [[stored[10][0], "1"]]], [stored, [[base - 300, "99"]]], [unsorted, newer]]) assert.deepEqual(appendSeries(series, added), mergeSeries(series, added));
+  const full = Array.from({ length: SERIES_LIMIT }, (_, index) => [base + index * 300, "1"]);
+  assert.deepEqual(appendSeries(full, [[base + SERIES_LIMIT * 300, "2"]]), mergeSeries(full, [[base + SERIES_LIMIT * 300, "2"]]));
 });
 
 test("confirmed history is added and older publications are recovered from their receipts", async () => {

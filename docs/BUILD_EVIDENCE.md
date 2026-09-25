@@ -1,6 +1,6 @@
 # Build provenance
 
-Production source revision: `ba59333137fdf4290e8ab1f05c784f92083df684`.
+Production source revision: `fd465594405ac6896b9eb40d28cffa74023940b1`.
 
 This is a source snapshot, not a claim that the entire project was newly built for this event. The original repository remains private. The entries below were exported from its Git history; reviewers can inspect current implementations and tests, and request original history access from the team if needed. No old secrets, local environment files or full private Git history are published.
 
@@ -411,6 +411,22 @@ Validation of the snapshot source:
 
 - In the development repository, the typecheck, clean build and 160 tests pass, and lint reports 0 errors.
 - After the deployment, the main public routes and APIs returned 200, the legacy routes redirected, and the removed files returned 404. Seven screens on desktop and mobile, with and without a wallet, had no axe violations.
+- The same tests pass in this public checkout after `npm ci`, and so do the relayer typecheck and 28 tests.
+
+These are point-in-time observations, not continuous availability or a security audit.
+
+## NAV recovery release
+
+Production source: fd465594405ac6896b9eb40d28cffa74023940b1. Worker version: 28351ac7-ee9f-4b72-b926-9e26c229a283, deployed 2026-09-25; prior ae1dae8a-29c8-4a30-90b8-bf39503cafb5. Relayer and keeper Workers unchanged. This snapshot is exported from 03ec9f843f54371c14b6221320b5a3899de20ebf, which adds only documentation and a test to the production source.
+
+- From 14:10 UTC on 25 September, Cloudflare stopped the scheduled engine cycle at about 10 ms of CPU time, the per-invocation limit of the Workers Free plan; the same version had run that cycle at 100–170 ms until 14:05. No USTX NAV was recorded from 14:01 to 14:45 UTC. The fund and the lending market refuse a NAV older than one hour, so wallet orders and loans would have stopped at 15:01.
+- The five-minute cron now runs the USTX step alone under the engine's lease (`runUstxNavCycle`); the earlier engine's paper strategies run through the operator API. The NAV series appends new points without rebuilding and re-sorting the stored week.
+- The reuse statements now say that the USTX step uses the earlier engine's D1 state store and job lease, and ran inside the engine's own five-minute cycle until 25 September.
+
+Validation of the snapshot source:
+
+- In the development repository, the typecheck and 161 tests pass, including a check that appending to the series gives the same result as a full merge, and lint reports 0 errors.
+- After the deployment, the 14:45, 14:50 and 14:55 UTC crons succeeded and recorded the NAV at 14:45:56, 14:50:54 and 14:55:54.
 - The same tests pass in this public checkout after `npm ci`, and so do the relayer typecheck and 28 tests.
 
 These are point-in-time observations, not continuous availability or a security audit.

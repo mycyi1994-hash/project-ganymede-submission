@@ -4,7 +4,7 @@ import { SettlementClient, type SettlementRequest, type SettlementResult } from 
 import { EngineRepository } from "./repository";
 import { calculateStrategy, shouldRebalance } from "./strategy";
 import { fetchDailyCandles, fetchMarketSnapshot, UpbitExecutionClient } from "./upbit";
-import { runXStocksCycle } from "../xstocks/cycle";
+import { runXStocksCycle, type XStocksCycleResult } from "../xstocks/cycle";
 import type {
   DailyCandle,
   EngineCycleResult,
@@ -417,6 +417,22 @@ export async function runEngineCycle(
     };
     await repo.saveCycle(failed).catch(() => undefined);
     throw error;
+  } finally {
+    await repo.releaseLease("portfolio-engine", owner).catch(() => undefined);
+  }
+}
+
+/**
+ * The scheduled five-minute job: the USTX NAV record alone, under the engine's lease. The paper
+ * strategies of the earlier engine run through the operator API only, so the record's CPU time
+ * stays within the smallest Workers limit and never waits on them.
+ */
+export async function runUstxNavCycle(env: EngineEnv): Promise<XStocksCycleResult | null> {
+  const repo = new EngineRepository(env.DB);
+  const owner = `${newId("cycle")}:scheduled`;
+  if (!(await repo.acquireLease("portfolio-engine", owner, LEASE_TTL_SECONDS))) return null;
+  try {
+    return await runXStocksCycle(env, repo, new SettlementClient(env));
   } finally {
     await repo.releaseLease("portfolio-engine", owner).catch(() => undefined);
   }

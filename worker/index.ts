@@ -1,7 +1,7 @@
 /** Cloudflare Worker entry point for the vinext-starter template. */
 import { handleImageOptimization, DEFAULT_DEVICE_SIZES, DEFAULT_IMAGE_SIZES } from "vinext/server/image-optimization";
 import handler from "vinext/server/app-router-entry";
-import { runEngineCycle } from "../lib/engine/runner";
+import { runUstxNavCycle } from "../lib/engine/runner";
 import type { EngineEnv } from "../lib/engine/types";
 import { ACTIVITY_CRON, runActivityIndex } from "../lib/xstocks/activity-index";
 
@@ -66,8 +66,9 @@ const worker = {
       }));
       return;
     }
-    ctx.waitUntil(runEngineCycle(env, "scheduled", { force: true }).catch((error) => {
-      console.error("Ganymede scheduled cycle failed", error);
+    // The USTX NAV record only: the earlier engine's paper strategies run through the operator API.
+    ctx.waitUntil(runUstxNavCycle(env).catch((error) => {
+      console.error("Ganymede scheduled NAV record failed", error);
       throw error;
     }));
   },

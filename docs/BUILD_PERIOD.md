@@ -10,7 +10,7 @@ The last commit before the event was `7a33392` on 30 July 2026, "Add GIWA testne
 - fixed-point accounting and the D1 database schema;
 - fund-share and NAV registry contracts and a settlement relayer, deployed to the GIWA Sepolia testnet with a Dojang verified-address eligibility check.
 
-The engine's strategies still power the separate paper Lab, and the fund-share contract is the GMDCORE test ledger. USTX reuses the other pieces: the engine's five-minute cycle runs the USTX step added in the build period, which records the NAV to the NAV registry contract, redeployed to X Layer Testnet without changes, through the settlement relayer, which was extended for X Layer; its arithmetic uses the same fixed-point helpers, and its state is kept in the same D1 database next to new tables. These are the starting point, not the submission's new work.
+The engine's strategies still power the separate paper Lab, and the fund-share contract is the GMDCORE test ledger. USTX reuses the other pieces: its five-minute job runs the USTX step added in the build period with the engine's D1 state store and job lease (until 25 September inside the engine's own five-minute cycle), and records the NAV to the NAV registry contract, redeployed to X Layer Testnet without changes, through the settlement relayer, which was extended for X Layer; its arithmetic uses the same fixed-point helpers, and its state is kept in the same D1 database next to new tables. These are the starting point, not the submission's new work.
 
 ## What was built during the event
 
@@ -27,7 +27,7 @@ The engine's strategies still power the separate paper Lab, and the fund-share c
 | Fund and ecosystem | Fund overview with size, investors and return since launch; the shares outstanding recorded on X Layer with every NAV; a public NAV API with open CORS, an embeddable self-verifying badge, and issuer and developer pages | `0c38037`, `23d35d2` |
 | Hardening | Public reads without writes, identity header gate, relayer retry and nonce handling, paper-ledger integrity, sanitized public errors | `c98e7ea`, `387ec35`, `8cd427f`, `7b18cf9`, `124bebe` |
 
-From `7a33392` to `01ec341`: 259 files changed, 27663 insertions(+), 7449 deletions(-).
+From `7a33392` to `ad384c9`: 259 files changed, 27740 insertions(+), 7452 deletions(-).
 
 ## Every commit in the build period (UTC)
 
@@ -179,3 +179,7 @@ From `7a33392` to `01ec341`: 259 files changed, 27663 insertions(+), 7449 deleti
 | 2026-09-25 12:53 | `9aa7fe5` | Record the submission tidy release ae1dae8a | 1 | +15 / −3 |
 | 2026-09-25 12:56 | `6aaa800` | Note the public snapshot of the submission tidy release | 1 | +1 / −1 |
 | 2026-09-25 12:59 | `01ec341` | State that the earlier engine's cycle also runs the USTX step | 4 | +9 / −8 |
+| 2026-09-25 12:59 | `8be9ed1` | Regenerate the build-period record with the reused engine cycle | 1 | +5 / −2 |
+| 2026-09-25 13:03 | `21c22e8` | Note the latest public snapshot commit | 1 | +1 / −1 |
+| 2026-09-25 14:45 | `fd46559` | Five-minute cron records the USTX NAV alone, within a 10 ms CPU limit | 3 | +42 / −5 |
+| 2026-09-25 14:54 | `ad384c9` | Record the NAV recovery deploy and the Workers plan limit | 6 | +45 / −11 |

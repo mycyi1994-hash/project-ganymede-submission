@@ -41,6 +41,26 @@ export function mergeSeries(existing: SeriesPoint[], added: SeriesPoint[]): Seri
   return [...bySecond.values()].sort((a, b) => a[0] - b[0]).slice(-SERIES_LIMIT);
 }
 
+/**
+ * mergeSeries for a stored series (already validated by parseSeries): when it is sorted and every
+ * added point is newer than it or already in it unchanged, the new points are appended without
+ * rebuilding and re-sorting the whole series, so the record's CPU time stays small.
+ */
+export function appendSeries(stored: SeriesPoint[], added: SeriesPoint[]): SeriesPoint[] {
+  const last = stored.length ? stored[stored.length - 1][0] : -Infinity;
+  for (let index = 1; index < stored.length; index += 1) if (stored[index - 1][0] >= stored[index][0]) return mergeSeries(stored, added);
+  const newer = new Map<number, SeriesPoint>();
+  for (const point of added) {
+    if (!valid(point)) continue;
+    if (point[0] > last) { newer.set(point[0], point); continue; }
+    let index = stored.length - 1;
+    while (index >= 0 && stored[index][0] > point[0]) index -= 1;
+    if (index < 0 || stored[index][0] !== point[0] || stored[index][1] !== point[1]) return mergeSeries(stored, added);
+  }
+  if (newer.size === 0) return stored.slice(-SERIES_LIMIT);
+  return [...stored, ...[...newer.values()].sort((a, b) => a[0] - b[0])].slice(-SERIES_LIMIT);
+}
+
 /** Evenly spaced points for the public response, always keeping the newest. */
 export function downsampleSeries(points: SeriesPoint[], max = 300): SeriesPoint[] {
   if (points.length <= max) return points;
@@ -73,7 +93,7 @@ async function receiptPoint(rpcUrl: string, registry: string, txHash: string, fe
 export async function updateNavSeries(repo: SeriesRepository, options: { rpcUrl: string; registry: string | undefined; historyKey: string; fetcher?: typeof fetch }): Promise<{ points: number; backfilled: number }> {
   const history = JSON.parse((await repo.getState(options.historyKey))?.value ?? "[]") as HistoryEntry[];
   const stored = parseSeries((await repo.getState(STATE_SERIES))?.value);
-  let series = mergeSeries(stored, history.filter(entry => entry.status === "confirmed" && entry.txHash).map(entry => [seconds(entry.asOf), entry.navPerShareMicros] as SeriesPoint));
+  let series = appendSeries(stored, history.filter(entry => entry.status === "confirmed" && entry.txHash).map(entry => [seconds(entry.asOf), entry.navPerShareMicros] as SeriesPoint));
   let backfilled = 0;
   const cursorState = (await repo.getState(STATE_SERIES_CURSOR))?.value ?? null;
   if (cursorState !== DONE && repo.confirmedNavSettlements && options.registry && /^0x[0-9a-f]{40}$/i.test(options.registry)) {

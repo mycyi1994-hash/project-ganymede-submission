@@ -8,7 +8,7 @@ Ganymede sells **USTX, the US Tech Basket**: one share tracks Apple, Microsoft, 
 
 Investing uses demo dollars with no value. From a wallet, the USTX contract on X Layer Testnet issues shares at the NAV recorded on X Layer; with a demo balance, nothing is issued on chain. No real money moves.
 
-**Built for OKX Dev Day 2026 (Build a Market).** Ganymede existed before the event. The new work of the 17–25 September build period is listed with its commits in [docs/BUILD_PERIOD.md](docs/BUILD_PERIOD.md) and summarized below.
+**Built for OKX Dev Day 2026 (Build a Market).** Ganymede existed before the event. The new work of the 17–25 September build period is listed with its commits in [docs/BUILD_PERIOD.md](docs/BUILD_PERIOD.md), each of which opens in the public [development repository](https://github.com/mycyi1994-hash/project-ganymede), and summarized below.
 
 <table>
 <tr>
@@ -166,7 +166,7 @@ See `.env.example` for setting names and [the engine reference](docs/ENGINE_REFE
 
 ## Source and release
 
-This public review snapshot corresponds to production source commit `75e919753f78e3cbb78f8aa5886491a2775ea8d1`. Application code matches the recorded source; documentation may be newer. The original development history remains private, and public-hosting identifiers are adjusted. See [snapshot provenance](docs/BUILD_EVIDENCE.md). Cloudflare deployment messages identify the production source commit. [Release rules and identity model](docs/release-identity.md).
+This public review snapshot corresponds to production source commit `75e919753f78e3cbb78f8aa5886491a2775ea8d1`. Application code matches the recorded source; documentation may be newer. The full development history, with every commit listed in docs/BUILD_PERIOD.md, is public at [project-ganymede](https://github.com/mycyi1994-hash/project-ganymede); this snapshot adjusts public-hosting identifiers. See [snapshot provenance](docs/BUILD_EVIDENCE.md). Cloudflare deployment messages identify the production source commit. [Release rules and identity model](docs/release-identity.md).
 
 - [Dev Day submission notes](docs/OKX_DEV_DAY.md) and [build-period work](docs/BUILD_PERIOD.md)
 - [Asset credits](public/ASSET-CREDITS.md)

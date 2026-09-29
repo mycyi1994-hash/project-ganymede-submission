@@ -55,25 +55,25 @@ Ganymede began in July 2026 as a Korean-won crypto strategy engine with Upbit ma
 
 | New work | Evidence commit |
 | --- | --- |
-| X Layer settlement integration | `8b9b2ab` |
-| Six-stock basket, OnchainOS adapter and publication gates | `0feca68` |
-| Browser-side direct RPC and NAV checks | `27350f2` |
-| Public reads without engine/database writes | `c98e7ea` |
-| Clearform interface across public screens | `e5d1d8f` |
-| Real-verifier price-edit experiment | `4641ddc`, `9e6d3ee` |
-| Full-code review fixes: paper-ledger integrity, publication retries, relayer hardening, interface defects | `7b18cf9`, `dc66eee`, `8cd427f`, `1e0a6bf`, `df6c41e` |
-| Product redesign: Markets, USTX, Transparency | `f4d67c1`, `ff04920`, `1bfed8e` |
-| Verification-led screens, three-way tamper experiment, evidence file and command, sanitized public errors | `c0ce112`, `80a0316`, `11829e8`, `124bebe` |
-| Read-only xStocks Portfolio at verified prices, mainnet token-contract check, NAV series from receipts | `ebef0fa`, `d055246`, `a65d6d7` |
-| Demo investing in USTX with demo dollars: accounts, orders at the recorded NAV, idempotent retries, daily cap | `1327a6a` |
-| Look-through basket, fund overview, shares outstanding on X Layer, public NAV API, embeddable badge, issuer and developer pages | `0c38037`, `23d35d2` |
-| Wallet investing on X Layer Testnet: demo dollars and the USTX share contract priced by the registry, wallet order panel, wallet shares in each NAV record | `2fed796`, `7b334e4`, `bc3bf08` |
-| USTX-collateral lending market, written and tested, run against the live contracts on a local fork, deployed and activated on X Layer Testnet, with a Borrow section on the USTX page; all four contracts source-verified on the OKX explorer and Sourcify | `8706a43` |
-| USTX NAV feed in the Chainlink `AggregatorV3Interface`, deployed on X Layer Testnet and shown on the developer page and in the public API | `beff92f`, `e36c7a3` |
-| USTX/dUSD pool and one-transaction NAV arbitrage on X Layer Testnet, with the market price and its gap to the NAV on the USTX page | `ea35938` |
-| A second price source from the X Layer mainnet pools, checked by the publisher and the browser; record times bounded by their prices and blocks; rate-limited price requests asked again within the cycle | `25e0a25`, `521c5cc`, `2024e85`, `5320387` |
-| A second basket from one configuration file: MAG3, recorded by a demo issuer wallet in its own registry, checked in the browser and shown by its own badge | `ab50aff`, `154d426` |
-| An in-kind vault that creates and redeems only against the xStocks, run with the real xStocks on a fork of X Layer mainnet | `ecd5a6f`, `75e9197` |
+| X Layer settlement integration | [8b9b2ab](https://github.com/mycyi1994-hash/project-ganymede/commit/8b9b2ab) |
+| Six-stock basket, OnchainOS adapter and publication gates | [0feca68](https://github.com/mycyi1994-hash/project-ganymede/commit/0feca68) |
+| Browser-side direct RPC and NAV checks | [27350f2](https://github.com/mycyi1994-hash/project-ganymede/commit/27350f2) |
+| Public reads without engine/database writes | [c98e7ea](https://github.com/mycyi1994-hash/project-ganymede/commit/c98e7ea) |
+| Clearform interface across public screens | [e5d1d8f](https://github.com/mycyi1994-hash/project-ganymede/commit/e5d1d8f) |
+| Real-verifier price-edit experiment | [4641ddc](https://github.com/mycyi1994-hash/project-ganymede/commit/4641ddc), [9e6d3ee](https://github.com/mycyi1994-hash/project-ganymede/commit/9e6d3ee) |
+| Full-code review fixes: paper-ledger integrity, publication retries, relayer hardening, interface defects | [7b18cf9](https://github.com/mycyi1994-hash/project-ganymede/commit/7b18cf9), [dc66eee](https://github.com/mycyi1994-hash/project-ganymede/commit/dc66eee), [8cd427f](https://github.com/mycyi1994-hash/project-ganymede/commit/8cd427f), [1e0a6bf](https://github.com/mycyi1994-hash/project-ganymede/commit/1e0a6bf), [df6c41e](https://github.com/mycyi1994-hash/project-ganymede/commit/df6c41e) |
+| Product redesign: Markets, USTX, Transparency | [f4d67c1](https://github.com/mycyi1994-hash/project-ganymede/commit/f4d67c1), [ff04920](https://github.com/mycyi1994-hash/project-ganymede/commit/ff04920), [1bfed8e](https://github.com/mycyi1994-hash/project-ganymede/commit/1bfed8e) |
+| Verification-led screens, three-way tamper experiment, evidence file and command, sanitized public errors | [c0ce112](https://github.com/mycyi1994-hash/project-ganymede/commit/c0ce112), [80a0316](https://github.com/mycyi1994-hash/project-ganymede/commit/80a0316), [11829e8](https://github.com/mycyi1994-hash/project-ganymede/commit/11829e8), [124bebe](https://github.com/mycyi1994-hash/project-ganymede/commit/124bebe) |
+| Read-only xStocks Portfolio at verified prices, mainnet token-contract check, NAV series from receipts | [ebef0fa](https://github.com/mycyi1994-hash/project-ganymede/commit/ebef0fa), [d055246](https://github.com/mycyi1994-hash/project-ganymede/commit/d055246), [a65d6d7](https://github.com/mycyi1994-hash/project-ganymede/commit/a65d6d7) |
+| Demo investing in USTX with demo dollars: accounts, orders at the recorded NAV, idempotent retries, daily cap | [1327a6a](https://github.com/mycyi1994-hash/project-ganymede/commit/1327a6a) |
+| Look-through basket, fund overview, shares outstanding on X Layer, public NAV API, embeddable badge, issuer and developer pages | [0c38037](https://github.com/mycyi1994-hash/project-ganymede/commit/0c38037), [23d35d2](https://github.com/mycyi1994-hash/project-ganymede/commit/23d35d2) |
+| Wallet investing on X Layer Testnet: demo dollars and the USTX share contract priced by the registry, wallet order panel, wallet shares in each NAV record | [2fed796](https://github.com/mycyi1994-hash/project-ganymede/commit/2fed796), [7b334e4](https://github.com/mycyi1994-hash/project-ganymede/commit/7b334e4), [bc3bf08](https://github.com/mycyi1994-hash/project-ganymede/commit/bc3bf08) |
+| USTX-collateral lending market, written and tested, run against the live contracts on a local fork, deployed and activated on X Layer Testnet, with a Borrow section on the USTX page; all four contracts source-verified on the OKX explorer and Sourcify | [8706a43](https://github.com/mycyi1994-hash/project-ganymede/commit/8706a43) |
+| USTX NAV feed in the Chainlink `AggregatorV3Interface`, deployed on X Layer Testnet and shown on the developer page and in the public API | [beff92f](https://github.com/mycyi1994-hash/project-ganymede/commit/beff92f), [e36c7a3](https://github.com/mycyi1994-hash/project-ganymede/commit/e36c7a3) |
+| USTX/dUSD pool and one-transaction NAV arbitrage on X Layer Testnet, with the market price and its gap to the NAV on the USTX page | [ea35938](https://github.com/mycyi1994-hash/project-ganymede/commit/ea35938) |
+| A second price source from the X Layer mainnet pools, checked by the publisher and the browser; record times bounded by their prices and blocks; rate-limited price requests asked again within the cycle | [25e0a25](https://github.com/mycyi1994-hash/project-ganymede/commit/25e0a25), [521c5cc](https://github.com/mycyi1994-hash/project-ganymede/commit/521c5cc), [2024e85](https://github.com/mycyi1994-hash/project-ganymede/commit/2024e85), [5320387](https://github.com/mycyi1994-hash/project-ganymede/commit/5320387) |
+| A second basket from one configuration file: MAG3, recorded by a demo issuer wallet in its own registry, checked in the browser and shown by its own badge | [ab50aff](https://github.com/mycyi1994-hash/project-ganymede/commit/ab50aff), [154d426](https://github.com/mycyi1994-hash/project-ganymede/commit/154d426) |
+| An in-kind vault that creates and redeems only against the xStocks, run with the real xStocks on a fork of X Layer mainnet | [ecd5a6f](https://github.com/mycyi1994-hash/project-ganymede/commit/ecd5a6f), [75e9197](https://github.com/mycyi1994-hash/project-ganymede/commit/75e9197) |
 
 ## Evidence aligned with judging
 
@@ -88,7 +88,7 @@ The official criteria are holistic and unweighted. The evidence behind each one:
 
 ## Submission package
 
-This separate submission snapshot is published for reviewer access. The original development repository remains private. Source commit identifiers in the evidence table are provenance references, not public history links; see BUILD_EVIDENCE.md.
+This separate submission snapshot is published for reviewer access. The development repository, which holds every commit linked in the evidence table, is public at https://github.com/mycyi1994-hash/project-ganymede; see BUILD_EVIDENCE.md.
 
 The demo video, the team, track and route details, and the final declaration are submitted by the team through the official form. They are not part of this repository.
 

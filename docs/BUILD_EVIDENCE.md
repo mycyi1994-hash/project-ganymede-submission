@@ -2,7 +2,7 @@
 
 Production source revision: `75e919753f78e3cbb78f8aa5886491a2775ea8d1`.
 
-This is a source snapshot, not a claim that the entire project was newly built for this event. The original repository remains private. The entries below were exported from its Git history; reviewers can inspect current implementations and tests, and request original history access from the team if needed. No old secrets, local environment files or full private Git history are published.
+This is a source snapshot, not a claim that the entire project was newly built for this event. The original repository is public at https://github.com/mycyi1994-hash/project-ganymede. The entries below were exported from its Git history, and each opens there. This snapshot publishes no secrets or local environment files.
 
 ```text
 8b9b2abf3f11180f9394446500687dc7fee406ca 2026-09-23T08:01:50Z Move settlement rail to X Layer testnet

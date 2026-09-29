@@ -1,6 +1,6 @@
 # Build-period work
 
-OKX Dev Day 2026 ran its online build period from 17 to 25 September 2026, and judges assess only the work done in that period. This file separates that work from the earlier codebase. The development history is private, so the commit hashes below are provenance references rather than public links. The public snapshot contains the resulting source.
+OKX Dev Day 2026 ran its online build period from 17 to 25 September 2026, and judges assess only the work done in that period. This file separates that work from the earlier codebase. Every commit below opens in the public development repository at `https://github.com/mycyi1994-hash/project-ganymede/commit/<hash>`. The public snapshot contains the resulting source.
 
 ## Starting point
 

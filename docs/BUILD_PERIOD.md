@@ -42,6 +42,11 @@ Ganymede was selected as one of 30 finalists from 150 teams. The organizers conf
 | 2026-10-02 13:35 | `4747045` | Both pools' results for their liquidity providers, measured at the NAV from the contracts' events over the same records, on Pools and in the public pools API |
 | 2026-10-02 14:02 | `693d428` | USTX wallet orders quoted at the fund, the constant-product pool and the v4 pool and routed to whichever gives the most; demo trades on the v4 pool |
 | 2026-10-02 14:16 | `7f22d1d` | Invariant fuzzing of the hook for its providers (1,000 steps) and a Slither pass over every contract with its triage (docs/STATIC_ANALYSIS.md) |
+| 2026-10-02 14:28 | `12ac2bd` | Market activity lists the Uniswap v4 pool's trades and liquidity; the v4 pool has its own activity list on Pools |
+| 2026-10-02 16:13 | `39bc932` | An MCP server at `/mcp` with six read-only tools, so AI agents (an OKX.AI A2MCP client among them) can read the verified NAV, check it, look through a share, quote orders and read both pools |
+| 2026-10-02 16:23 | `f43d98a` | Ask USTX: an assistant on every product screen that answers from the same tools with an OpenAI model, with no investment advice and a daily allowance |
+| 2026-10-02 17:16 | `0035e7a` | How to add `/mcp` to an AI client on the developer page; Ask USTX compares quotes as facts |
+| 2026-10-02 17:42 | `4ee593f` | A load test with 30 team test wallets and a browser run of every wallet screen (docs/LOAD_TEST.md), and a fix for a preload of a script the build never wrote |
 
 ## Every commit in the build period (UTC)
 

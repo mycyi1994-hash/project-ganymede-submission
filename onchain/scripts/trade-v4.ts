@@ -7,7 +7,8 @@
  *
  * Demo dollars and USTX have no value; these are trades, not administrator actions.
  *
- * Run: npm run trade:v4   (TRADE_DOLLARS=25 to change the size of the purchase, in demo dollars)
+ * Run: npm run trade:v4   (TRADE_DOLLARS=25 to change the size of the purchase, in demo dollars;
+ *      CLAIM_ONLY=1 only claims the LP tokens of a converted deposit)
  */
 import hre from "hardhat";
 import { maxUint256, parseEventLogs, type Address, type Hash } from "viem";
@@ -49,11 +50,16 @@ async function main() {
 
   // A claim of shares from a deposit an earlier run made, once its NAV record converted it.
   if ((await hook.read.claimableShares([trader])) > 0n) await send("claim LP tokens", options => hook.write.claimShares([trader], { account: wallet.account, ...options }), 200_000n);
+  else if (process.env.CLAIM_ONLY) console.log("  no converted deposit to claim yet");
+  if (process.env.CLAIM_ONLY) return;
 
+  let claimed: bigint | null = null;
   if ((await dollar.read.balanceOf([trader])) < tradeDollars * 2n && (await dollar.read.nextClaimAt([trader])) <= BigInt(Math.floor(Date.now() / 1000))) {
-    await send("claim 10,000 dUSD", options => dollar.write.claim({ account: wallet.account, ...options }), 150_000n);
+    const receipt = await send("claim 10,000 dUSD", options => dollar.write.claim({ account: wallet.account, ...options }), 150_000n);
+    claimed = receipt.blockNumber;
   }
-  const balance = await dollar.read.balanceOf([trader]);
+  // A node of the load-balanced RPC can lag the claim's receipt: read the balance at its block or later.
+  const balance = await dollar.read.balanceOf([trader], claimed === null ? {} : { blockNumber: claimed });
   if (balance < tradeDollars * 2n) {
     const next = new Date(Number(await dollar.read.nextClaimAt([trader])) * 1000).toISOString();
     throw new Error(`The trader holds $${Number(balance) / 1e6} in demo dollars, under the $${Number(tradeDollars * 2n) / 1e6} these trades use; it can claim more at ${next}.`);

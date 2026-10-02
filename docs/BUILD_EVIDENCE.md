@@ -1,6 +1,6 @@
 # Build provenance
 
-Production source revision: `12ac2bd1065172ff649fcd298d1a8636f2687d4e`.
+Production source revision: `4ee593f458e318520a60f648050b3472f2a3a33f`.
 
 This is a source snapshot, not a claim that the entire project was newly built for this event. The original repository remains private. The entries below were exported from its Git history; reviewers can inspect current implementations and tests, and request original history access from the team if needed. No old secrets, local environment files or full private Git history are published.
 
@@ -490,5 +490,21 @@ Validation of the snapshot source:
 - In the development repository, the typecheck, a clean build and 214 tests pass, and lint reports 0 errors; the relayer typecheck and 30 tests pass; the contract suite's 99 tests pass.
 - After the final deployment, the main routes returned 200 and the 4 legacy routes redirected; in a browser on production a $25 order was quoted at all three venues and the v4 review opened with no page errors; the NAV record kept being confirmed every five minutes, and the keeper re-pegged the v4 pool at each record.
 - The same tests pass in this public checkout after `npm ci` (214), and so do the relayer typecheck and 30 tests.
+
+These are point-in-time observations, not continuous availability or a security audit.
+
+## Finalist-round release: AI agents, Ask USTX and a load test
+
+Production source: 4ee593f458e318520a60f648050b3472f2a3a33f. Exported commit: 62278b4000136093386084fc84600059981c335b (documentation after the source). Worker version: f36d6853-bd9f-48b6-80df-e6a6b943e6b2, deployed 2026-10-02; before it, the same day, 9f11ebdb-adae-41fa-a1c1-9fa470b7b2a0, 84aa2810-e425-420a-9120-0c2463f9e915 and c9b926f1-1e40-466d-90fd-82ca843f7c87. The keeper is unchanged (5e23f598-a074-45ee-ac07-b7bd622e9092).
+
+- An MCP server at `/mcp` (Streamable HTTP, no key or session) with six read-only tools: the latest NAV and whether orders accept it, the record checked against its document, the holdings behind a share, a quote at the fund and both pools, the pools and their results for providers, and the market's activity. The developer page shows how to add it to an AI client.
+- Ask USTX, an assistant on every product screen: an OpenAI model that reads X Layer only through those tools, names the tools behind each answer, gives no investment advice and keeps the demo labels, limited per visitor and per day.
+- A load test with 30 team test wallets on X Layer Testnet: 618 transactions across every wallet flow, none failed; 90 wrong orders refused with the contracts' own errors; a browser with a test wallet ran the order, borrow and liquidity screens on production; 1,198 page, API and MCP requests had no errors while every NAV record landed on time. The wallets are the team's, not users; docs/LOAD_TEST.md lists them. The test found a preload of a script the build never wrote, fixed in this release.
+
+Validation of the snapshot source:
+
+- In the development repository, the typecheck, a clean build and 227 tests pass, and lint reports 0 errors; the contract suite's 99 tests pass.
+- After the final deployment, the main routes returned 200 and the legacy routes redirected; every asset the pages name loaded; a browser visit on production logged no page, console or HTTP errors; `/mcp` answered `initialize`, `tools/list` and every tool.
+- The same tests pass in this public checkout after `npm ci` (227), and so do the relayer typecheck and 30 tests.
 
 These are point-in-time observations, not continuous availability or a security audit.

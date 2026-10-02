@@ -155,6 +155,19 @@ npm run basket:publish -- public/baskets/mag3/basket.json`;
 const basketEmbedExample = `<iframe src="${SITE}/embed/basket?config=/baskets/mag3/basket.json"
   title="MAG3 verified NAV" width="440" height="260" style="border:0" loading="lazy"></iframe>`;
 
+const mcpExample = `curl -s ${SITE}/mcp -H 'Content-Type: application/json' -d '{
+  "jsonrpc": "2.0", "id": 1, "method": "tools/call",
+  "params": { "name": "quote_ustx_order", "arguments": { "side": "buy", "amount": 500 } }
+}'`;
+
+const mcpClientExample = `# Claude Code
+claude mcp add --transport http ganymede-ustx ${SITE}/mcp
+
+# Cursor (.cursor/mcp.json) and other clients that take a server URL
+{ "mcpServers": { "ganymede-ustx": { "url": "${SITE}/mcp" } } }
+
+# Claude (web or desktop): Settings → Connectors → Add custom connector → ${SITE}/mcp`;
+
 const embedExample = `<iframe src="${SITE}/embed/ustx" title="USTX verified NAV"
   width="440" height="260" style="border:0" loading="lazy"></iframe>`;
 
@@ -172,6 +185,10 @@ export function DevelopersPage() {
           <Code label="Response (abridged)">{apiExample}</Code>
           <p>Also available: <code>GET /api/v1/ustx/activity</code> returns the latest market activity (orders at the fund, pool trades, the keeper’s arbitrage and loans) read from the contracts’ events on X Layer Testnet, with the blocks it covers, the last 24 hours’ figures, and every arbitrage and order of $1,000 or more for marking a chart; <code>GET /api/v1/ustx/pools</code> returns the USTX/dUSD pool&rsquo;s reserves, LP token supply, value at the NAV, fee APR and last 24 hours of volume and fees, read from X Layer Testnet when you call it; <code>GET /api/xstocks</code> returns the full market snapshot with the composition documents behind recent records; and <code>GET /api/demo/fund</code> returns fund totals and 24-hour flows.</p>
           <a className="gmd-inline-link" href="/api/v1/ustx" target="_blank" rel="noreferrer">Open the live response <Icon name="external" size={14} /></a>
+        </section>
+        <section id="mcp"><h2>Ask from an AI agent (MCP)</h2><p>AI agents can read USTX through the Model Context Protocol at <code>{SITE}/mcp</code> (Streamable HTTP, JSON responses, no key or session). Its six tools only read: <code>get_ustx_nav</code> (the latest record and whether orders accept it), <code>verify_ustx_nav</code> (the record checked against its document), <code>get_ustx_holdings</code> (what one share holds), <code>quote_ustx_order</code> (the fund at the NAV against both pools, and the best), <code>get_ustx_pools</code> (both pools and their results for providers) and <code>get_ustx_market_activity</code>. None signs or sends anything: an order still needs the visitor&rsquo;s own wallet on the USTX page, and demo dollars and USTX have no value.</p>
+          <Code label="Add it to your AI client">{mcpClientExample}</Code>
+          <Code label="Or call a tool directly">{mcpExample}</Code>
         </section>
         <section id="chain"><h2>Read the record from X Layer yourself</h2><p>You do not have to trust our API. The registry is a public contract on X Layer Testnet (chain {PROOF_DEPLOYMENT.chainId}); its <code>latestNav</code> getter returns the NAV per share, the shares outstanding, the composition fingerprint and the effective time.</p>
           <Code label="TypeScript with viem">{viemExample}</Code>

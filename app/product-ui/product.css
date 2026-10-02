@@ -1239,3 +1239,37 @@ a.gmd-pool-pair:hover b { text-decoration: underline; text-underline-offset: 3px
   .gmd-lp-compare { grid-template-columns: 1fr; }
   .gmd-lp-compare strong { font-size: 24px; }
 }
+
+/* Ask USTX: the assistant's launcher and panel, over every product screen. */
+.gmd-ask-launch { position: fixed; z-index: 40; inset-inline-end: 24px; bottom: 24px; display: inline-flex; align-items: center; gap: 8px; min-height: 48px; padding: 12px 20px; border-radius: 999px; background: var(--gmd-ink) !important; color: #fff !important; font-weight: 600; box-shadow: 0 10px 28px #172b3533; transition: transform 140ms var(--gmd-ease-out); }
+.gmd-ask-launch svg { color: #8cd3c7; }
+.gmd-ask-launch:active { transform: scale(.97); }
+.gmd-ask { position: fixed; z-index: 40; inset-inline-end: 24px; bottom: 24px; width: min(420px, calc(100vw - 32px)); height: min(620px, calc(100dvh - 48px)); display: flex; flex-direction: column; background: var(--gmd-surface); border: 1px solid var(--gmd-line); border-radius: 14px; box-shadow: 0 18px 48px #172b3533; overflow: hidden; }
+.gmd-ask > header { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 14px 16px; background: var(--gmd-ink); color: #fff; }
+.gmd-ask > header strong { display: inline-flex; align-items: center; gap: 7px; font-family: "Instrument Sans", Arial, sans-serif; }
+.gmd-ask > header strong svg { color: #8cd3c7; }
+.gmd-ask > header span { display: block; font-size: 12px; color: #becdd2; }
+.gmd-ask > header > div:last-child { display: flex; align-items: center; gap: 6px; }
+.gmd-ask > header button { min-width: 36px; min-height: 36px; display: inline-flex; align-items: center; justify-content: center; border-radius: 8px; color: #fff; }
+.gmd-ask > header .gmd-ask-reset { padding-inline: 10px; font-size: 13px; border: 1px solid #526570; }
+.gmd-ask-log { flex: 1; overflow-y: auto; padding: 16px; display: grid; align-content: start; gap: 12px; }
+.gmd-ask-intro ul { list-style: none; padding: 0; margin: 12px 0 0; display: grid; gap: 8px; }
+.gmd-ask-intro li button { width: 100%; text-align: start; padding: 10px 12px; border: 1px solid var(--gmd-line) !important; border-radius: 8px; background: var(--gmd-bg) !important; font-size: 14px; }
+.gmd-ask-turn { max-width: 88%; padding: 10px 13px; border-radius: 12px; }
+.gmd-ask-turn p { white-space: pre-wrap; overflow-wrap: anywhere; color: var(--gmd-ink); font-size: 15px; }
+.gmd-ask-turn.is-user { justify-self: end; background: var(--gmd-accent); }
+.gmd-ask-turn.is-user p { color: #fff; }
+.gmd-ask-turn.is-assistant { justify-self: start; background: var(--gmd-soft); }
+.gmd-ask-turn.is-busy p { color: var(--gmd-copy); }
+.gmd-ask-turn small { display: flex; align-items: center; gap: 5px; margin-top: 6px; font-size: 12px; color: var(--gmd-accent); }
+.gmd-ask-error { color: #a23e39 !important; font-size: 14px; }
+.gmd-ask form { display: flex; gap: 8px; padding: 12px 16px 6px; border-top: 1px solid var(--gmd-line); }
+.gmd-ask textarea { flex: 1; min-width: 0; resize: none; font: inherit; font-size: 16px; padding: 9px 11px; border: 1px solid var(--gmd-line); border-radius: 8px; color: var(--gmd-ink); background: #fff; }
+.gmd-ask form button { flex: 0 0 44px; width: 44px; padding: 0; border-radius: 8px; background: var(--gmd-accent) !important; color: #fff !important; display: inline-flex; align-items: center; justify-content: center; }
+.gmd-ask-note { padding: 0 16px 12px; font-size: 12px; }
+.gmd-ask-note a { color: var(--gmd-accent); text-decoration: underline; }
+@media (max-width:600px) {
+  .gmd-ask-launch { inset-inline-end: 16px; bottom: calc(75px + env(safe-area-inset-bottom)); min-height: 44px; padding: 10px 16px; }
+  .gmd-ask { z-index: 45; inset: auto 0 0 0; width: 100%; height: min(88dvh, 640px); border-radius: 14px 14px 0 0; padding-bottom: env(safe-area-inset-bottom); }
+}
+.gmd-ask form button svg { width: 18px; height: 18px; }

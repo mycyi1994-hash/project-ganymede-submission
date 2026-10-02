@@ -6,7 +6,6 @@ import { BrandMark } from "../DesignElements";
 import { Icon } from "./Icons";
 import { MarketProvider, useMarket } from "./MarketProvider";
 import { useRecordCheck } from "./useRecordCheck";
-import "./product.css";
 
 // A badge other sites can embed in an iframe. It runs the same browser check as the
 // verification page: the visitor's browser reads X Layer itself, not this server's word.

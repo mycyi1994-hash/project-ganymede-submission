@@ -8,6 +8,8 @@ export type EngineEnv = {
   UPBIT_SECRET_KEY?: string;
   LIVE_TRADING_CONFIRMATION?: string;
   OPERATOR_TOKEN?: string;
+  OPENAI_API_KEY?: string;
+  OPENAI_MODEL?: string;
   OPERATIONS_ALLOW_EMAILS?: string;
   IDENTITY_HEADER_TRUSTED?: string;
   /** `xlayer-testnet` (default) or `giwa-sepolia`. See lib/chains.ts. */

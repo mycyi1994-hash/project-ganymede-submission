@@ -5,6 +5,7 @@ import { readFileSync } from "node:fs";
 import { env } from "cloudflare:workers";
 import { FUND_DEPLOYMENT, FUND_EVENTS, POOL_EVENTS, fundRpc } from "../lib/xstocks/fund.ts";
 import { LENDING_EVENTS } from "../lib/xstocks/lending.ts";
+import { V4_EVENTS, V4_POOL_DEPLOYMENT, V4_SWAPPED_TOPIC } from "../lib/xstocks/v4-liquidity.ts";
 import {
   ACTIVITY_EVENTS, ACTIVITY_FIRST_BLOCK, ACTIVITY_HIGHLIGHTS, ACTIVITY_INDEX_MARGIN, ACTIVITY_KEEP, ACTIVITY_LIMIT, LARGE_ORDER_MICROS, activityDay, activityDayJson, activityFromJson, activityJson, isHighlight, mergeActivity,
   parseActivityDay, parseActivityIndex, parseHighlights, readActivityTail, scanActivity, serializeActivityIndex, updateActivityIndex, withNewerRows,
@@ -80,8 +81,8 @@ test("market events read as rows, newest first, with an arbitrage as one row", a
   const rows = await scanActivity(rpc, F, F + 350);
   assert.deepEqual(ranges(), [[F, F + 99], [F + 100, F + 199], [F + 200, F + 299], [F + 300, F + 350]]);
   const request = calls.find(call => call.method === "eth_getLogs").params[0];
-  assert.deepEqual(request.address, [fund, pool, arbitrage, lending]);
-  assert.equal(request.topics[0].length, 14, "every market event, one request per range");
+  assert.deepEqual(request.address, [fund, pool, arbitrage, lending, V4_POOL_DEPLOYMENT.router, V4_POOL_DEPLOYMENT.hook]);
+  assert.equal(request.topics[0].length, 17, "every market event, one request per range");
   assert.deepEqual(calls.filter(call => call.method === "eth_getBlockByNumber").map(call => Number(call.params[0])), [F + 260], "block times only where the response left them out");
 
   const at = (block) => new Date((TIME + block - F) * 1000).toISOString();
@@ -94,6 +95,31 @@ test("market events read as rows, newest first, with an arbitrage as one row", a
     { ...none, kind: "invest", hash: tx(1), block: F + 10, logIndex: 1, at: at(F + 10), account: ALICE, dollarsMicros: 1_000n * USD, sharesMicros: 10n * USD, navMicros: 100n * USD },
   ]);
   assert.deepEqual(await scanActivity(rpc, F + 20, F + 19), [], "an empty range makes no request");
+});
+
+test("the v4 pool's trades through its router and its liquidity are rows of their own, apart from the constant-product pool's figures", async () => {
+  const V4 = V4_POOL_DEPLOYMENT;
+  // USTX is currency0 of the pool on X Layer Testnet: buying it is not zero for one.
+  const swapped = (trader, poolId, zeroForOne, amountIn, amountOut, at) => log(V4.router, [V4_SWAPPED_TOPIC, topic(trader), poolId], [zeroForOne ? 1n : 0n, amountIn, amountOut], at);
+  const logs = [
+    swapped(ALICE, V4.poolId, false, 25n * USD, 249_877n, { block: F + 20, index: 0, hash: tx(21) }),
+    swapped(ALICE, V4.poolId, true, 124_938n, 12_440_000n, { block: F + 21, index: 0, hash: tx(22) }),
+    // Another pool's swap through the same router is not this market's.
+    swapped(BOB, `0x${"7".repeat(64)}`, false, 9n * USD, 1n, { block: F + 22, index: 0, hash: tx(23) }),
+    log(V4.hook, [V4_EVENTS.deposited, topic(ALICE), word(3n)], [124_939n, 12_500_000n], { block: F + 23, index: 0, hash: tx(24) }),
+    log(V4.hook, [V4_EVENTS.withdrawn, topic(BOB)], [5n * USD, 50_000n, 5n * USD], { block: F + 24, index: 0, hash: tx(25) }),
+  ].map(entry => ({ ...entry, topics: entry.topics.map(item => item.startsWith("0x") ? item : `0x${item}`) }));
+  const rows = await scanActivity(chain({ head: F + 100, logs }).rpc, F, F + 50);
+  assert.deepEqual(rows.map(row => [row.kind, row.account, row.dollarsMicros, row.sharesMicros]), [
+    ["v4Withdraw", BOB, 5n * USD, 50_000n],
+    ["v4Deposit", ALICE, 12_500_000n, 124_939n],
+    ["v4Sell", ALICE, 12_440_000n, 124_938n],
+    ["v4Buy", ALICE, 25n * USD, 249_877n],
+  ]);
+  // Trades in the v4 pool count as the market's trades, not as the constant-product pool's.
+  const day = activityDay({ fromBlock: ACTIVITY_FIRST_BLOCK, toBlock: F + 50, keep: ACTIVITY_KEEP, rows }, (TIME + 100) * 1000);
+  assert.deepEqual([day.trades, day.volumeMicros, day.poolTrades, day.poolVolumeMicros], [2, 37_440_000n, 0, 0n]);
+  assert.deepEqual(parseActivityIndex(serializeActivityIndex({ fromBlock: F, toBlock: F + 50, keep: ACTIVITY_KEEP, rows })).rows, rows, "the new kinds are stored and read back");
 });
 
 test("an invalid response is read again, never stored", async () => {
@@ -293,7 +319,7 @@ test("the scheduled run keeps the index, and the public API serves it to any ori
   assert.equal(response.headers.get("cache-control"), "public, max-age=30");
   const served = await response.json();
   assert.deepEqual([served.chainId, served.fromBlock, served.toBlock], [1952, F, F + 400]);
-  assert.deepEqual(served.contracts, { fund, pool, arbitrage, lending });
+  assert.deepEqual(served.contracts, { fund, pool, arbitrage, lending, v4Router: V4_POOL_DEPLOYMENT.router, v4Hook: V4_POOL_DEPLOYMENT.hook });
   assert.equal(served.rows.length, 5);
   assert.deepEqual(served.rows[2], { ...activityJson((await scanActivity(chain({ head: F + 400, logs: MARKET }).rpc, F, F + 400))[2]), explorerUrl: `${FUND_DEPLOYMENT.explorerUrl}/tx/${tx(3)}` });
   assert.match(served.environment, /no value/);

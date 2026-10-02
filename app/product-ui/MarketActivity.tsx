@@ -94,6 +94,7 @@ const short = (address: string) => `${address.slice(0, 6)}…${address.slice(-4)
 
 const ICONS: Record<ActivityKind, Parameters<typeof Icon>[0]["name"]> = {
   invest: "arrow", redeem: "back", buy: "arrow", sell: "back", addLiquidity: "market", removeLiquidity: "market", arbitrage: "refresh",
+  v4Buy: "arrow", v4Sell: "back", v4Deposit: "market", v4Withdraw: "market",
   deposit: "lock", withdrawCollateral: "back", borrow: "wallet", repay: "check", lend: "arrow", withdraw: "back", liquidate: "info",
 };
 
@@ -116,6 +117,10 @@ function describe(row: MarketActivity): { title: string; detail: string; amount:
         amount: usd(row.dollarsMicros),
       };
     }
+    case "v4Buy": return { title: "Bought in the v4 pool", detail: `${ustx(row.sharesMicros)} at ${price}`, amount: usd(row.dollarsMicros) };
+    case "v4Sell": return { title: "Sold in the v4 pool", detail: `${ustx(row.sharesMicros)} at ${price}`, amount: usd(row.dollarsMicros) };
+    case "v4Deposit": return { title: "Deposited in the v4 pool", detail: `With ${ustx(row.sharesMicros)}, LP tokens at the next NAV record`, amount: usd(row.dollarsMicros) };
+    case "v4Withdraw": return { title: "Withdrew from the v4 pool", detail: `With ${ustx(row.sharesMicros)}`, amount: usd(row.dollarsMicros) };
     case "deposit": return { title: "Deposited collateral", detail: "USTX to borrow against", amount: ustx(row.sharesMicros) };
     case "withdrawCollateral": return { title: "Withdrew collateral", detail: "USTX back to the wallet", amount: ustx(row.sharesMicros) };
     case "borrow": return { title: "Borrowed", detail: "Demo dollars against USTX", amount: usd(row.dollarsMicros) };
@@ -202,8 +207,9 @@ export function MarketPulse() {
   </section>;
 }
 
-/** The pool's side of the activity: trades in it, the keeper's arbitrage through it, and liquidity. */
+/** Each pool's side of the activity: trades in it, the keeper's arbitrage through it, and liquidity. */
 const POOL_KINDS = new Set<ActivityKind>(["buy", "sell", "addLiquidity", "removeLiquidity", "arbitrage"]);
+const V4_KINDS = new Set<ActivityKind>(["v4Buy", "v4Sell", "v4Deposit", "v4Withdraw"]);
 
 /** The last 24 hours' figures from the activity read for this screen; null until read. */
 export function useActivityDay(): { day: ActivityDay | null; pending: boolean } {
@@ -212,12 +218,15 @@ export function useActivityDay(): { day: ActivityDay | null; pending: boolean } 
 }
 
 /** Pools: the latest trades, arbitrage and liquidity in the USTX/dUSD pool. */
-export function PoolActivitySection() {
+export function PoolActivitySection({ pool = "live" }: { pool?: "live" | "v4" }) {
   const { loaded, failed, retry, clock, mine } = useActivityView();
   const [expanded, setExpanded] = useState(false);
-  const rows = (loaded?.rows ?? []).filter(row => POOL_KINDS.has(row.kind));
+  const kinds = pool === "v4" ? V4_KINDS : POOL_KINDS;
+  const rows = (loaded?.rows ?? []).filter(row => kinds.has(row.kind));
   return <section id="pool-activity" className="gmd-fund gmd-market-activity" aria-labelledby="pool-activity-title">
-    <header className="gmd-section-heading"><div><h2 id="pool-activity-title">Pool activity</h2><p>Trades, arbitrage and liquidity in the USTX/dUSD pool, as recorded on X Layer Testnet.</p></div><span className="gmd-badge">Updated every minute</span></header>
+    <header className="gmd-section-heading"><div><h2 id="pool-activity-title">Pool activity</h2><p>{pool === "v4"
+      ? "Trades through the router and deposits and withdrawals in the Uniswap v4 pool, as recorded on X Layer Testnet."
+      : "Trades, arbitrage and liquidity in the USTX/dUSD pool, as recorded on X Layer Testnet."}</p></div><span className="gmd-badge">Updated every minute</span></header>
     {!loaded ? failed ? <p className="gmd-inline-error" role="status">Pool activity could not be read right now. <button type="button" className="gmd-text-button" onClick={retry}>Try again</button></p> : <ActivityLoading rows={5} figures={false} />
       : rows.length === 0 ? <p className="gmd-empty-note">No pool trades among the latest market activity. Trades and deposits appear here as they are recorded.</p>
       : <ActivityList rows={expanded ? rows : rows.slice(0, SHOWN)} clock={clock} mine={mine} label="Latest pool activity" />}

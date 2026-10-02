@@ -9,6 +9,7 @@
 import { FUND_DEPLOYMENT, FUND_EVENTS, POOL_EVENTS, atBlock, hexBlock, quantity, readBlock, words, type Rpc } from "./fund";
 import { LENDING_EVENTS } from "./lending";
 import { buyFeeMicros, sellFeeMicros } from "./liquidity";
+import { V4_EVENTS, V4_POOL_DEPLOYMENT, V4_SWAPPED_TOPIC, byToken } from "./v4-liquidity";
 
 /** GanymedeBasketFund's deployment block on X Layer Testnet: no market event is older. */
 export const ACTIVITY_FIRST_BLOCK = 41_844_113;
@@ -27,12 +28,15 @@ export const ACTIVITY_EVENTS = {
   liquidated: "0xfcbc974bf3a532baf2bb229db3c37fd58299b62d2d1db6a855dac5b693bb6ff3",
 } as const;
 
-/** The events each contract contributes, by lowercase address. */
+/** The events each contract contributes, by lowercase address. The v4 pool's trades are its router's
+ *  swaps (a swap sent to the pool manager by another contract is not listed), and its liquidity the hook's. */
+const V4 = V4_POOL_DEPLOYMENT;
 const SOURCES: Record<string, readonly string[]> = {
   [FUND_DEPLOYMENT.fund]: [FUND_EVENTS.invested, FUND_EVENTS.redeemed],
   [FUND_DEPLOYMENT.pool]: [POOL_EVENTS.bought, POOL_EVENTS.sold, ACTIVITY_EVENTS.liquidityAdded, ACTIVITY_EVENTS.liquidityRemoved],
   [FUND_DEPLOYMENT.arbitrage]: [ACTIVITY_EVENTS.arbitraged],
   [FUND_DEPLOYMENT.lending]: [...Object.values(LENDING_EVENTS), ACTIVITY_EVENTS.liquidated],
+  ...(V4 ? { [V4.router]: [V4_SWAPPED_TOPIC], [V4.hook]: [V4_EVENTS.deposited, V4_EVENTS.withdrawn] } : {}),
 };
 const ADDRESSES = Object.keys(SOURCES);
 const TOPICS = [...new Set(Object.values(SOURCES).flat())];
@@ -44,9 +48,11 @@ export type ActivityKind =
   | "buy" | "sell" | "addLiquidity" | "removeLiquidity"
   // Both in one transaction, by GanymedeNavArbitrage.
   | "arbitrage"
+  // In the Uniswap v4 pool held at the NAV: trades through its router, and its liquidity.
+  | "v4Buy" | "v4Sell" | "v4Deposit" | "v4Withdraw"
   // In the lending market, named as in lib/xstocks/lending.ts.
   | "deposit" | "withdrawCollateral" | "borrow" | "repay" | "lend" | "withdraw" | "liquidate";
-const KINDS = new Set<string>(["invest", "redeem", "buy", "sell", "addLiquidity", "removeLiquidity", "arbitrage", "deposit", "withdrawCollateral", "borrow", "repay", "lend", "withdraw", "liquidate"]);
+const KINDS = new Set<string>(["invest", "redeem", "buy", "sell", "addLiquidity", "removeLiquidity", "arbitrage", "v4Buy", "v4Sell", "v4Deposit", "v4Withdraw", "deposit", "withdrawCollateral", "borrow", "repay", "lend", "withdraw", "liquidate"]);
 
 export type MarketActivity = {
   kind: ActivityKind;
@@ -91,6 +97,8 @@ function chainEvents(value: unknown, from: number, to: number): ChainEvent[] {
     const address = typeof log.address === "string" ? log.address.toLowerCase() : "";
     const topics = Array.isArray(log.topics) ? log.topics.map(topic => typeof topic === "string" ? topic.toLowerCase() : "") : [];
     if (!SOURCES[address]?.includes(topics[0])) return [];
+    // The router serves any pool key: only this pool's swaps are its trades.
+    if (V4 && address === V4.router && topics[2] !== V4.poolId) return [];
     if (!topics.every(topic => HASH.test(topic)) || typeof log.data !== "string" || !/^0x[0-9a-f]*$/i.test(log.data)
       || typeof log.transactionHash !== "string" || !HASH.test(log.transactionHash.toLowerCase())) throw invalid();
     const block = Number(quantity(log.blockNumber));
@@ -120,6 +128,24 @@ function eventRow(log: ChainLog): MarketActivity {
       const [bought, dollarsIn, dollarsOut, nav] = words(log.data, 4);
       if (bought > 1n) throw invalid();
       return { ...row, kind: "arbitrage", dollarsMicros: dollarsIn, dollarsOutMicros: dollarsOut, navMicros: nav, boughtInPool: bought === 1n };
+    }
+    case V4_SWAPPED_TOPIC: {
+      if (!V4) throw invalid();
+      const [direction, amountIn, amountOut] = words(log.data, 3);
+      if (direction > 1n) throw invalid();
+      // Buying USTX pays demo dollars: currency1 to currency0 when USTX is currency0.
+      const bought = (direction === 1n) !== V4.assetIsCurrency0;
+      return bought ? { ...row, kind: "v4Buy", dollarsMicros: amountIn, sharesMicros: amountOut } : { ...row, kind: "v4Sell", sharesMicros: amountIn, dollarsMicros: amountOut };
+    }
+    case V4_EVENTS.deposited: {
+      if (!V4) throw invalid();
+      const amounts = byToken(V4, ...(words(log.data, 2) as [bigint, bigint]));
+      return { ...row, kind: "v4Deposit", ...amounts };
+    }
+    case V4_EVENTS.withdrawn: {
+      if (!V4) throw invalid();
+      const [, amount0, amount1] = words(log.data, 3);
+      return { ...row, kind: "v4Withdraw", ...byToken(V4, amount0, amount1) };
     }
     case LENDING_EVENTS.collateralSupplied: return { ...row, kind: "deposit", sharesMicros: words(log.data, 1)[0] };
     case LENDING_EVENTS.collateralWithdrawn: return { ...row, kind: "withdrawCollateral", sharesMicros: words(log.data, 1)[0] };
@@ -275,7 +301,7 @@ export type ActivityDay = {
   poolFeesMicros: bigint;
 };
 
-const TRADE_KINDS = new Set<ActivityKind>(["invest", "redeem", "buy", "sell", "arbitrage"]);
+const TRADE_KINDS = new Set<ActivityKind>(["invest", "redeem", "buy", "sell", "arbitrage", "v4Buy", "v4Sell"]);
 const LOAN_KINDS = new Set<ActivityKind>(["deposit", "withdrawCollateral", "borrow", "repay", "lend", "withdraw", "liquidate"]);
 
 /**
@@ -334,7 +360,7 @@ export function withNewerRows(day: ActivityDay, newer: MarketActivity[]): Activi
 export const LARGE_ORDER_MICROS = 1_000_000_000n;
 /** At most this many marked rows are served. */
 export const ACTIVITY_HIGHLIGHTS = 60;
-const ORDER_KINDS = new Set<ActivityKind>(["invest", "redeem", "buy", "sell"]);
+const ORDER_KINDS = new Set<ActivityKind>(["invest", "redeem", "buy", "sell", "v4Buy", "v4Sell"]);
 
 /** A row worth marking on the NAV chart: the keeper's arbitrage, or an order of $1,000 or more. */
 export function isHighlight(row: MarketActivity): boolean {

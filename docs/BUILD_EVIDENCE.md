@@ -1,6 +1,6 @@
 # Build provenance
 
-Production source revision: `693d428364ba41b7de91d9614ed4143f434d5583`.
+Production source revision: `12ac2bd1065172ff649fcd298d1a8636f2687d4e`.
 
 This is a source snapshot, not a claim that the entire project was newly built for this event. The original repository remains private. The entries below were exported from its Git history; reviewers can inspect current implementations and tests, and request original history access from the team if needed. No old secrets, local environment files or full private Git history are published.
 
@@ -474,7 +474,7 @@ These are point-in-time observations, not continuous availability or a security 
 
 ## Finalist-round release: Pools and a Uniswap v4 pool held at the NAV
 
-Production source: 693d428364ba41b7de91d9614ed4143f434d5583. Exported commit: 1e6153a07a2018694b96dd928d91f9fd7069b104 (documentation and contract tests after the source). Worker version: 05a89f80-eb1a-4dfa-ae86-d980c8f311c1, deployed 2026-10-02; before it 13f4722c-a8f2-46ea-9f89-e7b7f5ed8279 and aa00645d-8693-4cd6-97e7-b67f59720fca the same and the previous day. Arbitrage keeper Worker: 5e23f598-a074-45ee-ac07-b7bd622e9092.
+Production source: 12ac2bd1065172ff649fcd298d1a8636f2687d4e. Exported commit: f43358b937f2adffd2565acdd6618df3241c88a0 (documentation after the source). Worker version: 2344d4ba-3abe-4728-9909-a92461b6565b, deployed 2026-10-02; before it 05a89f80-eb1a-4dfa-ae86-d980c8f311c1 and 13f4722c-a8f2-46ea-9f89-e7b7f5ed8279 the same day and aa00645d-8693-4cd6-97e7-b67f59720fca the day before. Arbitrage keeper Worker: 5e23f598-a074-45ee-ac07-b7bd622e9092.
 
 This work was done after the 17–25 September build period, as one of the 30 finalists; the organizers confirmed the latest version may be presented. docs/BUILD_PERIOD.md lists it apart from the build period.
 
@@ -482,12 +482,13 @@ This work was done after the 17–25 September build period, as one of the 30 fi
 - `GanymedeRwaLiquidityHook`, a Uniswap v4 hook that runs a second USTX/dUSD pool around the NAV, and `GanymedeV4Router`, deployed with Uniswap v4-core 1.0.2's PoolManager on X Layer Testnet (hook 0x96a78af00ef351f294f2ccc05adf09b119f968c0) and seeded with $5,000 of USTX and $5,000 of demo dollars. The hook moves the pool to each NAV record before trading, prices deposits at the next record and charges a fee that rises from 0.30% to 1.00% as the record ages; the keeper re-pegs it at each record.
 - Pools compares both pools over the same NAV records: what each pool's trades made or lost for its providers, valued at the NAV in effect, read from the contracts' events. Before release, over the first 256 records, the keeper's three arbitrage trades took $0.0505 from the constant-product pool's providers, the sum the keeper earned, and nothing from the v4 pool's, which had no other trades in that time.
 - The USTX wallet order panel quotes the fund, the constant-product pool and the v4 pool (through the router's dry run) and routes each order to whichever gives the most.
+- Market activity lists the v4 pool's trades through its router and its deposits and withdrawals, on Markets, the USTX page and the v4 pool's view in Pools.
 - Invariant fuzzing of the hook against Uniswap's compiled PoolManager (1,000 random steps passed) and a Slither 0.11.6 pass over every contract, each High and Medium finding triaged in docs/STATIC_ANALYSIS.md; no contract changed as a result.
 
 Validation of the snapshot source:
 
-- In the development repository, the typecheck, a clean build and 213 tests pass, and lint reports 0 errors; the relayer typecheck and 30 tests pass; the contract suite's 99 tests pass.
+- In the development repository, the typecheck, a clean build and 214 tests pass, and lint reports 0 errors; the relayer typecheck and 30 tests pass; the contract suite's 99 tests pass.
 - After the final deployment, the main routes returned 200 and the 4 legacy routes redirected; in a browser on production a $25 order was quoted at all three venues and the v4 review opened with no page errors; the NAV record kept being confirmed every five minutes, and the keeper re-pegged the v4 pool at each record.
-- The same tests pass in this public checkout after `npm ci` (213), and so do the relayer typecheck and 30 tests.
+- The same tests pass in this public checkout after `npm ci` (214), and so do the relayer typecheck and 30 tests.
 
 These are point-in-time observations, not continuous availability or a security audit.

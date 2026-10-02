@@ -128,6 +128,7 @@ export function PoolsScreen() {
         <div className="gmd-detail-aside" id="provide"><V4LiquidityPanel deployment={V4_POOL_DEPLOYMENT} provider={provider} chain={chain} owner={owner} reader={v4} onBusy={setBusy} /></div>
         <div className="gmd-detail-content">
           <V4PoolOverview deployment={V4_POOL_DEPLOYMENT} reader={v4} />
+          <PoolActivitySection pool="v4" />
           <V4PoolGuide />
         </div>
       </> : <>

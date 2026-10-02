@@ -6,6 +6,7 @@ import { decodeMarketSnapshot, type MarketSnapshot } from "@/lib/product-market"
 type MarketContext = { data: MarketSnapshot | null; error: string; loading: boolean; now: number; reload: () => void };
 const Context = createContext<MarketContext | null>(null);
 
+/** Market data for the screens that show it (`enabled`); every screen gets the page clock, `now`, which ticks each minute. */
 export function MarketProvider({ children, enabled = true }: { children: ReactNode; enabled?: boolean }) {
   const [data, setData] = useState<MarketSnapshot | null>(null);
   const [error, setError] = useState("");
@@ -31,6 +32,12 @@ export function MarketProvider({ children, enabled = true }: { children: ReactNo
       window.clearTimeout(timeout);
       if (active.current === controller) setLoading(false);
     }
+  }, [enabled]);
+  useEffect(() => {
+    if (enabled) return;
+    const first = window.setTimeout(() => setNow(Date.now()), 0);
+    const timer = window.setInterval(() => setNow(Date.now()), 60_000);
+    return () => { window.clearTimeout(first); window.clearInterval(timer); };
   }, [enabled]);
   useEffect(() => {
     if (!enabled) return;

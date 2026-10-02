@@ -31,9 +31,10 @@ test("Markets renders the actual product path without fabricated values or the v
 });
 
 test("public product routes share navigation and select the right destination before hydration", async () => {
-  const expected = [["/", "Markets"], ["/portfolio", "Portfolio"], ["/products/ustx/transparency", "Transparency"]];
+  const expected = [["/", "Markets"], ["/pools", "Pools"], ["/portfolio", "Portfolio"], ["/products/ustx/transparency", "Transparency"]];
   for (const [path, current, heading] of [
     ["/", "/", "US Tech Basket"],
+    ["/pools", "/pools", "Provide liquidity to USTX"],
     ["/products/ustx", "/", "About USTX"],
     ["/products/ustx/transparency", "/products/ustx/transparency", "Transparency"],
     ["/portfolio", "/portfolio", "Your wallet on X Layer"],
@@ -66,6 +67,7 @@ test("product pages offer clearly labelled demo investing next to the verificati
   assert.match(product, /Borrow against USTX/);
   assert.match(product, /Borrow up to/);
   assert.match(product, /href="#borrow"/);
+  assert.match(product, /href="\/pools"/, "the USTX page links to its liquidity pools");
   assert.match(product, /You are on X Layer Testnet/);
   assert.match(product, /no real money moves/);
   assert.match(product, /aria-label="Pay with"/);
@@ -75,6 +77,40 @@ test("product pages offer clearly labelled demo investing next to the verificati
   assert.match(product, /OKX OnchainOS/);
   assert.doesNotMatch(product, /Testnet demo · demo dollars|Proof of NAV|model share/, "one testnet notice, customer wording");
   assert.match(product, /id="investment"/);
+});
+
+test("Pools offers the live pool's liquidity from a wallet, with its figures read in the browser", async () => {
+  const response = await render("/pools");
+  assert.equal(response.status, 200);
+  const html = visible(await response.text());
+  assert.match(html, /<h1>Pools<\/h1>/);
+  assert.match(html, /USTX \/ dUSD/);
+  assert.match(html, /Constant product/);
+  assert.match(html, /Provide liquidity/);
+  assert.match(html, /<div class="gmd-detail-aside" id="provide">/);
+  assert.match(html, /href="#provide"/);
+  assert.match(html, /Install the OKX Wallet extension/, "the panel asks for a wallet before the browser has one");
+  assert.match(html, /How providing liquidity works/);
+  assert.match(html, /If the NAV moves/);
+  assert.match(html, /Pool activity/);
+  assert.match(html, /Reading market activity from X Layer Testnet/);
+  assert.match(html, /You are on X Layer Testnet\. Balances are demo funds with no real value\./);
+  assert.match(html, /Demo dollars and USTX have no value/);
+  // Figures come from the chain in the browser: nothing is invented on the server.
+  assert.doesNotMatch(html, /Example account|\$12,454|Try to break it|npm run|viem|parseAbi|addLiquidity\(|Built on X Layer and OKX/);
+  const grid = html.match(/<div class="gmd-fund-grid" aria-busy="true">([\s\S]*?)<\/div>/)?.[1];
+  assert.ok(grid, "the pool's figures wait for the chain");
+  assert.doesNotMatch(grid, /\$\d/, "no amount before the chain is read");
+  // The NAV calculator is plain arithmetic and starts at +10%.
+  assert.match(html, /\$1,050\.00/);
+  assert.match(html, /\$1,048\.81/);
+  // The pinned Uniswap v4 pool is listed beside the live pool; its figures also wait for the chain.
+  assert.match(html, /Uniswap v4 · held at the NAV/);
+  // The two pools side by side for their providers, from the served totals once the page has them.
+  assert.match(html, /Liquidity providers against arbitrage/);
+  assert.match(html, /0\.30–1\.00%/);
+  assert.match(html, /<title>Pools · Ganymede<\/title>/);
+  assert.equal(html.match(/You are on X Layer Testnet/g).length, 1, "one testnet notice");
 });
 
 test("legacy URLs route to their matching product or simulation destination", async () => {
@@ -194,6 +230,10 @@ test("issuer, developer and embed pages render for partners", async () => {
   assert.match(developers, /A keeper checks the pool every five minutes and sends that trade when closing the gap earns at least a cent/);
   assert.match(developers, /quotes both the fund and the pool for each order and routes it to the better price/);
   assert.match(developers, /Use USTX as collateral/);
+  assert.match(developers, /Provide liquidity/);
+  assert.match(developers, /\/api\/v1\/ustx\/pools/);
+  assert.match(developers, /npm run fork:v4/);
+  assert.match(developers, /address\/0x96a78af00ef351f294f2ccc05adf09b119f968c0/);
   assert.match(developers, /0xae2f54ae3d0370295de18510d56de92afb8843c7/);
   assert.match(developers, /0x286f5e7ffdbc30db12665d7a3854217d7cd05cc1/);
   assert.match(developers, /address\/0xccf372068496d9bef0f7cf83d697183d358dec1b/);

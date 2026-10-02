@@ -25,6 +25,8 @@ const CONTRACTS = {
   GanymedeUstxPool: "contracts/GanymedeUstxPool.sol:GanymedeUstxPool",
   GanymedeNavArbitrage: "contracts/GanymedeNavArbitrage.sol:GanymedeNavArbitrage",
   GanymedeLendingMarket: "contracts/GanymedeLendingMarket.sol:GanymedeLendingMarket",
+  GanymedeRwaLiquidityHook: "contracts/GanymedeRwaLiquidityHook.sol:GanymedeRwaLiquidityHook",
+  GanymedeV4Router: "contracts/GanymedeV4Router.sol:GanymedeV4Router",
 } as const;
 
 async function main() {

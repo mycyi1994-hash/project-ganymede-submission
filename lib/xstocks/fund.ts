@@ -317,12 +317,12 @@ export async function readChainTime(options: { rpc?: Rpc } = {}): Promise<number
   return Number(quantity(block?.timestamp));
 }
 
-/** Dry-runs a call from `from`, so a revert shows its reason before the wallet opens. */
-export async function simulateFundCall(from: string, request: TransactionCall, options: { rpc?: Rpc; minBlock?: number } = {}): Promise<void> {
+/** Dry-runs a call from `from`, so a revert shows its reason before the wallet opens. Returns what the call would return. */
+export async function simulateFundCall(from: string, request: TransactionCall, options: { rpc?: Rpc; minBlock?: number } = {}): Promise<unknown> {
   const rpc = options.rpc ?? fundRpc();
   addressWord(from);
   const tag = hexBlock(await readBlock(rpc, options.minBlock));
-  await atBlock(() => rpc("eth_call", [{ from, to: request.to, data: request.data }, tag]));
+  return atBlock(() => rpc("eth_call", [{ from, to: request.to, data: request.data }, tag]));
 }
 
 export type FundReceipt = { hash: string; block: number; status: "success" | "reverted"; logs: Array<{ address: string; topics: string[]; data: string }> };

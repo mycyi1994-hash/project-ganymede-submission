@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { evaluateBasket, constituentsWithAddresses, XSTOCKS_CONSTITUENTS } from "../lib/xstocks/basket.ts";
-import { compositionForRecord, constituentFigures, currentWeights, formatCountdown, navAtFixing, nextRecordAt, publicationHistory, decodeMarketSnapshot } from "../lib/product-market.ts";
+import { compositionForRecord, constituentFigures, currentWeights, formatCountdown, navAtFixing, nextRecordAt, publicationHistory, decodeMarketSnapshot, waitLabel } from "../lib/product-market.ts";
 
 async function fixture() {
   const now = "2026-09-24T07:00:00.456Z";
@@ -99,4 +99,16 @@ test("the next NAV record is due on the next five-minute boundary, counted down 
   assert.equal(formatCountdown(61_001), "1:02");
   assert.equal(formatCountdown(9_000), "0:09");
   assert.equal(formatCountdown(-5_000), "0:00");
+});
+
+test("the wait for more demo dollars is in whole minutes rounded up, never 60 of them past the hour", () => {
+  const now = 1_790_000_000_000;
+  const at = (seconds) => 1_790_000_000 + seconds;
+  assert.equal(waitLabel(at(7_170), now), "2h 0m");
+  assert.equal(waitLabel(at(3_570), now), "1h 0m");
+  assert.equal(waitLabel(at(3_540), now), "59m");
+  assert.equal(waitLabel(at(5_430), now), "1h 31m");
+  assert.equal(waitLabel(at(86_400), now), "24h 0m");
+  assert.equal(waitLabel(at(5), now), "1m");
+  assert.equal(waitLabel(at(-30), now), "1m");
 });

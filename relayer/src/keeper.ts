@@ -10,7 +10,8 @@ import { xlayerTestnet } from "./chain";
  *
  * It runs three minutes past each five-minute mark, after the app's NAV record for that mark has
  * landed, and runs every trade as a call before sending it, so it does not pay gas for a trade
- * that would revert. Its key (KEEPER_PRIVATE_KEY, a Worker secret) holds testnet OKB for gas and
+ * that would revert. With V4_HOOK_ADDRESS set, it also moves the Uniswap v4 pool to each new NAV
+ * record, which turns the deposits waiting for that record into LP tokens. Its key (KEEPER_PRIVATE_KEY, a Worker secret) holds testnet OKB for gas and
  * no-value demo dollars, claimed from the demo dollar when it runs low. It has no role on any
  * contract, and a trade that is no longer profitable when it lands reverts in the arbitrage contract.
  */
@@ -20,6 +21,8 @@ export interface KeeperEnv {
   ARBITRAGE_ADDRESS?: string;
   DOLLAR_ADDRESS?: string;
   SETTLEMENT_RPC_URL?: string;
+  /** GanymedeRwaLiquidityHook once it is deployed: the keeper then moves its Uniswap v4 pool to each NAV record. */
+  V4_HOOK_ADDRESS?: string;
 }
 
 /** The least a trade must earn to be worth sending, in demo-dollar micros: a cent. */
@@ -31,6 +34,32 @@ const CLAIM_MICROS = 10_000_000_000n;
 export type Quote = { buyInPool: boolean; dollarsIn: bigint; dollarsOut: bigint };
 export type Sent = { hash: Hex; success: boolean };
 export type Simulation = { dollarsOut: bigint } | { revert: string };
+
+/** The Uniswap v4 pool's side: the NAV record the hook would use now and the one its pool is centred on, and the move between them. */
+export interface RepegChain {
+  /** updatedAt of the NAV the hook would use now (null while it cannot use one) and of the record the pool is centred on. */
+  pegState(): Promise<{ navUpdatedAt: bigint | null; peggedAt: bigint }>;
+  /** Runs repeg() as a call on the latest block: whether it would move the pool, or the error it would revert with. */
+  simulateRepeg(): Promise<{ repegged: boolean } | { revert: string }>;
+  repeg(): Promise<Sent>;
+}
+
+export type RepegOutcome = { action: "none"; reason: string } | { action: "repeg"; navUpdatedAt: string; hash: Hex; success: boolean };
+
+/**
+ * Moves the v4 pool to a NAV record it has not used yet. That converts the deposits waiting for the
+ * record into LP tokens at once; otherwise the next swap or deposit does it, and a trader pays the gas.
+ */
+export async function runRepeg(chain: RepegChain): Promise<RepegOutcome> {
+  const { navUpdatedAt, peggedAt } = await chain.pegState();
+  if (navUpdatedAt === null) return none("no usable NAV for the v4 pool");
+  if (navUpdatedAt <= peggedAt) return none("the v4 pool is at the latest NAV record");
+  const simulated = await chain.simulateRepeg();
+  if ("revert" in simulated) return none(`the re-peg would revert: ${simulated.revert}`);
+  if (!simulated.repegged) return none("the v4 pool is at the latest NAV record");
+  const sent = await chain.repeg();
+  return { action: "repeg", navUpdatedAt: navUpdatedAt.toString(), hash: sent.hash, success: sent.success };
+}
 
 /** What the keeper reads and sends. The Worker binds it to X Layer Testnet; tests use a fake. */
 export interface KeeperChain {
@@ -44,6 +73,8 @@ export interface KeeperChain {
   claim(): Promise<Sent>;
   approve(): Promise<Sent>;
   arbitrage(buyInPool: boolean, dollarsIn: bigint, minProfit: bigint): Promise<Sent>;
+  /** The v4 pool, when V4_HOOK_ADDRESS is set; it shares the keeper's nonces. */
+  v4?: RepegChain | null;
 }
 
 export type KeeperOutcome =
@@ -111,7 +142,7 @@ async function quoteOrReason(chain: KeeperChain): Promise<Quote | string> {
   return quote;
 }
 
-function none(reason: string): KeeperOutcome {
+function none(reason: string): { action: "none"; reason: string } {
   return { action: "none", reason };
 }
 
@@ -134,6 +165,17 @@ const ARBITRAGE_ABI = parseAbi([
   "error Expired()",
 ]);
 
+const HOOK_ABI = parseAbi([
+  "function nav() view returns (uint256 answer, uint256 updatedAt, uint160 sqrtPriceX96)",
+  "function peggedAt() view returns (uint256)",
+  "function repeg() returns (bool)",
+  "error NavUnavailable()",
+  "error NavTooOld(uint256 updatedAt)",
+  "error NavInFuture(uint256 updatedAt)",
+  "error NavOutOfRange()",
+  "error Reentrancy()",
+]);
+
 const DOLLAR_ABI = parseAbi([
   "function balanceOf(address account) view returns (uint256)",
   "function allowance(address owner, address spender) view returns (uint256)",
@@ -142,9 +184,12 @@ const DOLLAR_ABI = parseAbi([
   "function claim()",
 ]);
 
+const isAddress = (value: string | undefined): value is Address => Boolean(value && /^0x[0-9a-fA-F]{40}$/.test(value));
+
 function address(value: string | undefined, name: string): Address {
-  if (!value || !/^0x[0-9a-fA-F]{40}$/.test(value)) throw new Error(`${name} is not set.`);
-  return value as Address;
+  if (!value) throw new Error(`${name} is not set.`);
+  if (!isAddress(value)) throw new Error(`${name} is not an address.`);
+  return value;
 }
 
 /** The keeper's chain on X Layer Testnet, signing with KEEPER_PRIVATE_KEY. */
@@ -153,17 +198,29 @@ export function xlayerKeeperChain(env: KeeperEnv): KeeperChain {
   if (!key || !/^0x[0-9a-fA-F]{64}$/.test(key)) throw new Error("KEEPER_PRIVATE_KEY is not set.");
   const arbitrage = address(env.ARBITRAGE_ADDRESS, "ARBITRAGE_ADDRESS");
   const dollar = address(env.DOLLAR_ADDRESS, "DOLLAR_ADDRESS");
+  // The v4 pool is optional: a malformed hook address is reported on each run without stopping the arbitrage.
+  const hook = isAddress(env.V4_HOOK_ADDRESS) ? env.V4_HOOK_ADDRESS : null;
+  if (env.V4_HOOK_ADDRESS && !hook) console.error("V4_HOOK_ADDRESS is not an address; the v4 pool is not re-pegged.");
   const account = privateKeyToAccount(key as Hex);
   const transport = http(env.SETTLEMENT_RPC_URL || xlayerTestnet.rpcUrls.default.http[0]);
   const publicClient = createPublicClient({ chain: xlayerTestnet, transport });
   const walletClient = createWalletClient({ chain: xlayerTestnet, transport, account });
 
   // Writes in one run take consecutive nonces and wait for each receipt, so a node of the
-  // load-balanced RPC that lags the last receipt cannot hand out a used nonce.
+  // load-balanced RPC that lags the last receipt cannot hand out a used nonce. A write that fails
+  // may or may not have reached the network, so the next one asks the network again rather than
+  // skip a nonce and wait behind a gap.
   let nonce: number | undefined;
   async function send(write: (nonce: number) => Promise<Hex>): Promise<Sent> {
-    nonce ??= await publicClient.getTransactionCount({ address: account.address, blockTag: "pending" });
-    const hash = await write(nonce++);
+    const current = nonce ?? await publicClient.getTransactionCount({ address: account.address, blockTag: "pending" });
+    let hash: Hex;
+    try {
+      hash = await write(current);
+    } catch (error) {
+      nonce = undefined;
+      throw error;
+    }
+    nonce = current + 1;
     const receipt = await publicClient.waitForTransactionReceipt({ hash, timeout: 60_000 });
     return { hash, success: receipt.status === "success" };
   }
@@ -204,6 +261,31 @@ export function xlayerKeeperChain(env: KeeperEnv): KeeperChain {
         nonce: n,
         gas: 400_000n,
       })),
+    v4: hook && {
+      async pegState() {
+        const peggedAt = await publicClient.readContract({ address: hook, abi: HOOK_ABI, functionName: "peggedAt" });
+        try {
+          const [, updatedAt] = await publicClient.readContract({ address: hook, abi: HOOK_ABI, functionName: "nav" });
+          return { navUpdatedAt: updatedAt, peggedAt };
+        } catch (error) {
+          // A missing, stale or future-dated NAV: the hook would not move the pool to it.
+          if (revertReason(error) === undefined) throw error;
+          return { navUpdatedAt: null, peggedAt };
+        }
+      },
+      async simulateRepeg() {
+        try {
+          const { result } = await publicClient.simulateContract({ account, address: hook, abi: HOOK_ABI, functionName: "repeg" });
+          return { repegged: result };
+        } catch (error) {
+          const reason = revertReason(error);
+          if (reason === undefined) throw error;
+          return { revert: reason };
+        }
+      },
+      // Removing both ranges, moving the empty pool and adding them back: about 500,000 gas.
+      repeg: () => send(n => walletClient.writeContract({ address: hook, abi: HOOK_ABI, functionName: "repeg", nonce: n, gas: 900_000n })),
+    },
   };
 }
 
@@ -224,11 +306,18 @@ function describe(error: unknown): string {
 
 export default {
   async scheduled(_controller: ScheduledController, env: KeeperEnv, ctx: ExecutionContext): Promise<void> {
-    ctx.waitUntil(
-      Promise.resolve()
-        .then(() => runKeeper(xlayerKeeperChain(env)))
-        .then(outcome => console.log(JSON.stringify(outcome)), error => console.error(`keeper run failed: ${describe(error)}`)),
-    );
+    ctx.waitUntil((async () => {
+      let chain: KeeperChain;
+      try {
+        chain = xlayerKeeperChain(env);
+      } catch (error) {
+        console.error(`keeper run failed: ${describe(error)}`);
+        return;
+      }
+      await runKeeper(chain).then(outcome => console.log(JSON.stringify(outcome)), error => console.error(`keeper run failed: ${describe(error)}`));
+      // The v4 pool's re-peg runs whatever became of the arbitrage.
+      if (chain.v4) await runRepeg(chain.v4).then(outcome => console.log(JSON.stringify({ pool: "v4", ...outcome })), error => console.error(`v4 re-peg failed: ${describe(error)}`));
+    })());
   },
   // The keeper only runs on its schedule; it serves nothing.
   async fetch(): Promise<Response> {

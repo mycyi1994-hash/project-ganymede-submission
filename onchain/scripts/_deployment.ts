@@ -81,6 +81,21 @@ export interface Deployment {
     GanymedeNavArbitrage?: { address: string; deployedAt: string; deploymentTransaction: string; constructorArgs: unknown[] };
     // Lending against USTX (scripts/deploy-lending.ts). Written and tested; not deployed.
     GanymedeLendingMarket?: { address: string; deployedAt: string; deploymentTransaction?: string; constructorArgs: unknown[]; activatedAt?: string; unpauseTransaction?: string };
+    // USTX liquidity on Uniswap v4 (scripts/deploy-v4.ts): Uniswap's pool manager, the hook that
+    // runs the pool around the NAV and holds its liquidity, and a router. Written and tested on a
+    // fork; not deployed.
+    UniswapV4PoolManager?: { address: string; deployedAt: string; deploymentTransaction: string; source: string; constructorArgs: unknown[] };
+    GanymedeRwaLiquidityHook?: {
+      address: string;
+      deployedAt: string;
+      deploymentTransaction: string;
+      create2Deployer: string;
+      salt: string;
+      poolId: string;
+      seedTransaction?: string;
+      constructorArgs: unknown[];
+    };
+    GanymedeV4Router?: { address: string; deployedAt: string; deploymentTransaction: string; constructorArgs: unknown[] };
   };
 }
 

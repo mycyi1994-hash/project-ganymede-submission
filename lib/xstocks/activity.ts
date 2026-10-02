@@ -8,6 +8,7 @@
  */
 import { FUND_DEPLOYMENT, FUND_EVENTS, POOL_EVENTS, atBlock, hexBlock, quantity, readBlock, words, type Rpc } from "./fund";
 import { LENDING_EVENTS } from "./lending";
+import { buyFeeMicros, sellFeeMicros } from "./liquidity";
 
 /** GanymedeBasketFund's deployment block on X Layer Testnet: no market event is older. */
 export const ACTIVITY_FIRST_BLOCK = 41_844_113;
@@ -267,14 +268,31 @@ export type ActivityDay = {
   earnedMicros: bigint;
   /** Lending steps: deposits and withdrawals of collateral, loans, repayments, lending and liquidations. */
   loans: number;
+  /** Trades in the USTX/dUSD pool, an arbitrage's included: how many, the demo dollars that went in
+   *  or came out, and the 0.3% fee they left with the pool's liquidity providers. */
+  poolTrades: number;
+  poolVolumeMicros: bigint;
+  poolFeesMicros: bigint;
 };
 
 const TRADE_KINDS = new Set<ActivityKind>(["invest", "redeem", "buy", "sell", "arbitrage"]);
 const LOAN_KINDS = new Set<ActivityKind>(["deposit", "withdrawCollateral", "borrow", "repay", "lend", "withdraw", "liquidate"]);
 
+/**
+ * A row's trade in the pool: the demo dollars paid in (a purchase) or out (a sale), and the fee in
+ * demo dollars. An arbitrage bought in the pool with all it put in, or sold there for all it took out.
+ */
+export function poolTrade(row: MarketActivity): { volumeMicros: bigint; feeMicros: bigint } | null {
+  const bought = row.kind === "buy" || (row.kind === "arbitrage" && row.boughtInPool === true);
+  const sold = row.kind === "sell" || (row.kind === "arbitrage" && row.boughtInPool === false);
+  const dollars = row.kind === "arbitrage" && sold ? row.dollarsOutMicros : row.dollarsMicros;
+  if (dollars === null || (!bought && !sold)) return null;
+  return { volumeMicros: dollars, feeMicros: bought ? buyFeeMicros(dollars) : sellFeeMicros(dollars) };
+}
+
 /** The figures of `rows` at or after `sinceMs`. */
 export function activityCounts(rows: MarketActivity[], sinceMs: number): Omit<ActivityDay, "complete" | "since"> {
-  const day = { trades: 0, volumeMicros: 0n, arbitrages: 0, earnedMicros: 0n, loans: 0 };
+  const day = { trades: 0, volumeMicros: 0n, arbitrages: 0, earnedMicros: 0n, loans: 0, poolTrades: 0, poolVolumeMicros: 0n, poolFeesMicros: 0n };
   for (const row of rows) {
     if (Date.parse(row.at) < sinceMs) continue;
     if (TRADE_KINDS.has(row.kind)) { day.trades += 1; day.volumeMicros += row.dollarsMicros ?? 0n; }
@@ -283,6 +301,8 @@ export function activityCounts(rows: MarketActivity[], sinceMs: number): Omit<Ac
       if (row.dollarsOutMicros !== null && row.dollarsMicros !== null && row.dollarsOutMicros > row.dollarsMicros) day.earnedMicros += row.dollarsOutMicros - row.dollarsMicros;
     }
     if (LOAN_KINDS.has(row.kind)) day.loans += 1;
+    const trade = poolTrade(row);
+    if (trade) { day.poolTrades += 1; day.poolVolumeMicros += trade.volumeMicros; day.poolFeesMicros += trade.feeMicros; }
   }
   return day;
 }
@@ -306,6 +326,7 @@ export function withNewerRows(day: ActivityDay, newer: MarketActivity[]): Activi
   return {
     ...day, trades: day.trades + more.trades, volumeMicros: day.volumeMicros + more.volumeMicros,
     arbitrages: day.arbitrages + more.arbitrages, earnedMicros: day.earnedMicros + more.earnedMicros, loans: day.loans + more.loans,
+    poolTrades: day.poolTrades + more.poolTrades, poolVolumeMicros: day.poolVolumeMicros + more.poolVolumeMicros, poolFeesMicros: day.poolFeesMicros + more.poolFeesMicros,
   };
 }
 
@@ -330,8 +351,13 @@ export function parseHighlights(value: unknown): MarketActivity[] {
   }
 }
 
-export type ActivityDayJson = { complete: boolean; since: string; trades: number; volumeMicros: string; arbitrages: number; earnedMicros: string; loans: number };
-export const activityDayJson = (day: ActivityDay): ActivityDayJson => ({ ...day, volumeMicros: day.volumeMicros.toString(), earnedMicros: day.earnedMicros.toString() });
+export type ActivityDayJson = {
+  complete: boolean; since: string; trades: number; volumeMicros: string; arbitrages: number; earnedMicros: string; loans: number;
+  poolTrades: number; poolVolumeMicros: string; poolFeesMicros: string;
+};
+export const activityDayJson = (day: ActivityDay): ActivityDayJson => ({
+  ...day, volumeMicros: day.volumeMicros.toString(), earnedMicros: day.earnedMicros.toString(), poolVolumeMicros: day.poolVolumeMicros.toString(), poolFeesMicros: day.poolFeesMicros.toString(),
+});
 
 /**
  * The served rows with the blocks since read directly, newest first. Reads at most
@@ -411,8 +437,13 @@ export function parseActivityDay(value: unknown): ActivityDay | null {
     if (!day || typeof day !== "object" || typeof day.complete !== "boolean" || typeof day.since !== "string" || !Number.isFinite(Date.parse(day.since))) return null;
     const volumeMicros = amount(day.volumeMicros);
     const earnedMicros = amount(day.earnedMicros);
-    if (volumeMicros === null || earnedMicros === null) return null;
-    return { complete: day.complete, since: new Date(day.since).toISOString(), trades: count(day.trades), volumeMicros, arbitrages: count(day.arbitrages), earnedMicros, loans: count(day.loans) };
+    const poolVolumeMicros = amount(day.poolVolumeMicros);
+    const poolFeesMicros = amount(day.poolFeesMicros);
+    if (volumeMicros === null || earnedMicros === null || poolVolumeMicros === null || poolFeesMicros === null) return null;
+    return {
+      complete: day.complete, since: new Date(day.since).toISOString(), trades: count(day.trades), volumeMicros, arbitrages: count(day.arbitrages), earnedMicros, loans: count(day.loans),
+      poolTrades: count(day.poolTrades), poolVolumeMicros, poolFeesMicros,
+    };
   } catch {
     return null;
   }

@@ -168,15 +168,17 @@ test("an index never claims blocks whose rows it dropped", async () => {
   assert.deepEqual(network.ranges(), [[F + 5_001, F + 5_001]], "a full index reads no history");
 });
 
-test("the last 24 hours count trades, their volume, arbitrage and loans", async () => {
+test("the last 24 hours count trades, their volume, arbitrage, loans and the pool's own trades and fees", async () => {
   const rows = await scanActivity(chain({ head: F + 400, logs: MARKET }).rpc, F, F + 350);
   const at = (block) => (TIME + block - F) * 1000;
   // Every event since the deployment is held, so the day is complete: an investment, a pool buy and
-  // an arbitrage are trades; the loan and the liquidation are loan actions.
+  // an arbitrage are trades; the loan and the liquidation are loan actions. The pool traded twice: the
+  // purchase and the arbitrage's purchase, each paying 0.3% of the demo dollars it put in.
   const day = activityDay({ fromBlock: F, toBlock: F + 350, keep: ACTIVITY_KEEP, rows }, at(F + 400));
   assert.deepEqual(day, {
     complete: true, since: new Date(at(F + 400) - 86_400_000).toISOString(),
     trades: 3, volumeMicros: 1_000n * USD + 50n * USD + 145_924_920n, arbitrages: 1, earnedMicros: 150_300_425n - 145_924_920n, loans: 2,
+    poolTrades: 2, poolVolumeMicros: 50n * USD + 145_924_920n, poolFeesMicros: 150_000n + 437_774n,
   });
   // A day later only what happened since counts.
   const later = activityDay({ fromBlock: F, toBlock: F + 350, keep: ACTIVITY_KEEP, rows }, at(F + 150) + 86_400_000);
@@ -190,9 +192,16 @@ test("the last 24 hours count trades, their volume, arbitrage and loans", async 
   const sale = { ...rows[3], kind: "sell", hash: tx(50), block: F + 500, at: new Date(at(F + 500)).toISOString(), dollarsMicros: 20n * USD };
   const more = withNewerRows(day, [sale]);
   assert.deepEqual([more.trades, more.volumeMicros, more.loans], [4, day.volumeMicros + 20n * USD, 2]);
+  // A sale pays its fee in USTX: 0.3% of what went in, worth $20 ÷ 0.997 × 0.003 of what came out.
+  assert.deepEqual([more.poolTrades, more.poolVolumeMicros, more.poolFeesMicros], [3, day.poolVolumeMicros + 20n * USD, day.poolFeesMicros + 60_180n]);
   // Served figures are checked before they are used.
   assert.deepEqual(parseActivityDay(JSON.parse(JSON.stringify(activityDayJson(day)))), day);
-  for (const broken of [null, {}, { ...activityDayJson(day), trades: -1 }, { ...activityDayJson(day), volumeMicros: 5 }, { ...activityDayJson(day), since: "soon" }, { ...activityDayJson(day), complete: "yes" }]) {
+  const withoutPoolFees = activityDayJson(day);
+  delete withoutPoolFees.poolFeesMicros;
+  for (const broken of [
+    null, {}, { ...activityDayJson(day), trades: -1 }, { ...activityDayJson(day), volumeMicros: 5 }, { ...activityDayJson(day), since: "soon" }, { ...activityDayJson(day), complete: "yes" },
+    { ...activityDayJson(day), poolTrades: 1.5 }, { ...activityDayJson(day), poolVolumeMicros: "-1" }, withoutPoolFees,
+  ]) {
     assert.equal(parseActivityDay(broken), null, JSON.stringify(broken));
   }
 });
@@ -288,7 +297,10 @@ test("the scheduled run keeps the index, and the public API serves it to any ori
   assert.equal(served.rows.length, 5);
   assert.deepEqual(served.rows[2], { ...activityJson((await scanActivity(chain({ head: F + 400, logs: MARKET }).rpc, F, F + 400))[2]), explorerUrl: `${FUND_DEPLOYMENT.explorerUrl}/tx/${tx(3)}` });
   assert.match(served.environment, /no value/);
-  assert.deepEqual(served.day, { complete: true, since: new Date((TIME + 400 - 86_400) * 1000).toISOString(), trades: 3, volumeMicros: "1195924920", arbitrages: 1, earnedMicros: "4375505", loans: 2 });
+  assert.deepEqual(served.day, {
+    complete: true, since: new Date((TIME + 400 - 86_400) * 1000).toISOString(), trades: 3, volumeMicros: "1195924920", arbitrages: 1, earnedMicros: "4375505", loans: 2,
+    poolTrades: 2, poolVolumeMicros: "195924920", poolFeesMicros: "587774",
+  });
   assert.deepEqual(parseActivityIndex(served)?.rows.map(row => row.kind), ["liquidate", "borrow", "arbitrage", "buy", "invest"]);
   // Marked on the NAV chart: the arbitrage and orders of $1,000 or more, with their explorer links.
   assert.deepEqual(served.highlights, served.rows.filter(row => isHighlight(activityFromJson(row))));
@@ -308,8 +320,14 @@ test("the Worker runs market activity on its own cron, apart from the NAV cycle"
   workerUrl.searchParams.set("test", `${process.pid}-activity`);
   const { default: worker } = await import(workerUrl.href);
   const pending = [];
+  const errors = t.mock.method(console, "error", () => {});
   await worker.scheduled({ cron: ACTIVITY_CRON, scheduledTime: Date.now(), noRetry() {} }, { DB: db }, { waitUntil: promise => pending.push(promise), passThroughOnException() {} });
-  await Promise.all(pending);
+  // Two jobs: the activity index and the pools' results. This chain cannot answer the fund's NAV, so
+  // the second fails, alone, and says so.
+  const [activity, results] = await Promise.allSettled(pending);
+  assert.equal(activity.status, "fulfilled");
+  assert.equal(results.status, "rejected");
+  assert.match(String(errors.mock.calls[0].arguments[0]), /pool results run failed/);
   assert.deepEqual(sql.prepare("SELECT key FROM engine_state").all().map(row => row.key), [STATE_MARKET_ACTIVITY], "only the activity index; no engine cycle ran");
   assert.equal(parseActivityIndex(sql.prepare("SELECT value FROM engine_state").get().value)?.rows.length, 5);
 });

@@ -86,6 +86,40 @@
       ],
       "activatedAt": "2026-09-25T07:37:32.008Z",
       "unpauseTransaction": "0x1acb998775cb55926d585611f9cc18171ab63015b86b62927828d237af6a873f"
+    },
+    "UniswapV4PoolManager": {
+      "address": "0xe83eee508ce92832488dd9f574ad329a1203641c",
+      "deployedAt": "2026-10-01T15:57:47.827Z",
+      "deploymentTransaction": "0x0d28b64ef87bcb5c5abe5d928cef585623368f302986a0dab89b2c96972ad82e",
+      "source": "@uniswap/v4-core 1.0.2 out/PoolManager.sol (Uniswap's build: solc 0.8.26, via IR, Cancun)",
+      "constructorArgs": [
+        "0x107633a3aa88c81d4c47d01992e089573e2e87c9"
+      ]
+    },
+    "GanymedeRwaLiquidityHook": {
+      "address": "0x96A78af00EF351F294f2ccC05adF09b119f968c0",
+      "deployedAt": "2026-10-01T15:57:47.827Z",
+      "deploymentTransaction": "0xb630d206b2f76216db5e8dc7f7c98286b6e07a51730c57e28319ee8f9d4b4259",
+      "create2Deployer": "0x4e59b44847b379578588920ca78fbf26c0b4956c",
+      "salt": "0x00000000000000000000000000000000000000000000000000000000000000cf",
+      "poolId": "0x3da5321a25b931eab270ee3b86490e10648ea54f25b2f4011679b4ddc74c498a",
+      "constructorArgs": [
+        "0xe83eee508ce92832488dd9f574ad329a1203641c",
+        "0x77eaeba1366bde7818da12d3cbdbea0a2ee97596",
+        "0xf07535080f74e8b0f571e58dfa600f47e72ea9bf",
+        "0x292c56c5290cc7b73e3ee33c2c2688eb3e04c3c8",
+        "Ganymede USTX-dUSD v4 LP",
+        "USTX-V4LP"
+      ],
+      "seedTransaction": "0xf4887d4563a65076ce2bec6356722e716563beb17f198e31c150c1da61750096"
+    },
+    "GanymedeV4Router": {
+      "address": "0xbd899115e3c6926d109a5bd39bf12646fae3862b",
+      "deployedAt": "2026-10-01T15:57:47.827Z",
+      "deploymentTransaction": "0x0d1fd4e57ec587bd880330d792600b577d97919454f1abaf8722e22f73d8dfa9",
+      "constructorArgs": [
+        "0xe83eee508ce92832488dd9f574ad329a1203641c"
+      ]
     }
   }
 }

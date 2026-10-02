@@ -107,7 +107,7 @@ const GAUGE_PPM = 10_000;
  * The pool's price against the NAV on one scale, with the band of the pool's 0.3% fee around the NAV:
  * inside it a trade through the pool costs more than the gap, beyond it the keeper can close it.
  */
-function PremiumGauge({ market }: { market: PoolMarket }) {
+export function PremiumGauge({ market }: { market: PoolMarket }) {
   if (market.premiumPpm === null || market.navMicros === null) return null;
   const ppm = Number(market.premiumPpm);
   const shown = Math.max(-GAUGE_PPM, Math.min(GAUGE_PPM, ppm));

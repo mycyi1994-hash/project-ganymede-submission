@@ -1,7 +1,21 @@
 import "@nomicfoundation/hardhat-toolbox-viem";
 import "dotenv/config";
 import type { HardhatUserConfig } from "hardhat/config";
+import { Resolver } from "hardhat/internal/solidity/resolver";
 import { RAILS } from "./scripts/_deployment";
+
+// Solidity imports of packages resolve from `paths.root` below, the repository root, whose
+// node_modules hold the app's packages. The Uniswap v4 sources are a dependency of this package, so
+// a package the root does not have is looked up in onchain/node_modules as well.
+const resolver = Resolver.prototype as unknown as { _resolveNodeModulesFileFromProjectRoot(fileName: string): string };
+const resolveFromRoot = resolver._resolveNodeModulesFileFromProjectRoot;
+resolver._resolveNodeModulesFileFromProjectRoot = function (this: unknown, fileName: string) {
+  try {
+    return resolveFromRoot.call(this, fileName);
+  } catch {
+    return require.resolve(fileName, { paths: [__dirname] });
+  }
+};
 
 /**
  * Two independent keys, by design (see contracts/README.md):

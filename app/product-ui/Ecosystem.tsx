@@ -2,6 +2,7 @@ import Link from "next/link";
 import { PROOF_DEPLOYMENT } from "@/lib/xstocks/proof";
 import { XSTOCKS_PRODUCT_KEY } from "@/lib/xstocks/onchain";
 import { FUND_DEPLOYMENT } from "@/lib/xstocks/fund";
+import { V4_POOL_DEPLOYMENT } from "@/lib/xstocks/v4-liquidity";
 import { ProductShell } from "./ProductShell";
 import { DocumentMenu } from "./DocumentMenu";
 import { Icon } from "./Icons";
@@ -99,6 +100,21 @@ const ARBITRAGE_TX = "0x3c604c934a1ef7576a173e0b513c419ad89376f1c6bea17464f8c5af
 // The keeper's own trade, sent with nobody watching: the pool was 6.02% below the NAV and closed to 0.29% below.
 const KEEPER_TX = "0xbec5c89a1546e65c1f03a4131c85c1ef50e1ac9e3f4e6e09f929b33f7c33d26f";
 
+const liquidityExample = `import { parseAbi } from "viem";
+
+const pool = "${FUND_DEPLOYMENT.pool}"; // USTX/dUSD pool, and its USTX-LP token
+const abi = parseAbi([
+  "function getReserves() view returns (uint256 shares, uint256 dollars)",
+  "function addLiquidity(uint256 sharesDesired, uint256 dollarsDesired, uint256 minShares, uint256 minDollars, uint256 deadline) returns (uint256, uint256, uint256)",
+  "function removeLiquidity(uint256 liquidity, uint256 minShares, uint256 minDollars, uint256 deadline) returns (uint256, uint256)",
+]);
+
+// 1 USTX and the demo dollars that go with it at the pool's ratio, approved to the pool first.
+const [shares, dollars] = await client.readContract({ address: pool, abi, functionName: "getReserves" });
+const dollarsIn = 1_000_000n * dollars / shares;
+const deadline = BigInt(Math.floor(Date.now() / 1000) + 600);
+await wallet.writeContract({ address: pool, abi, functionName: "addLiquidity", args: [1_000_000n, dollarsIn, 990_000n, dollarsIn * 99n / 100n, deadline] });`;
+
 const lendingExample = `import { parseAbi } from "viem";
 
 const market = "${FUND_DEPLOYMENT.lending}";
@@ -154,7 +170,7 @@ export function DevelopersPage() {
         <section id="api"><h2>Public NAV API</h2><p>The latest USTX record, read from the registry on X Layer when you call it. No key, no cookies, CORS open to every origin, cacheable for 30 seconds.</p>
           <Code label="Request">{`curl ${SITE}/api/v1/ustx`}</Code>
           <Code label="Response (abridged)">{apiExample}</Code>
-          <p>Also available: <code>GET /api/v1/ustx/activity</code> returns the latest market activity (orders at the fund, pool trades, the keeper’s arbitrage and loans) read from the contracts’ events on X Layer Testnet, with the blocks it covers, the last 24 hours’ figures, and every arbitrage and order of $1,000 or more for marking a chart; <code>GET /api/xstocks</code> returns the full market snapshot with the composition documents behind recent records; and <code>GET /api/demo/fund</code> returns fund totals and 24-hour flows.</p>
+          <p>Also available: <code>GET /api/v1/ustx/activity</code> returns the latest market activity (orders at the fund, pool trades, the keeper’s arbitrage and loans) read from the contracts’ events on X Layer Testnet, with the blocks it covers, the last 24 hours’ figures, and every arbitrage and order of $1,000 or more for marking a chart; <code>GET /api/v1/ustx/pools</code> returns the USTX/dUSD pool&rsquo;s reserves, LP token supply, value at the NAV, fee APR and last 24 hours of volume and fees, read from X Layer Testnet when you call it; <code>GET /api/xstocks</code> returns the full market snapshot with the composition documents behind recent records; and <code>GET /api/demo/fund</code> returns fund totals and 24-hour flows.</p>
           <a className="gmd-inline-link" href="/api/v1/ustx" target="_blank" rel="noreferrer">Open the live response <Icon name="external" size={14} /></a>
         </section>
         <section id="chain"><h2>Read the record from X Layer yourself</h2><p>You do not have to trust our API. The registry is a public contract on X Layer Testnet (chain {PROOF_DEPLOYMENT.chainId}); its <code>latestNav</code> getter returns the NAV per share, the shares outstanding, the composition fingerprint and the effective time.</p>
@@ -172,6 +188,11 @@ export function DevelopersPage() {
         <section id="market"><h2>Trade USTX on X Layer</h2><p>USTX also trades on a USTX/dUSD pool on X Layer Testnet: a constant-product market with a 0.3% fee to liquidity providers. Its price moves only with trades, so it drifts from the NAV as the NAV moves. <code>GanymedeNavArbitrage</code> closes the gap in one transaction, the way ETF creation and redemption keep a fund near its NAV. Below the NAV it buys USTX in the pool and redeems it at the fund; above the NAV it invests at the fund and sells the new USTX in the pool. It reverts unless the caller gets back more than it put in, and <code>quote()</code> returns the size that captures most of the gap. A keeper checks the pool every five minutes and sends that trade when closing the gap earns at least a cent, so the pool stays near the NAV without anyone watching it. On the USTX page, the wallet order panel quotes both the fund and the pool for each order and routes it to the better price.</p>
           <Code label="Close the gap with viem">{marketExample}</Code>
           <div className="gmd-terms-links"><a className="gmd-inline-link" href={`${FUND_DEPLOYMENT.explorerUrl}/address/${FUND_DEPLOYMENT.pool}`} target="_blank" rel="noreferrer">USTX/dUSD pool on the OKX explorer <Icon name="external" size={14} /></a><a className="gmd-inline-link" href={`${FUND_DEPLOYMENT.explorerUrl}/tx/${ARBITRAGE_TX}`} target="_blank" rel="noreferrer">An arbitrage on X Layer Testnet <Icon name="external" size={14} /></a><a className="gmd-inline-link" href={`${FUND_DEPLOYMENT.explorerUrl}/tx/${KEEPER_TX}`} target="_blank" rel="noreferrer">A keeper trade that closed a 6% gap <Icon name="external" size={14} /></a><a className="gmd-inline-link" href={`${FUND_DEPLOYMENT.explorerUrl}/address/${FUND_DEPLOYMENT.keeper}`} target="_blank" rel="noreferrer">Keeper wallet on the OKX explorer <Icon name="external" size={14} /></a></div>
+        </section>
+        <section id="liquidity"><h2>Provide liquidity</h2><p>Anyone can provide liquidity to the USTX/dUSD pool. <code>addLiquidity</code> takes USTX and demo dollars at the pool&rsquo;s ratio, both approved to the pool, and mints USTX-LP, the pool&rsquo;s own token; <code>removeLiquidity</code> burns it for its share of both reserves. Both take minimum amounts and a deadline. The 0.3% fee stays in the reserves, so √(USTX × dUSD) per LP token rises only with fees: compare it at two blocks for the pool&rsquo;s fee yield, as the Pools page does over the last seven days. The Pools page runs deposits and withdrawals from OKX Wallet, including a deposit of demo dollars alone, which invests part at the fund at the NAV first.</p>
+          <Code label="Add liquidity with viem">{liquidityExample}</Code>
+          <p>A second USTX/dUSD pool runs on Uniswap v4 on X Layer Testnet. <code>GanymedeRwaLiquidityHook</code> runs a USTX/dUSD pool around the NAV the feed serves: it holds all the pool&rsquo;s liquidity for its depositors, moves it to each new NAV record, and charges a fee that rises from 0.30% to 1.00% as the record ages. Deposits become LP tokens at the next NAV record, so nobody can deposit at a price they already know is about to change. Swaps go through <code>GanymedeV4Router</code>; the arbitrage keeper moves the pool to each NAV record, and <code>npm run fork:v4</code> runs the whole routine on a fork first.{V4_POOL_DEPLOYMENT ? <> The hook is <a className="gmd-inline-link" href={`${FUND_DEPLOYMENT.explorerUrl}/address/${V4_POOL_DEPLOYMENT.hook}`} target="_blank" rel="noreferrer"><code>{V4_POOL_DEPLOYMENT.hook}</code></a> and its pool manager <code>{V4_POOL_DEPLOYMENT.poolManager}</code>.</> : null}</p>
+          <div className="gmd-terms-links"><Link className="gmd-inline-link" prefetch={false} href="/pools">Provide liquidity on the Pools page <Icon name="arrow" size={14} /></Link><a className="gmd-inline-link" href={`${FUND_DEPLOYMENT.explorerUrl}/token/${FUND_DEPLOYMENT.pool}`} target="_blank" rel="noreferrer">USTX-LP on the OKX explorer <Icon name="external" size={14} /></a></div>
         </section>
         <section id="lending"><h2>Use USTX as collateral</h2><p><code>GanymedeLendingMarket</code> on X Layer Testnet lends demo dollars against USTX. It values collateral with the fund&rsquo;s <code>currentNav()</code>, the same registry record the feed serves, so a stale NAV stops new loans. A wallet can borrow up to 50% of its USTX value. Past 65%, anyone can repay up to half of the loan and take USTX worth 8% more, which the fund redeems at the NAV. The borrow rate follows a jump-rate curve on utilization, and lenders earn what borrowers pay less a 10% reserve. The USTX page&rsquo;s Borrow section runs the whole cycle from OKX Wallet.</p>
           <Code label="Borrow against USTX with viem">{lendingExample}</Code>

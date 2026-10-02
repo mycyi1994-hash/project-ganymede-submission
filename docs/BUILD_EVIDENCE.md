@@ -1,6 +1,6 @@
 # Build provenance
 
-Production source revision: `75e919753f78e3cbb78f8aa5886491a2775ea8d1`.
+Production source revision: `693d428364ba41b7de91d9614ed4143f434d5583`.
 
 This is a source snapshot, not a claim that the entire project was newly built for this event. The original repository remains private. The entries below were exported from its Git history; reviewers can inspect current implementations and tests, and request original history access from the team if needed. No old secrets, local environment files or full private Git history are published.
 
@@ -469,5 +469,25 @@ Validation of the snapshot source:
 - In the development repository, the typecheck, a clean build and 180 tests pass, and lint reports 0 errors; the relayer typecheck and 28 tests pass; the contract suite's 69 tests pass.
 - After the final deployment, 16 main routes returned 200 and the 4 legacy routes redirected. Transparency showed "NAV verified on X Layer" with the pools agreeing within 0.03%; MAG3 and its badge verified in the browser; axe reported no violations on six changed screens at desktop and phone widths; with a test wallet, a $10 fund investment and redemption and a lending cycle (deposit, borrow, repay, withdraw) succeeded with no page errors; a production evidence file passed `npm run verify:evidence`. NAV records at 18:40, 18:45, 18:50, 18:55 and 19:00 UTC were confirmed.
 - The same tests pass in this public checkout after `npm ci`, and so do the relayer typecheck and 28 tests.
+
+These are point-in-time observations, not continuous availability or a security audit.
+
+## Finalist-round release: Pools and a Uniswap v4 pool held at the NAV
+
+Production source: 693d428364ba41b7de91d9614ed4143f434d5583. Exported commit: 1e6153a07a2018694b96dd928d91f9fd7069b104 (documentation and contract tests after the source). Worker version: 05a89f80-eb1a-4dfa-ae86-d980c8f311c1, deployed 2026-10-02; before it 13f4722c-a8f2-46ea-9f89-e7b7f5ed8279 and aa00645d-8693-4cd6-97e7-b67f59720fca the same and the previous day. Arbitrage keeper Worker: 5e23f598-a074-45ee-ac07-b7bd622e9092.
+
+This work was done after the 17–25 September build period, as one of the 30 finalists; the organizers confirmed the latest version may be presented. docs/BUILD_PERIOD.md lists it apart from the build period.
+
+- Pools: the USTX/dUSD pool's value at the NAV, 24-hour volume and fees, fee APR and price against the NAV, and adding or withdrawing liquidity from a wallet in both tokens or demo dollars alone.
+- `GanymedeRwaLiquidityHook`, a Uniswap v4 hook that runs a second USTX/dUSD pool around the NAV, and `GanymedeV4Router`, deployed with Uniswap v4-core 1.0.2's PoolManager on X Layer Testnet (hook 0x96a78af00ef351f294f2ccc05adf09b119f968c0) and seeded with $5,000 of USTX and $5,000 of demo dollars. The hook moves the pool to each NAV record before trading, prices deposits at the next record and charges a fee that rises from 0.30% to 1.00% as the record ages; the keeper re-pegs it at each record.
+- Pools compares both pools over the same NAV records: what each pool's trades made or lost for its providers, valued at the NAV in effect, read from the contracts' events. Before release, over the first 256 records, the keeper's three arbitrage trades took $0.0505 from the constant-product pool's providers, the sum the keeper earned, and nothing from the v4 pool's, which had no other trades in that time.
+- The USTX wallet order panel quotes the fund, the constant-product pool and the v4 pool (through the router's dry run) and routes each order to whichever gives the most.
+- Invariant fuzzing of the hook against Uniswap's compiled PoolManager (1,000 random steps passed) and a Slither 0.11.6 pass over every contract, each High and Medium finding triaged in docs/STATIC_ANALYSIS.md; no contract changed as a result.
+
+Validation of the snapshot source:
+
+- In the development repository, the typecheck, a clean build and 213 tests pass, and lint reports 0 errors; the relayer typecheck and 30 tests pass; the contract suite's 99 tests pass.
+- After the final deployment, the main routes returned 200 and the 4 legacy routes redirected; in a browser on production a $25 order was quoted at all three venues and the v4 review opened with no page errors; the NAV record kept being confirmed every five minutes, and the keeper re-pegged the v4 pool at each record.
+- The same tests pass in this public checkout after `npm ci` (213), and so do the relayer typecheck and 30 tests.
 
 These are point-in-time observations, not continuous availability or a security audit.

@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { ContractFunctionExecutionError, ContractFunctionRevertedError, parseAbi } from "viem";
-import { MIN_PROFIT_MICROS, revertReason, runKeeper, xlayerKeeperChain } from "../src/keeper.ts";
+import { ContractFunctionExecutionError, ContractFunctionRevertedError, keccak256, parseAbi, parseTransaction } from "viem";
+import { MIN_PROFIT_MICROS, revertReason, runKeeper, runRepeg, xlayerKeeperChain } from "../src/keeper.ts";
 
 const USD = 1_000_000n;
 const MAX = 2n ** 256n - 1n;
@@ -144,9 +144,97 @@ test("names the contract error a simulated trade reverts with", () => {
   assert.equal(revertReason(new Error("fetch failed")), undefined);
 });
 
-test("the Worker refuses to start without its key and addresses", () => {
+test("the Worker refuses to start without its key and addresses", (t) => {
   assert.throws(() => xlayerKeeperChain({}), /KEEPER_PRIVATE_KEY is not set/);
   const key = `0x${"1".repeat(64)}`;
   assert.throws(() => xlayerKeeperChain({ KEEPER_PRIVATE_KEY: key }), /ARBITRAGE_ADDRESS is not set/);
+  assert.throws(() => xlayerKeeperChain({ KEEPER_PRIVATE_KEY: key, ARBITRAGE_ADDRESS: "0x1234" }), /ARBITRAGE_ADDRESS is not an address/);
   assert.throws(() => xlayerKeeperChain({ KEEPER_PRIVATE_KEY: key, ARBITRAGE_ADDRESS: `0x${"a".repeat(40)}` }), /DOLLAR_ADDRESS is not set/);
+  // The v4 pool is left alone until its hook is configured. A malformed hook address is reported, and
+  // the arbitrage still runs: the v4 pool is optional.
+  const env = { KEEPER_PRIVATE_KEY: key, ARBITRAGE_ADDRESS: `0x${"a".repeat(40)}`, DOLLAR_ADDRESS: `0x${"b".repeat(40)}` };
+  assert.equal(xlayerKeeperChain(env).v4, null);
+  assert.equal(typeof xlayerKeeperChain({ ...env, V4_HOOK_ADDRESS: `0x${"c".repeat(36)}28c0` }).v4.repeg, "function");
+  const errors = t.mock.method(console, "error", () => {});
+  const misconfigured = xlayerKeeperChain({ ...env, V4_HOOK_ADDRESS: "0x1234" });
+  assert.equal(misconfigured.v4, null);
+  assert.equal(typeof misconfigured.claim, "function");
+  assert.match(String(errors.mock.calls[0].arguments[0]), /V4_HOOK_ADDRESS is not an address/);
+});
+
+/** The v4 pool's side of the keeper, answering from `state`. */
+function fakeHook(state) {
+  const calls = [];
+  return {
+    calls,
+    chain: {
+      pegState: async () => ({ navUpdatedAt: state.navUpdatedAt ?? null, peggedAt: state.peggedAt ?? 0n }),
+      simulateRepeg: async () => { calls.push(["simulate"]); return state.simulate ?? { repegged: true }; },
+      repeg: async () => { calls.push(["repeg"]); return { hash: `0x${"9".repeat(64)}`, success: state.revert !== true }; },
+    },
+  };
+}
+
+test("moves the v4 pool to a NAV record it has not used, and only then", async () => {
+  const moved = fakeHook({ navUpdatedAt: 1_790_000_300n, peggedAt: 1_790_000_000n });
+  assert.deepEqual(await runRepeg(moved.chain), { action: "repeg", navUpdatedAt: "1790000300", hash: `0x${"9".repeat(64)}`, success: true });
+  assert.deepEqual(moved.calls, [["simulate"], ["repeg"]]);
+  // At the latest record, or without a usable NAV, nothing is sent.
+  for (const state of [{ navUpdatedAt: 1_790_000_000n, peggedAt: 1_790_000_000n }, { navUpdatedAt: null, peggedAt: 1_790_000_000n }]) {
+    const idle = fakeHook(state);
+    const outcome = await runRepeg(idle.chain);
+    assert.equal(outcome.action, "none");
+    assert.deepEqual(idle.calls, []);
+  }
+  // Someone moved it first, or the call would revert: not sent.
+  const first = fakeHook({ navUpdatedAt: 2n, peggedAt: 1n, simulate: { repegged: false } });
+  assert.deepEqual(await runRepeg(first.chain), { action: "none", reason: "the v4 pool is at the latest NAV record" });
+  const failing = fakeHook({ navUpdatedAt: 2n, peggedAt: 1n, simulate: { revert: "Reentrancy()" } });
+  assert.deepEqual(await runRepeg(failing.chain), { action: "none", reason: "the re-peg would revert: Reentrancy()" });
+  assert.deepEqual(failing.calls, [["simulate"]]);
+  // A re-peg that reverts on chain is reported as such.
+  assert.equal((await runRepeg(fakeHook({ navUpdatedAt: 2n, peggedAt: 1n, revert: true }).chain)).success, false);
+});
+
+test("a write that fails before it is mined leaves no nonce gap for the next one", async (t) => {
+  const sent = [];
+  let counts = 0;
+  let failNext = true;
+  // X Layer Testnet's JSON-RPC: the account's next nonce is 7; the first broadcast is lost.
+  t.mock.method(globalThis, "fetch", async (_url, init) => {
+    const body = JSON.parse(init.body);
+    const answer = (result) => Response.json({ jsonrpc: "2.0", id: body.id, result });
+    switch (body.method) {
+      case "eth_chainId": return answer("0x7a0");
+      case "eth_getTransactionCount": counts += 1; return answer("0x7");
+      case "eth_getBlockByNumber": return answer({ number: "0x10", hash: `0x${"1".repeat(64)}`, timestamp: "0x1", baseFeePerGas: "0x1", transactions: [] });
+      case "eth_maxPriorityFeePerGas": case "eth_gasPrice": return answer("0x1");
+      case "eth_blockNumber": return answer("0x10");
+      case "eth_sendRawTransaction": {
+        if (failNext) { failNext = false; return Response.json({ jsonrpc: "2.0", id: body.id, error: { code: -32000, message: "connection reset" } }); }
+        sent.push(parseTransaction(body.params[0]));
+        return answer(keccak256(body.params[0]));
+      }
+      case "eth_getTransactionReceipt": return answer({
+        transactionHash: body.params[0], blockNumber: "0x10", blockHash: `0x${"1".repeat(64)}`, status: "0x1", logs: [], cumulativeGasUsed: "0x1", gasUsed: "0x1",
+        effectiveGasPrice: "0x1", from: "0x0000000000000000000000000000000000000001", to: null, contractAddress: null, transactionIndex: "0x0", type: "0x2", logsBloom: `0x${"0".repeat(512)}`,
+      });
+      default: throw new Error(`unexpected ${body.method}`);
+    }
+  });
+  const chain = xlayerKeeperChain({
+    KEEPER_PRIVATE_KEY: `0x${"1".repeat(64)}`, ARBITRAGE_ADDRESS: `0x${"a".repeat(40)}`, DOLLAR_ADDRESS: `0x${"b".repeat(40)}`, V4_HOOK_ADDRESS: `0x${"c".repeat(36)}28c0`,
+    SETTLEMENT_RPC_URL: "https://rpc.example/key",
+  });
+  await assert.rejects(chain.claim());
+  // The re-peg after a failed arbitrage takes nonce 7 again, asked of the network, not 8.
+  const repegged = await chain.v4.repeg();
+  assert.equal(repegged.success, true);
+  assert.equal(sent.length, 1);
+  assert.equal(sent[0].nonce, 7);
+  assert.equal(counts, 2, "the nonce is asked for again after the failure");
+  // The next write in the run takes the following nonce without asking.
+  await chain.approve();
+  assert.deepEqual(sent.map((transaction) => transaction.nonce), [7, 8]);
+  assert.equal(counts, 2);
 });

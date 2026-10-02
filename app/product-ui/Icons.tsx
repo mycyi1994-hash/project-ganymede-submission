@@ -1,6 +1,6 @@
 import type { CSSProperties } from "react";
 
-export function Icon({ name, size = 20 }: { name: "arrow" | "back" | "external" | "wallet" | "market" | "portfolio" | "activity" | "check" | "info" | "refresh" | "chevron" | "lock" | "download" | "close"; size?: number }) {
+export function Icon({ name, size = 20 }: { name: "arrow" | "back" | "external" | "wallet" | "market" | "portfolio" | "activity" | "check" | "info" | "refresh" | "chevron" | "lock" | "download" | "close" | "pool"; size?: number }) {
   const paths: Record<string, string> = {
     arrow: "M5 12h14m-5-5 5 5-5 5", back: "M19 12H5m5-5-5 5 5 5", external: "M8 5h11v11M19 5 5 19",
     wallet: "M4 7V5a2 2 0 0 1 2-2h12v4M4 7h16v14H4V7Zm12 5h4v5h-4a2.5 2.5 0 0 1 0-5Z",
@@ -11,6 +11,7 @@ export function Icon({ name, size = 20 }: { name: "arrow" | "back" | "external" 
     refresh: "M20 7v5h-5M4 17v-5h5m10-4a7 7 0 0 0-12-3L4 8m1 8a7 7 0 0 0 12 3l3-3",
     chevron: "m9 5 7 7-7 7", lock: "M7 10V7a5 5 0 0 1 10 0v3M5 10h14v11H5V10Zm7 5v2",
     download: "M12 4v11m-5-5 5 5 5-5M5 20h14", close: "M6 6l12 12M18 6 6 18",
+    pool: "M3 15c2.5 0 2.5-2 5-2s2.5 2 5 2 2.5-2 5-2 3 2 3 2M3 20c2.5 0 2.5-2 5-2s2.5 2 5 2 2.5-2 5-2 3 2 3 2M12 3c2.5 3 4 5 4 6.5a4 4 0 0 1-8 0C8 8 9.5 6 12 3Z",
   };
   return <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d={paths[name]} /></svg>;
 }

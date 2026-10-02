@@ -26,7 +26,7 @@ export async function GET() {
       fromBlock: index.fromBlock,
       toBlock: index.toBlock,
       contracts: { fund: FUND_DEPLOYMENT.fund, pool: FUND_DEPLOYMENT.pool, arbitrage: FUND_DEPLOYMENT.arbitrage, lending: FUND_DEPLOYMENT.lending },
-      rule: "The latest events of these contracts up to toBlock, newest first, at most 40 rows. An arbitrage is one row: its pool trade and fund order are folded in. day counts the last 24 hours (trades are orders at the fund and in the pool, and arbitrage); when complete is false it counts from since. highlights are the arbitrages and orders of $1,000 or more among the last 200 events, at most 60. Amounts are micros (6 decimals).",
+      rule: "The latest events of these contracts up to toBlock, newest first, at most 40 rows. An arbitrage is one row: its pool trade and fund order are folded in. day counts the last 24 hours (trades are orders at the fund and in the pool, and arbitrage; poolTrades, poolVolumeMicros and poolFeesMicros count the trades in the pool, an arbitrage's included, the demo dollars paid in or out and the 0.3% fee left with its liquidity providers); when complete is false it counts from since. highlights are the arbitrages and orders of $1,000 or more among the last 200 events, at most 60. Amounts are micros (6 decimals).",
       day: activityDayJson(activityDay(index, Date.now())),
       rows: index.rows.slice(0, ACTIVITY_LIMIT).map(row => ({ ...activityJson(row), explorerUrl: fundExplorer.tx(row.hash) })),
       highlights: index.rows.filter(isHighlight).slice(0, ACTIVITY_HIGHLIGHTS).map(row => ({ ...activityJson(row), explorerUrl: fundExplorer.tx(row.hash) })),

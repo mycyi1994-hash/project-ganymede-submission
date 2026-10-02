@@ -56,7 +56,7 @@ export function LoanHealth({ loanToValueWad, compact = false }: { loanToValueWad
   </div>;
 }
 /** Six-decimal micros as plain input text: 1250.5, never 1,250.500000. */
-const plain = (micros: bigint) => {
+export const plain = (micros: bigint) => {
   const fraction = (micros % 1_000_000n).toString().padStart(6, "0").replace(/0+$/, "");
   return fraction ? `${micros / 1_000_000n}.${fraction}` : `${micros / 1_000_000n}`;
 };

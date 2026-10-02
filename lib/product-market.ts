@@ -140,6 +140,12 @@ export function formatCountdown(ms: number): string {
   return `${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(2, "0")}`;
 }
 
+/** "2h 5m" or "45m" from `now` (ms) until `seconds`, in whole minutes rounded up; at least a minute. */
+export function waitLabel(seconds: number, now: number): string {
+  const minutes = Math.ceil(Math.max(60, seconds - Math.floor(now / 1000)) / 60);
+  return minutes >= 60 ? `${Math.floor(minutes / 60)}h ${minutes % 60}m` : `${minutes}m`;
+}
+
 export function shortTime(value: string | null | undefined): string {
   return value && timestamp(value) ? new Date(value).toLocaleString("en-GB", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit", timeZone: "UTC" }) + " UTC" : "Time unavailable";
 }

@@ -1,6 +1,6 @@
 # Build-period work
 
-OKX Dev Day 2026 ran its online build period from 17 to 25 September 2026, and judges assess only the work done in that period. This file separates that work from the earlier codebase. The development history is private, so the commit hashes below are provenance references rather than public links. The public snapshot contains the resulting source.
+OKX Dev Day 2026 ran its online build period from 17 to 25 September 2026. This file separates that work from the earlier codebase, and lists apart the work done after the period for the finalist round, which the organizers confirmed may be presented. The development history is private, so the commit hashes below are provenance references rather than public links. The public snapshot contains the resulting source.
 
 ## Starting point
 
@@ -30,6 +30,18 @@ The engine's strategies still power the separate paper Lab, and the fund-share c
 | Hardening | Public reads without writes, identity header gate, relayer retry and nonce handling, paper-ledger integrity, sanitized public errors | `c98e7ea`, `387ec35`, `8cd427f`, `7b18cf9`, `124bebe` |
 
 From `7a33392` to `75e9197`: 283 files changed, 29829 insertions(+), 7451 deletions(-).
+
+## After the build period (finalist round)
+
+Ganymede was selected as one of 30 finalists from 150 teams. The organizers confirmed that the latest version may be presented, so this work, done from 30 September, is listed here rather than mixed into the build period. Merges into `main`, UTC:
+
+| When | Merge | New work |
+| --- | --- | --- |
+| 2026-09-30 to 10-01 15:35 | `824e39b` | Pools: the USTX/dUSD pool's value, 24-hour volume and fees, fee APR and price against the NAV, adding and withdrawing liquidity from a wallet in both tokens or demo dollars alone; `GanymedeRwaLiquidityHook`, a Uniswap v4 hook that runs a USTX/dUSD pool around the NAV, re-pegs it at each NAV record, prices deposits at the next record and charges a fee that rises with the NAV's age, with `GanymedeV4Router`, tested against Uniswap's compiled PoolManager and on a fork (16 commits from `37d0ed3`) |
+| 2026-10-01 16:04 | `c830f14` | The hook, the router and Uniswap's PoolManager deployed and seeded on X Layer Testnet with the user's approval; the pool pinned in the app and re-pegged by the keeper at each record |
+| 2026-10-02 13:35 | `4747045` | Both pools' results for their liquidity providers, measured at the NAV from the contracts' events over the same records, on Pools and in the public pools API |
+| 2026-10-02 14:02 | `693d428` | USTX wallet orders quoted at the fund, the constant-product pool and the v4 pool and routed to whichever gives the most; demo trades on the v4 pool |
+| 2026-10-02 14:16 | `7f22d1d` | Invariant fuzzing of the hook for its providers (1,000 steps) and a Slither pass over every contract with its triage (docs/STATIC_ANALYSIS.md) |
 
 ## Every commit in the build period (UTC)
 

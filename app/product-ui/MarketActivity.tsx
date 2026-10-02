@@ -127,9 +127,9 @@ function describe(row: MarketActivity): { title: string; detail: string; amount:
 }
 
 /** The rows, each linked to its transaction on the OKX explorer. */
-function ActivityList({ rows, clock, mine }: { rows: MarketActivity[]; clock: number; mine: string | null }) {
+function ActivityList({ rows, clock, mine, label = "Latest market activity" }: { rows: MarketActivity[]; clock: number; mine: string | null; label?: string }) {
   const who = (account: string) => account === mine ? "You" : account === FUND_DEPLOYMENT.keeper ? "Arbitrage keeper" : short(account);
-  return <ul className="gmd-activity-list" aria-label="Latest market activity">{rows.map(row => {
+  return <ul className="gmd-activity-list" aria-label={label}>{rows.map(row => {
     const text = describe(row);
     return <li key={`${row.hash}:${row.logIndex}`}><a href={fundExplorer.tx(row.hash)} target="_blank" rel="noreferrer">
       <span className={`gmd-transaction-symbol is-${row.kind}`}><Icon name={ICONS[row.kind]} size={18} /></span>
@@ -199,5 +199,29 @@ export function MarketPulse() {
     {!loaded ? <ActivityLoading rows={4} />
       : loaded.rows.length === 0 ? <p className="gmd-empty-note">No trades yet. Orders, pool trades and loans appear here as they are recorded.</p>
       : <ActivityList rows={loaded.rows.slice(0, 4)} clock={clock} mine={mine} />}
+  </section>;
+}
+
+/** The pool's side of the activity: trades in it, the keeper's arbitrage through it, and liquidity. */
+const POOL_KINDS = new Set<ActivityKind>(["buy", "sell", "addLiquidity", "removeLiquidity", "arbitrage"]);
+
+/** The last 24 hours' figures from the activity read for this screen; null until read. */
+export function useActivityDay(): { day: ActivityDay | null; pending: boolean } {
+  const activity = useContext(ActivityContext);
+  return { day: activity?.loaded?.day ?? null, pending: Boolean(activity && !activity.loaded && !activity.failed) };
+}
+
+/** Pools: the latest trades, arbitrage and liquidity in the USTX/dUSD pool. */
+export function PoolActivitySection() {
+  const { loaded, failed, retry, clock, mine } = useActivityView();
+  const [expanded, setExpanded] = useState(false);
+  const rows = (loaded?.rows ?? []).filter(row => POOL_KINDS.has(row.kind));
+  return <section id="pool-activity" className="gmd-fund gmd-market-activity" aria-labelledby="pool-activity-title">
+    <header className="gmd-section-heading"><div><h2 id="pool-activity-title">Pool activity</h2><p>Trades, arbitrage and liquidity in the USTX/dUSD pool, as recorded on X Layer Testnet.</p></div><span className="gmd-badge">Updated every minute</span></header>
+    {!loaded ? failed ? <p className="gmd-inline-error" role="status">Pool activity could not be read right now. <button type="button" className="gmd-text-button" onClick={retry}>Try again</button></p> : <ActivityLoading rows={5} figures={false} />
+      : rows.length === 0 ? <p className="gmd-empty-note">No pool trades among the latest market activity. Trades and deposits appear here as they are recorded.</p>
+      : <ActivityList rows={expanded ? rows : rows.slice(0, SHOWN)} clock={clock} mine={mine} label="Latest pool activity" />}
+    {rows.length > SHOWN && <button type="button" className="gmd-text-button" aria-expanded={expanded} onClick={() => setExpanded(value => !value)}>{expanded ? "Show fewer" : `Show all ${rows.length}`}</button>}
+    <p className="gmd-caption">Each row opens its transaction on the OKX explorer. <Link prefetch={false} href="/products/ustx#activity">All market activity</Link></p>
   </section>;
 }

@@ -1,6 +1,6 @@
 # Build provenance
 
-Production source revision: `4ee593f458e318520a60f648050b3472f2a3a33f`.
+Production source revision: `ca2b504d5b4ccae501617a2c620f7b114f3c38a4`.
 
 This is a source snapshot, not a claim that the entire project was newly built for this event. The original repository remains private. The entries below were exported from its Git history; reviewers can inspect current implementations and tests, and request original history access from the team if needed. No old secrets, local environment files or full private Git history are published.
 
@@ -506,5 +506,20 @@ Validation of the snapshot source:
 - In the development repository, the typecheck, a clean build and 227 tests pass, and lint reports 0 errors; the contract suite's 99 tests pass.
 - After the final deployment, the main routes returned 200 and the legacy routes redirected; every asset the pages name loaded; a browser visit on production logged no page, console or HTTP errors; `/mcp` answered `initialize`, `tools/list` and every tool.
 - The same tests pass in this public checkout after `npm ci` (227), and so do the relayer typecheck and 30 tests.
+
+These are point-in-time observations, not continuous availability or a security audit.
+
+## Finalist-round update: a faster pools API
+
+Production source: ca2b504d5b4ccae501617a2c620f7b114f3c38a4. Exported commit: cce55e19e885d02d8a275360d6f09217ddf2ff06 (documentation after the source). Worker version: e7625a3a-2897-47a0-9935-0a24b37cc650, deployed 2026-10-03; before it ecc85508-002a-4ac2-85a1-92a738891508 the same day and f36d6853-bd9f-48b6-80df-e6a6b943e6b2 the day before. The keeper is unchanged (5e23f598-a074-45ee-ac07-b7bd622e9092).
+
+- `GET /api/v1/ustx/pools` and the MCP pools tool took 2.6 s at the median in the load test because each request read both pools from X Layer. A third cron now reads both pools every minute and stores them in the engine state; the API serves that read while it is under 90 seconds old, each server instance keeps what it served for 30 seconds, and X Layer is read for a request only when the snapshot is older. When X Layer cannot be read, a read up to 10 minutes old is served with `stale: true`. Every response says when X Layer was read (`readAt`). Public requests still never write to the database.
+- On production after the change, 40 requests to the pools API all answered within 0.6 s (0.17 s at the median) and the MCP pools tool in 0.16 s; the NAV record and the activity index kept running every five minutes.
+
+Validation of the snapshot source:
+
+- In the development repository, the typecheck, a clean build and 230 tests pass, and lint reports 0 errors.
+- After the deployment, the new cron registered but did not run until its triggers were deployed again; from then on it ran every minute. The main routes returned 200 and the legacy routes redirected.
+- The same tests pass in this public checkout after `npm ci` (230), and so do the relayer typecheck and 30 tests.
 
 These are point-in-time observations, not continuous availability or a security audit.

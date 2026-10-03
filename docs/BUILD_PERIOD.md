@@ -47,6 +47,7 @@ Ganymede was selected as one of 30 finalists from 150 teams. The organizers conf
 | 2026-10-02 16:23 | `f43d98a` | Ask USTX: an assistant on every product screen that answers from the same tools with an OpenAI model, with no investment advice and a daily allowance |
 | 2026-10-02 17:16 | `0035e7a` | How to add `/mcp` to an AI client on the developer page; Ask USTX compares quotes as facts |
 | 2026-10-02 17:42 | `4ee593f` | A load test with 30 team test wallets and a browser run of every wallet screen (docs/LOAD_TEST.md), and a fix for a preload of a script the build never wrote |
+| 2026-10-03 03:26 | `ca2b504` | The public pools API and the MCP pools tool answer from a snapshot of both pools taken every minute (with a 30-second memory cache on each server instance): 0.17 s at the median instead of 2.6 s |
 
 ## Every commit in the build period (UTC)
 

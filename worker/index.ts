@@ -4,6 +4,7 @@ import handler from "vinext/server/app-router-entry";
 import { runUstxNavCycle } from "../lib/engine/runner";
 import type { EngineEnv } from "../lib/engine/types";
 import { ACTIVITY_CRON, runActivityIndex, runLpMarkout } from "../lib/xstocks/activity-index";
+import { POOLS_CRON, runPoolsSnapshot } from "../lib/xstocks/pools-api";
 
 interface Env extends EngineEnv {
   ASSETS: Fetcher;
@@ -56,6 +57,14 @@ const worker = {
   async scheduled(controller: ScheduledController, env: Env, ctx: ExecutionContext): Promise<void> {
     if (!env.DB) {
       controller.noRetry();
+      return;
+    }
+    // A snapshot of both pools for the public pools API, every minute, apart from the NAV record.
+    if (controller.cron === POOLS_CRON) {
+      ctx.waitUntil(runPoolsSnapshot(env).catch((error) => {
+        console.error("Ganymede pools snapshot failed", error);
+        throw error;
+      }));
       return;
     }
     // Market activity has a cron of its own, so its reads never hold up the NAV record.

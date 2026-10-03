@@ -338,7 +338,7 @@ test("the scheduled run keeps the index, and the public API serves it to any ori
 
 test("the Worker runs market activity on its own cron, apart from the NAV cycle", async (t) => {
   const config = JSON.parse(readFileSync(new URL("../dist/server/wrangler.json", import.meta.url), "utf8"));
-  assert.deepEqual(config.triggers.crons, ["*/5 * * * *", ACTIVITY_CRON]);
+  assert.deepEqual(config.triggers.crons, ["*/5 * * * *", ACTIVITY_CRON, "* * * * *"]);
   const { db, sql } = database();
   const network = chain({ head: F + 400 + ACTIVITY_INDEX_MARGIN, logs: MARKET });
   t.mock.method(globalThis, "fetch", network.fetcher);

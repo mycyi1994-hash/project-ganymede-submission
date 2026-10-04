@@ -23,6 +23,8 @@
       "../lib/xstocks/v4-liquidity.ts": "cjs",
       "../lib/xstocks/activity.ts": "cjs",
       "../lib/xstocks/lp-markout.ts": "cjs",
+      "../lib/xstocks/range-liquidity.ts": "cjs",
+      "../lib/xstocks/lp-strategy.ts": "cjs",
       "../lib/chains.ts": "cjs"
     }
   },

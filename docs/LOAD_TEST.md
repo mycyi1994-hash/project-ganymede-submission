@@ -2,7 +2,7 @@
 
 The team runs the app's wallet flows with its own test wallets on X Layer Testnet, against the
 production Worker, to find errors before users do. **These wallets are the team's, not users.**
-`lib/xstocks/team-wallets.ts` lists all of them, and the usage figures leave them out. Every run
+`lib/xstocks/load-test-wallets.ts` lists all 3,000 test wallets and `lib/xstocks/team-wallets.ts` the rest, and the usage figures leave them out. Every run
 ends with each wallet holding no USTX, loan, collateral or liquidity, so the fund's investor count
 returns to where it was (5). No transaction is sent in the 45 seconds after each five-minute mark,
 while the NAV record is written, and the administrator sends each wallet a little testnet OKB for gas
@@ -11,9 +11,46 @@ printed.
 
 | Date | Test | Transactions | Result |
 | --- | --- | --- | --- |
+| 4 October | Lending market and fund, 3,000 wallets (`npm run stress:lending`) | 51,854, after about 1,700 in a first part that was stopped | All succeeded |
 | 4 October | Lending market, 100 wallets (`npm run stress:lending`) | 6,200 (6,000 in the lending market) | All succeeded |
 | 4 October | Every wallet flow, 100 wallets (`npm run stress:testnet`), with 2,147 HTTP requests | 2,386 | 2,379 succeeded; 7 reverted as the contracts should (below) |
 | 2 October | Every wallet flow, 30 wallets, with 1,198 HTTP requests | 618 | All succeeded |
+
+## 4 October: 3,000 wallets, 51,854 transactions
+
+`npm run stress:lending` with `STRESS_WALLETS=3000`, 32 at a time, `STRESS_CYCLES=1`,
+`STRESS_EXTRA_ROUND_EVERY=5` and 0.00006 testnet OKB of gas each, 10:44–12:03 UTC. Each new wallet
+claimed demo dollars, approved the fund and the lending market, invested $250–400 at the fund, ran
+one round of the lending market's ten transactions (every fifth wallet two rounds) and redeemed all
+its USTX. It tried the five wrong orders of the 100-wallet run without sending them.
+
+| Measure | Result |
+| --- | --- |
+| Wallets | 2,886 in this run (wallets 114 to 2,999), each sending its own transactions; the first 114 ran in the first part |
+| Transactions | 51,854 sent, 51,854 succeeded, 0 failed or reverted: 2,863 each of claim and the three approvals, 2,886 investments and redemptions, 3,463 of each lending step |
+| Wrong orders | 14,430 tried, all refused with the expected error (`InsufficientCollateral` 8,658, `BelowMinimum` 2,886, `InsufficientBalance` 2,886) |
+| Rate | About 11 transactions a second over 78 minutes, the NAV windows included |
+| Time to confirmation | 1.0 s median, 1.6 s at the 95th percentile, 21 s at most |
+| Gas | 3.44 billion, about 0.069 testnet OKB; 0.173 sent out for gas and 0.101 sent back |
+| Market before → after | Cash $4,790.00 → $4,790.02; reserves up $0.012 from the test loans' interest |
+| End state | Every wallet holds no USTX, loan, collateral or lending; investors 5 → 5 |
+| NAV record | All six products recorded at every five-minute mark from 10:35 to 12:01 |
+
+What it found:
+1. **Usage is classified when it is counted.** The first part started at 10:09 before wallets 101
+   to 3,000 were listed as the team's, and the Worker then running counted 35 of them as outside
+   wallets (423 actions). The run was stopped at 10:17 and the wallets it left part-way were
+   cleaned up. All 3,000 were then listed (PR #89), and a one-time correction moved exactly those
+   wallets, actions and trades to the team's figures (PR #90, with the counts by kind read from X
+   Layer). Usage then read 2 outside wallets and 71 actions again, as before the test. A load test
+   lists its wallets before the first transaction.
+2. **The 24-hour figures under this load.** The activity index keeps the latest 1,500 rows. At
+   11 transactions a second that is a few minutes, so Markets and Pools showed 24-hour figures
+   "counted since" a recent time (`complete: false`). The screens say so, but their caption says
+   earlier activity "is still being read", while under this load those rows were dropped. Keeping
+   24-hour totals apart from the rows would fix this.
+3. **One slow confirmation.** One transaction took 21 seconds to confirm; the 95th percentile
+   stayed at 1.6 seconds.
 
 ## 4 October: lending market, 100 wallets
 

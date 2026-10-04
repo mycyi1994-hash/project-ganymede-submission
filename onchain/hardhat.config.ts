@@ -54,6 +54,8 @@ const config: HardhatUserConfig = {
     artifacts: "onchain/artifacts",
   },
   networks: {
+    // A forked node can report X Layer Testnet's chain id, so the app and wallets accept it (HARDHAT_CHAIN_ID=1952).
+    ...(process.env.HARDHAT_CHAIN_ID ? { hardhat: { chainId: Number(process.env.HARDHAT_CHAIN_ID) } } : {}),
     xlayerTestnet: {
       url: process.env.XLAYER_RPC_URL || RAILS.xlayerTestnet.rpcUrl,
       chainId: RAILS.xlayerTestnet.chainId,

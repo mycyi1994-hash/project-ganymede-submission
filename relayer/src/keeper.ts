@@ -11,7 +11,8 @@ import { xlayerTestnet } from "./chain";
  * It runs three minutes past each five-minute mark, after the app's NAV record for that mark has
  * landed, and runs every trade as a call before sending it, so it does not pay gas for a trade
  * that would revert. With V4_HOOK_ADDRESS set, it also moves the Uniswap v4 pool to each new NAV
- * record, which turns the deposits waiting for that record into LP tokens. Its key (KEEPER_PRIVATE_KEY, a Worker secret) holds testnet OKB for gas and
+ * record, which turns the deposits waiting for that record into LP tokens; with RANGE_ARBITRAGE_ADDRESS
+ * set, it brings the pool of one's own positions to the NAV through the fund, which needs no money. Its key (KEEPER_PRIVATE_KEY, a Worker secret) holds testnet OKB for gas and
  * no-value demo dollars, claimed from the demo dollar when it runs low. It has no role on any
  * contract, and a trade that is no longer profitable when it lands reverts in the arbitrage contract.
  */
@@ -23,6 +24,8 @@ export interface KeeperEnv {
   SETTLEMENT_RPC_URL?: string;
   /** GanymedeRwaLiquidityHook once it is deployed: the keeper then moves its Uniswap v4 pool to each NAV record. */
   V4_HOOK_ADDRESS?: string;
+  /** GanymedeRangeArbitrage once the pool of one's own positions is deployed: the keeper then brings that pool to the NAV. */
+  RANGE_ARBITRAGE_ADDRESS?: string;
 }
 
 /** The least a trade must earn to be worth sending, in demo-dollar micros: a cent. */
@@ -42,6 +45,24 @@ export interface RepegChain {
   /** Runs repeg() as a call on the latest block: whether it would move the pool, or the error it would revert with. */
   simulateRepeg(): Promise<{ repegged: boolean } | { revert: string }>;
   repeg(): Promise<Sent>;
+}
+
+/** The pool of one's own positions: its arbitrage needs no money, so the keeper only runs it as a call and sends it when it pays. */
+export interface RangeChain {
+  /** The arbitrage's profit in demo-dollar micros, run as a call, or the error it would revert with. */
+  simulate(): Promise<{ profit: bigint } | { revert: string }>;
+  arbitrage(minProfit: bigint): Promise<Sent>;
+}
+
+export type RangeOutcome = { action: "none"; reason: string } | { action: "arbitrage"; profit: string; hash: Hex; success: boolean };
+
+/** Brings the range pool to the NAV when that earns at least a cent, insisting on half of it when it lands. */
+export async function runRangeArbitrage(chain: RangeChain): Promise<RangeOutcome> {
+  const simulated = await chain.simulate();
+  if ("revert" in simulated) return none(simulated.revert.startsWith("NothingToDo") ? "the range pool is within its fee of the NAV" : `the arbitrage would revert: ${simulated.revert}`);
+  if (simulated.profit < MIN_PROFIT_MICROS) return none(`the arbitrage would earn ${simulated.profit}, under the ${MIN_PROFIT_MICROS} worth a trade`);
+  const sent = await chain.arbitrage(simulated.profit / 2n);
+  return { action: "arbitrage", profit: simulated.profit.toString(), hash: sent.hash, success: sent.success };
 }
 
 export type RepegOutcome = { action: "none"; reason: string } | { action: "repeg"; navUpdatedAt: string; hash: Hex; success: boolean };
@@ -75,6 +96,8 @@ export interface KeeperChain {
   arbitrage(buyInPool: boolean, dollarsIn: bigint, minProfit: bigint): Promise<Sent>;
   /** The v4 pool, when V4_HOOK_ADDRESS is set; it shares the keeper's nonces. */
   v4?: RepegChain | null;
+  /** The range pool, when RANGE_ARBITRAGE_ADDRESS is set; it shares the keeper's nonces too. */
+  range?: RangeChain | null;
 }
 
 export type KeeperOutcome =
@@ -176,6 +199,19 @@ const HOOK_ABI = parseAbi([
   "error Reentrancy()",
 ]);
 
+const RANGE_ARBITRAGE_ABI = parseAbi([
+  "function arbitrage(uint256 minProfit) returns (uint256 profit)",
+  "error NothingToDo()",
+  "error Unprofitable(uint256 profit)",
+  "error TransferFailed()",
+  "error NavUnavailable()",
+  "error NavTooOld(uint256 updatedAt)",
+  "error NavInFuture(uint256 updatedAt)",
+  "error OutsideBand(int24 tick, int24 navTick)",
+  "error BelowMinimum()",
+  "error ContractPaused()",
+]);
+
 const DOLLAR_ABI = parseAbi([
   "function balanceOf(address account) view returns (uint256)",
   "function allowance(address owner, address spender) view returns (uint256)",
@@ -201,6 +237,8 @@ export function xlayerKeeperChain(env: KeeperEnv): KeeperChain {
   // The v4 pool is optional: a malformed hook address is reported on each run without stopping the arbitrage.
   const hook = isAddress(env.V4_HOOK_ADDRESS) ? env.V4_HOOK_ADDRESS : null;
   if (env.V4_HOOK_ADDRESS && !hook) console.error("V4_HOOK_ADDRESS is not an address; the v4 pool is not re-pegged.");
+  const rangeArbitrage = isAddress(env.RANGE_ARBITRAGE_ADDRESS) ? env.RANGE_ARBITRAGE_ADDRESS : null;
+  if (env.RANGE_ARBITRAGE_ADDRESS && !rangeArbitrage) console.error("RANGE_ARBITRAGE_ADDRESS is not an address; the range pool is not arbitraged.");
   const account = privateKeyToAccount(key as Hex);
   const transport = http(env.SETTLEMENT_RPC_URL || xlayerTestnet.rpcUrls.default.http[0]);
   const publicClient = createPublicClient({ chain: xlayerTestnet, transport });
@@ -286,6 +324,20 @@ export function xlayerKeeperChain(env: KeeperEnv): KeeperChain {
       // Removing both ranges, moving the empty pool and adding them back: about 500,000 gas.
       repeg: () => send(n => walletClient.writeContract({ address: hook, abi: HOOK_ABI, functionName: "repeg", nonce: n, gas: 900_000n })),
     },
+    range: rangeArbitrage && {
+      async simulate() {
+        try {
+          const { result } = await publicClient.simulateContract({ account, address: rangeArbitrage, abi: RANGE_ARBITRAGE_ABI, functionName: "arbitrage", args: [0n] });
+          return { profit: result };
+        } catch (error) {
+          const reason = revertReason(error);
+          if (reason === undefined) throw error;
+          return { revert: reason };
+        }
+      },
+      // A swap across the pool's bins, a redemption or an investment at the fund: about 300,000 gas, more when it crosses many bins.
+      arbitrage: minProfit => send(n => walletClient.writeContract({ address: rangeArbitrage, abi: RANGE_ARBITRAGE_ABI, functionName: "arbitrage", args: [minProfit], nonce: n, gas: 1_500_000n })),
+    },
   };
 }
 
@@ -317,6 +369,7 @@ export default {
       await runKeeper(chain).then(outcome => console.log(JSON.stringify(outcome)), error => console.error(`keeper run failed: ${describe(error)}`));
       // The v4 pool's re-peg runs whatever became of the arbitrage.
       if (chain.v4) await runRepeg(chain.v4).then(outcome => console.log(JSON.stringify({ pool: "v4", ...outcome })), error => console.error(`v4 re-peg failed: ${describe(error)}`));
+      if (chain.range) await runRangeArbitrage(chain.range).then(outcome => console.log(JSON.stringify({ pool: "range", ...outcome })), error => console.error(`range arbitrage failed: ${describe(error)}`));
     })());
   },
   // The keeper only runs on its schedule; it serves nothing.

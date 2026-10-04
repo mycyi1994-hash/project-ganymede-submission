@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useEffect, useId, useState } from "react";
 import type { FundDetail, FundSummary } from "@/lib/funds/api";
-import { otherFund, universeToken, type FundDefinition } from "@/lib/funds/catalog";
+import { fundKind, otherFund, universeToken, type FundDefinition, type FundKind } from "@/lib/funds/catalog";
 import { formatUsdMicros } from "@/lib/nav-display";
 import { DEMO_ORDER_EVENT, formatShares, parseShares } from "@/lib/demo/format";
 import { parseUsd } from "@/lib/xstocks/wallet";
@@ -27,7 +27,7 @@ const percent = (value: number | null) => value === null ? "—" : `${value >= 0
 const tone = (value: number | null) => value === null || Math.abs(value) < 0.005 ? "" : value > 0 ? " is-up" : " is-down";
 
 /** A line through the recorded NAVs, with the value under the pointer. */
-function NavLine({ series, label, compact = false }: { series: SeriesPoint[]; label: string; compact?: boolean }) {
+export function NavLine({ series, label, compact = false }: { series: SeriesPoint[]; label: string; compact?: boolean }) {
   const [hover, setHover] = useState<number | null>(null);
   const id = useId();
   if (series.length < 2) return <div className={`gmd-fund-line${compact ? " is-compact" : ""} is-empty`}>{compact ? null : <p className="gmd-caption">The chart starts with the fund&rsquo;s second record.</p>}</div>;
@@ -51,15 +51,19 @@ function NavLine({ series, label, compact = false }: { series: SeriesPoint[]; la
   </figure>;
 }
 
-/** The six funds on Markets. */
-export function FundList({ selectedId, onSelect, controls }: { selectedId: string; onSelect: (id: string) => void; controls: string }) {
+export const KIND_LABELS: Record<FundKind, string> = { basket: "Equity basket", "covered-call": "Covered call fund", autocall: "Autocallable note (ELS)" };
+
+/** The products on Markets, or those of one kind. */
+export function FundList({ selectedId, onSelect, controls, kinds, selectable = false }: { selectedId: string; onSelect: (id: string) => void; controls: string; kinds?: FundKind[]; selectable?: boolean }) {
   const { data, error: failed } = useFundResource<{ funds: FundSummary[] }>("/api/v1/funds");
-  const funds = data?.funds;
+  const funds = data?.funds?.filter(fund => !kinds || kinds.includes(fundKind(fund.id)));
   return <section className="gmd-fund-list" aria-labelledby="funds-title">
-    <header className="gmd-section-heading"><div><h2 id="funds-title">All funds</h2><p>Baskets of xStocks, each priced by OKX OnchainOS and recorded on X Layer every five minutes.</p></div><span className="gmd-count">{funds ? `${funds.length} funds` : ""}</span></header>
+    <header className="gmd-section-heading"><div><h2 id="funds-title">{kinds?.length === 1 ? { basket: "RWA baskets", "covered-call": "Covered-call funds", autocall: "Structured notes" }[kinds[0]] : "All products"}</h2><p>Each priced from xStocks by OKX OnchainOS and recorded on X Layer every five minutes.</p></div><span className="gmd-count">{funds ? `${funds.length} ${funds.length === 1 ? "product" : "products"}` : ""}</span></header>
     {failed && <p className="gmd-inline-error" role="status">The funds could not be read just now. Reload the page in a moment.</p>}
     <ul>{(funds ?? []).map(fund => <li key={fund.id} className={selectedId === fund.id ? "is-selected" : undefined}><div className="gmd-fund-row">
-      <button type="button" className="gmd-fund-name" aria-pressed={selectedId === fund.id} aria-controls={controls} onClick={() => onSelect(fund.id)}><b>{fund.name}</b><small>{fund.ticker} · {fund.holdings.length} {fund.holdings.length === 1 ? "holding" : "holdings"}</small></button>
+      {selectable || fundKind(fund.id) === "basket"
+        ? <button type="button" className="gmd-fund-name" aria-pressed={selectedId === fund.id} aria-controls={controls} onClick={() => onSelect(fund.id)}><b>{fund.name}</b><small>{fund.ticker} · {fundKind(fund.id) === "basket" ? `${fund.holdings.length} ${fund.holdings.length === 1 ? "holding" : "holdings"}` : KIND_LABELS[fundKind(fund.id)]}</small></button>
+        : <Link prefetch={false} className="gmd-fund-name" href={fund.href}><b>{fund.name}</b><small>{fund.ticker} · {KIND_LABELS[fundKind(fund.id)]}</small></Link>}
       <span className="gmd-fund-marks" aria-hidden="true">{fund.holdings.slice(0, 5).map(holding => <AssetMark key={holding.symbol} symbol={holding.symbol} />)}{fund.holdings.length > 5 && <i>+{fund.holdings.length - 5}</i>}</span>
       <span className="gmd-fund-theme">{fund.theme}</span>
       <NavLine series={fund.series} label={`${fund.name} NAV`} compact />
@@ -69,9 +73,9 @@ export function FundList({ selectedId, onSelect, controls }: { selectedId: strin
   </section>;
 }
 
-type FundAccount = { cashMicros: string; positions: { fundId: string; sharesMicros: string; costMicros: string }[]; orders: { id: string; fundId: string; side: "subscribe" | "redeem"; usdMicros: string; sharesMicros: string; navMicros: string; createdAt: string }[]; minOrderMicros: string };
+export type FundAccount = { cashMicros: string; positions: { fundId: string; sharesMicros: string; costMicros: string }[]; orders: { id: string; fundId: string; side: "subscribe" | "redeem"; usdMicros: string; sharesMicros: string; navMicros: string; createdAt: string }[]; minOrderMicros: string };
 
-function useFundAccount(fundId: string) {
+export function useFundAccount(fundId: string) {
   return useFundResource<FundAccount>(`/api/funds/account?fund=${encodeURIComponent(fundId)}`);
 }
 
@@ -123,7 +127,7 @@ export function FundMarketPreview({ definition }: { definition: FundDefinition }
   </>;
 }
 
-function FundOrder({ fund, nav, account }: { fund: Pick<FundDetail, "id" | "ticker">; nav: string | null; account: FundAccount | null }) {
+export function FundOrder({ fund, nav, account, buyOnly = false, closed = null }: { fund: Pick<FundDetail, "id" | "ticker">; nav: string | null; account: FundAccount | null; buyOnly?: boolean; closed?: string | null }) {
   const [side, setSide] = useState<"buy" | "sell">("buy");
   const [amount, setAmount] = useState("1,000");
   const [busy, setBusy] = useState(false);
@@ -137,7 +141,7 @@ function FundOrder({ fund, nav, account }: { fund: Pick<FundDetail, "id" | "tick
   const orderKey = JSON.stringify(order);
   const retry = attempt?.key === orderKey;
   const navMicros = nav ? BigInt(nav) : null;
-  const problem = !navMicros ? "Waiting for a verified, current NAV." : side === "buy"
+  const problem = closed ? closed : !navMicros ? "Waiting for a verified, current NAV." : side === "buy"
     ? (usd === null ? "Enter an amount in dollars, such as 1,000." : usd < 10_000_000n ? "The minimum order is $10." : usd > cash ? "That is more than your demo cash." : null)
     : (held === 0n ? "You hold none of this fund yet." : shares === null || shares === 0n ? "Enter a number of shares, up to six decimals." : shares > held ? "That is more than the shares you hold." : null);
   const estimate = navMicros && !problem ? (side === "buy" ? `${formatShares(usd! * 1_000_000n / navMicros)} ${fund.ticker}` : formatUsdMicros(shares! * navMicros / 1_000_000n, 2)) : "—";
@@ -162,10 +166,10 @@ function FundOrder({ fund, nav, account }: { fund: Pick<FundDetail, "id" | "tick
     <h2 id="fund-order-title">Invest in {fund.ticker}</h2>
     <p className="gmd-caption">Use your shared demo balance to buy at this fund’s latest NAV.</p>
     <div className="gmd-wallet-balances"><div><span>Demo cash</span><b>{account ? formatUsdMicros(account.cashMicros, 2) : "—"}</b><small>no value</small></div><div><span>{fund.ticker} held</span><b>{formatShares(held)}</b><small>{navMicros && held > 0n ? formatUsdMicros(held * navMicros / 1_000_000n, 2) : "shares"}</small></div></div>
-    <div className="gmd-segmented" role="group" aria-label="Order type">
+    {!buyOnly && <div className="gmd-segmented" role="group" aria-label="Order type">
       <button type="button" disabled={busy} aria-pressed={side === "buy"} onClick={() => { setSide("buy"); setAmount("1,000"); setMessage(null); }}>Buy</button>
       <button type="button" disabled={busy} aria-pressed={side === "sell"} onClick={() => { setSide("sell"); setAmount(""); setMessage(null); }}>Redeem</button>
-    </div>
+    </div>}
     <div className="gmd-order-input">
       <label htmlFor="fund-amount">{side === "buy" ? "You pay" : "Shares to redeem"}</label>
       <div><input disabled={busy} id="fund-amount" inputMode="decimal" autoComplete="off" value={amount} onChange={event => { setAmount(event.target.value); setMessage(null); }} aria-invalid={Boolean(problem)} aria-describedby="fund-help" /><span>{side === "buy" ? "USD" : fund.ticker}</span></div>

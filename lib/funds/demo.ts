@@ -142,6 +142,23 @@ export class FundDemoLedger {
     return { order, replayed: false };
   }
 
+  /**
+   * Pays every holder of a product that has ended (a note called or matured) at `payoutMicros` a
+   * share, in one transaction: the payment is recorded as each holder's redemption, credited to the
+   * demo balance, and the positions close. Run again, it finds nothing left to pay.
+   */
+  async settleAll(fundId: string, nav: { navMicros: bigint; effectiveAt: string; holdingsHash: string }, now = new Date()): Promise<void> {
+    const at = now.toISOString();
+    const payout = bindable(nav.navMicros);
+    await this.db.batch([
+      this.db.prepare("INSERT OR IGNORE INTO demo_fund_orders (id, subject, fund_id, side, usd_micros, shares_micros, nav_micros, nav_effective_at, nav_holdings_hash, created_at) SELECT ? || '-' || subject, subject, fund_id, 'redeem', shares_micros * ? / 1000000, shares_micros, ?, ?, ?, ? FROM demo_fund_positions WHERE fund_id = ? AND shares_micros > 0")
+        .bind(`${fundId}-settled`, payout, payout, nav.effectiveAt, nav.holdingsHash, at, fundId),
+      this.db.prepare("UPDATE demo_accounts SET cash_micros = cash_micros + (SELECT shares_micros * ? / 1000000 FROM demo_fund_positions p WHERE p.subject = demo_accounts.subject AND p.fund_id = ?), updated_at = ? WHERE subject IN (SELECT subject FROM demo_fund_positions WHERE fund_id = ? AND shares_micros > 0)")
+        .bind(payout, fundId, at, fundId),
+      this.db.prepare("UPDATE demo_fund_positions SET shares_micros = 0, cost_micros = 0, updated_at = ? WHERE fund_id = ? AND shares_micros > 0").bind(at, fundId),
+    ]);
+  }
+
   /** Starts the shared demo account again, clearing every fund in the same transaction. */
   async reset(subject: string, now = new Date()): Promise<void> {
     await new DemoLedger(this.db as unknown as D1Database).reset(subject, now);

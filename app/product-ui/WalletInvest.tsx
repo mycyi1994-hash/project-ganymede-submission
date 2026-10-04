@@ -10,7 +10,8 @@ import {
   FUND_CLAIM_MICROS, FUND_DEPLOYMENT, FUND_MIN_INVESTMENT_MICROS, FUND_WALLET_CHAIN, POOL_ORDER_SECONDS, dollarsFor, fundCalls, fundErrorMessage, fundExplorer, fundFill,
   poolCalls, poolFill, pricePerShare, readChainTime, readFundAccount, routeOrder, simulateFundCall, waitForFundReceipt, withSlippage, type FundAccount, type TransactionCall, type Venue,
 } from "@/lib/xstocks/fund";
-import { V4_POOL_DEPLOYMENT, formatFeePips, readV4Quote, v4ErrorMessage, v4SwapCalls, v4SwapFill, type V4Quote } from "@/lib/xstocks/v4-liquidity";
+import { V4_POOL_DEPLOYMENT, formatFeePips, readV4Quote, v4ErrorMessage, v4SwapCalls, v4SwapFill, type V4Deployment, type V4Quote } from "@/lib/xstocks/v4-liquidity";
+import { RANGE_POOL_DEPLOYMENT, rangeErrorMessage } from "@/lib/xstocks/range-liquidity";
 import { Icon } from "./Icons";
 import GasNotice from "./GasNotice";
 import { OkxAppLink } from "./OkxApp";
@@ -27,35 +28,38 @@ export type Provider = NonNullable<Window["ethereum"]>;
 type Side = "buy" | "sell";
 type Phase = "form" | "review" | "working" | "filled";
 type Step = { key: "approve" | "order"; label: string; state: "idle" | "wallet" | "chain" | "done"; hash?: string };
-/** Where an order can fill: the fund, the constant-product pool, or the v4 pool once it is pinned. */
-type Place = Venue | "v4";
+/** Where an order can fill: the fund, the constant-product pool, or the v4 pools once they are pinned: the one held at the NAV and the one of positions of one's own. */
+type Place = Venue | "v4" | "range";
 type Filled = { venue: Place; bought: boolean; sharesMicros: bigint; dollarsMicros: bigint; navMicros: bigint | null; navEffectiveAt: string | null; hash: string; block: number };
 
 const VENUE_NAMES: Record<Side, Record<Place, string>> = {
-  buy: { fund: "Fund at the NAV", pool: "USTX/dUSD pool", v4: "Uniswap v4 pool" },
-  sell: { fund: "Redeem at the NAV", pool: "Sell in the pool", v4: "Sell in the v4 pool" },
+  buy: { fund: "Fund at the NAV", pool: "USTX/dUSD pool", v4: "Uniswap v4 pool", range: "Range pool" },
+  sell: { fund: "Redeem at the NAV", pool: "Sell in the pool", v4: "Sell in the v4 pool", range: "Sell in the range pool" },
 };
 const ORDER_LABELS: Record<Side, Record<Place, string>> = {
-  buy: { fund: "Invest in USTX", pool: "Buy USTX in the pool", v4: "Buy USTX in the v4 pool" },
-  sell: { fund: "Redeem USTX", pool: "Sell USTX in the pool", v4: "Sell USTX in the v4 pool" },
+  buy: { fund: "Invest in USTX", pool: "Buy USTX in the pool", v4: "Buy USTX in the v4 pool", range: "Buy USTX in the range pool" },
+  sell: { fund: "Redeem USTX", pool: "Sell USTX in the pool", v4: "Sell USTX in the v4 pool", range: "Sell USTX in the range pool" },
 };
 const REVIEW_HEADINGS: Record<Side, Record<Place, string>> = {
-  buy: { fund: "Review investment", pool: "Review purchase", v4: "Review purchase" },
-  sell: { fund: "Review redemption", pool: "Review sale", v4: "Review sale" },
+  buy: { fund: "Review investment", pool: "Review purchase", v4: "Review purchase", range: "Review purchase" },
+  sell: { fund: "Review redemption", pool: "Review sale", v4: "Review sale", range: "Review sale" },
 };
-const PLACES: readonly Place[] = V4_POOL_DEPLOYMENT ? ["fund", "pool", "v4"] : ["fund", "pool"];
+const PLACES: readonly Place[] = [
+  "fund", "pool", ...(V4_POOL_DEPLOYMENT ? ["v4" as const] : []), ...(RANGE_POOL_DEPLOYMENT ? ["range" as const] : []),
+];
+/** The v4 deployment behind a venue: both v4 pools trade through the same router. */
+const deploymentOf = (at: Place): V4Deployment | null => at === "v4" ? V4_POOL_DEPLOYMENT : at === "range" ? RANGE_POOL_DEPLOYMENT : null;
 
 /**
  * The v4 pool's quote for this order, from the router's dry run at the panel's block, a moment
  * after the amount stops changing. While the panel reads a newer block, the same order keeps its
  * last quote; null while a new order is quoted or when there is no v4 pool.
  */
-function useV4Quote(owner: string, side: Side, amountIn: bigint | null, block: number): { quote: V4Quote | null; pending: boolean } {
+function useV4Quote(deployment: V4Deployment | null, owner: string, side: Side, amountIn: bigint | null, block: number): { quote: V4Quote | null; pending: boolean } {
   const order = amountIn !== null && amountIn > 0n && owner ? `${owner}:${side}:${amountIn}` : null;
   const key = order === null ? null : `${order}:${block}`;
   const [state, setState] = useState<{ key: string; quote: V4Quote | null } | null>(null);
   useEffect(() => {
-    const deployment = V4_POOL_DEPLOYMENT;
     if (!deployment || key === null || amountIn === null) return;
     let cancelled = false;
     const timer = window.setTimeout(() => {
@@ -64,9 +68,9 @@ function useV4Quote(owner: string, side: Side, amountIn: bigint | null, block: n
         .catch(() => { if (!cancelled) setState({ key, quote: null }); });
     }, 300);
     return () => { cancelled = true; window.clearTimeout(timer); };
-  }, [key, owner, side, amountIn, block]);
+  }, [deployment, key, owner, side, amountIn, block]);
   const current = state !== null && order !== null && state.key.startsWith(`${order}:`) ? state : null;
-  return { quote: current?.quote ?? null, pending: V4_POOL_DEPLOYMENT !== null && key !== null && current === null };
+  return { quote: current?.quote ?? null, pending: deployment !== null && key !== null && current === null };
 }
 
 const noSubscription = () => () => {};
@@ -180,9 +184,11 @@ export function WalletInvest({ tabs, onUseDemo }: { tabs: ReactNode; onUseDemo: 
   const amountIn = side === "buy" ? usd : shares;
   // Every venue priced for this order; the pools still trade while the fund waits for a NAV record.
   const priced = account && !problem && amountIn ? routeOrder(side, amountIn, nav, account.pool) : null;
-  const v4 = useV4Quote(address, side, priced ? amountIn : null, account?.block ?? 0);
+  const v4 = useV4Quote(V4_POOL_DEPLOYMENT, address, side, priced ? amountIn : null, account?.block ?? 0);
+  const rangeQuote = useV4Quote(RANGE_POOL_DEPLOYMENT, address, side, priced ? amountIn : null, account?.block ?? 0);
+  const quotes: Record<"v4" | "range", { quote: V4Quote | null; pending: boolean }> = { v4, range: rangeQuote };
   const route: (Record<Place, bigint | null> & { best: Place | null; count: number }) | null = priced && (() => {
-    const outs: Record<Place, bigint | null> = { fund: priced.fund, pool: priced.pool, v4: v4.quote?.amountOut ?? null };
+    const outs: Record<Place, bigint | null> = { fund: priced.fund, pool: priced.pool, v4: v4.quote?.amountOut ?? null, range: rangeQuote.quote?.amountOut ?? null };
     // The most for the order; a tie goes to the fund, then to the constant-product pool.
     const best = PLACES.reduce<Place | null>((top, at) => outs[at] !== null && (top === null || outs[at]! > outs[top]!) ? at : top, null);
     return { ...outs, best, count: PLACES.filter(at => outs[at] !== null).length };
@@ -190,10 +196,14 @@ export function WalletInvest({ tabs, onUseDemo }: { tabs: ReactNode; onUseDemo: 
   const venue: Place | null = !route ? null : venueChoice && route[venueChoice] !== null ? venueChoice : route.best;
   const quote = route && venue ? route[venue] : null;
   const approved = !account || !venue ? null
-    : venue === "v4" ? v4.quote?.allowanceMicros ?? null
+    : venue === "v4" || venue === "range" ? quotes[venue].quote?.allowanceMicros ?? null
     : side === "buy" ? (venue === "fund" ? account.allowanceMicros : account.poolDollarAllowanceMicros) : venue === "pool" ? account.poolShareAllowanceMicros : null;
-  const v4Fee = v4.quote?.feePips ?? null;
-  const feeText = (at: Place) => at === "pool" ? "0.3% fee" : at === "v4" ? (v4Fee === null ? "fee set by the pool" : `${formatFeePips(v4Fee)} fee`) : "no fee";
+  const feeText = (at: Place) => {
+    if (at === "pool") return "0.3% fee";
+    if (at === "fund") return "no fee";
+    const fee = quotes[at].quote?.feePips ?? null;
+    return fee === null ? "fee set by the pool" : `${formatFeePips(fee)} fee`;
+  };
   const needsApproval = amountIn !== null && approved !== null && approved < amountIn;
   const claimable = account !== null && account.nextClaimAt * 1000 <= now;
   // Until the read after a transaction lands, the claim it may have made is not shown yet.
@@ -228,16 +238,17 @@ export function WalletInvest({ tabs, onUseDemo }: { tabs: ReactNode; onUseDemo: 
     const at = venue;
     const size = amountIn;
     const minimum = withSlippage(quote);
-    const v4Calls = V4_POOL_DEPLOYMENT ? v4SwapCalls(V4_POOL_DEPLOYMENT) : null;
+    const swapDeployment = deploymentOf(at);
+    const v4Calls = swapDeployment ? v4SwapCalls(swapDeployment) : null;
     // A pool order carries a deadline, set when it is signed rather than when it was reviewed, and
     // counted from the chain's clock as well as this device's, so a slow device clock cannot expire it.
     const order = async () => {
       if (at === "fund") return side === "buy" ? fundCalls.invest(size, minimum) : fundCalls.redeem(size, minimum);
       const deadline = Math.max(Math.floor(Date.now() / 1000), await readChainTime().catch(() => 0)) + POOL_ORDER_SECONDS;
-      if (at === "v4" && v4Calls) return v4Calls.swap(side, size, minimum, deadline);
+      if (v4Calls) return v4Calls.swap(side, size, minimum, deadline);
       return side === "buy" ? poolCalls.buy(size, minimum, deadline) : poolCalls.sell(size, minimum, deadline);
     };
-    const approval = at === "v4" && v4Calls ? (side === "buy" ? v4Calls.approveDollars(size) : v4Calls.approveShares(size))
+    const approval = v4Calls ? (side === "buy" ? v4Calls.approveDollars(size) : v4Calls.approveShares(size))
       : side === "buy" ? (at === "fund" ? fundCalls.approve(size) : poolCalls.approveDollars(size)) : poolCalls.approveShares(size);
     const mark = (key: Step["key"], state: Step["state"], hash?: string) => setSteps(current => current.map(step => step.key === key ? { ...step, state, hash: hash ?? step.hash } : step));
     setSteps([...(needsApproval ? [{ key: "approve", label: side === "buy" ? "Approve demo dollars" : "Approve USTX", state: "idle" } as Step] : []), { key: "order", label: ORDER_LABELS[side][at], state: "idle" }]);
@@ -261,7 +272,7 @@ export function WalletInvest({ tabs, onUseDemo }: { tabs: ReactNode; onUseDemo: 
       const receipt = await waitForFundReceipt(hash);
       const fundFilled = receipt.status === "success" && at === "fund" ? fundFill(receipt) : null;
       const poolFilled = receipt.status === "success" && at === "pool" ? poolFill(receipt) : null;
-      const v4Filled = receipt.status === "success" && at === "v4" && V4_POOL_DEPLOYMENT ? v4SwapFill(receipt, V4_POOL_DEPLOYMENT, from) : null;
+      const v4Filled = receipt.status === "success" && swapDeployment ? v4SwapFill(receipt, swapDeployment, from) : null;
       const traded = poolFilled ?? v4Filled;
       const fill: Filled | null = fundFilled
         ? { venue: "fund", bought: fundFilled.side === "invest", sharesMicros: fundFilled.sharesMicros, dollarsMicros: fundFilled.dollarsMicros, navMicros: fundFilled.navMicros, navEffectiveAt: fundFilled.navEffectiveAt, hash, block: receipt.block }
@@ -276,7 +287,7 @@ export function WalletInvest({ tabs, onUseDemo }: { tabs: ReactNode; onUseDemo: 
       setWatermark(current => Math.max(current, receipt.block));
       window.dispatchEvent(new CustomEvent(DEMO_ORDER_EVENT, { detail: { block: receipt.block } }));
     } catch (error) {
-      setFailure(at === "v4" ? v4ErrorMessage(error) : fundErrorMessage(error));
+      setFailure(at === "v4" ? v4ErrorMessage(error) : at === "range" ? rangeErrorMessage(error) : fundErrorMessage(error));
       setPhase("review");
       setWatermark(current => Math.max(current, block));
       setReload(value => value + 1);
@@ -319,7 +330,7 @@ export function WalletInvest({ tabs, onUseDemo }: { tabs: ReactNode; onUseDemo: 
           <div><dt>Recorded on X Layer</dt><dd>{shortTime(fill.navEffectiveAt)}</dd></div>
         </> : <>
           <div><dt>Price per share</dt><dd>{formatUsdMicros(pricePerShare(fill.dollarsMicros, fill.sharesMicros), 4)}</dd></div>
-          <div><dt>Traded on</dt><dd>{fill.venue === "v4" ? "Uniswap v4 pool, held at the NAV" : "USTX/dUSD pool, 0.3% fee"}</dd></div>
+          <div><dt>Traded on</dt><dd>{fill.venue === "v4" ? "Uniswap v4 pool, held at the NAV" : fill.venue === "range" ? "Range pool, providers’ own positions" : "USTX/dUSD pool, 0.3% fee"}</dd></div>
         </>}
         <div><dt>USTX in your wallet</dt><dd>{account.block >= block ? formatShares(account.sharesMicros) : "Updating…"}</dd></div>
         <div><dt>Transaction</dt><dd><TxLink hash={hash} /></dd></div>
@@ -362,6 +373,8 @@ export function WalletInvest({ tabs, onUseDemo }: { tabs: ReactNode; onUseDemo: 
       ? "The order fills at the NAV recorded on X Layer when it is mined. If the NAV moves more than 1% first, it does not fill."
       : venue === "v4"
         ? "The order fills in the v4 pool when it is mined; the pool moves to a new NAV record before trading. If the price moves more than 1% first, or 10 minutes pass, it does not fill."
+        : venue === "range"
+          ? "The order fills across providers’ own positions in the range pool when it is mined; it may not move the price more than 5% from the NAV. If the price moves more than 1% first, or 10 minutes pass, it does not fill."
         : "The order fills at the pool price when it is mined. If the price moves more than 1% first, or 10 minutes pass, it does not fill."}</p>
   </div></>;
 
@@ -400,7 +413,7 @@ export function WalletInvest({ tabs, onUseDemo }: { tabs: ReactNode; onUseDemo: 
         return <label key={at} className={venue === at ? "is-selected" : undefined}>
           <input type="radio" name="wallet-venue" value={at} checked={venue === at} disabled={out === null} onChange={() => setVenueChoice(at)} />
           <span className="gmd-route-name"><b>{VENUE_NAMES[side][at]}</b><small>{out === null
-            ? (at === "fund" ? (account.nav.navMicros === null ? "Waiting for the next NAV record" : "Unavailable") : at === "v4" ? (v4.pending ? "Getting a quote…" : v4.quote?.reason ?? "Unavailable") : "No liquidity")
+            ? (at === "fund" ? (account.nav.navMicros === null ? "Waiting for the next NAV record" : "Unavailable") : at === "v4" || at === "range" ? (quotes[at].pending ? "Getting a quote…" : quotes[at].quote?.reason ?? "Unavailable") : "No liquidity")
             : `${formatUsdMicros(priceOf(at, out), 2)} per share, ${feeText(at)}`}</small></span>
           <span className="gmd-route-out">{out === null ? "—" : outText(out)}{route.best === at && route.count > 1 && <em>Best price</em>}</span>
         </label>;

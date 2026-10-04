@@ -4,7 +4,11 @@
 //
 // Flows (E2E_FLOW): default buys $60 at the fund, the constant-product pool and the v4 pool and
 // sells everything at the fund; "lending" posts collateral, borrows, repays, withdraws, lends and
-// withdraws; "pools" adds liquidity from demo dollars and withdraws it (SKIP_ADD=1 only withdraws).
+// withdraws; "pools" adds liquidity from demo dollars and withdraws it all with the one-button view (SKIP_ADD=1 only withdraws;
+// E2E_STRATEGY=Curve, "Spot + Curve" or Custom chooses a strategy first, so part or all of it goes to the v4 pool).
+// E2E_SITE points it at another deployment, such as a local `npm run dev`; E2E_RPC sends every chain request, the
+// page's and the wallet's, to another node, such as a local fork (`npx hardhat node --fork …`); E2E_TIMEOUT_MS
+// lengthens the waits for a slow fork.
 // READ_ONLY=1 only visits the pages. It reports page errors, console errors and HTTP errors.
 //
 // Run from onchain/: ADMIN_PRIVATE_KEY=… node scripts/e2e-wallet.mjs
@@ -16,10 +20,12 @@ import { generatePrivateKey, privateKeyToAccount } from "viem/accounts";
 
 const { chromium } = await import(process.env.PLAYWRIGHT_MODULE ?? "playwright");
 
-const SITE = "https://ganymede-xlayer.gana003.workers.dev";
+const SITE = process.env.E2E_SITE ?? "https://ganymede-xlayer.gana003.workers.dev";
 const SHOTS = process.env.SHOTS;
-const chain = { id: 1952, name: "X Layer Testnet", nativeCurrency: { name: "OKB", symbol: "OKB", decimals: 18 }, rpcUrls: { default: { http: ["https://testrpc.xlayer.tech/terigon"] } } };
-const transport = http(undefined, { retryCount: 4, retryDelay: 1500 });
+const RPC = process.env.E2E_RPC;
+const WAIT = Number(process.env.E2E_TIMEOUT_MS ?? 240000);
+const chain = { id: 1952, name: "X Layer Testnet", nativeCurrency: { name: "OKB", symbol: "OKB", decimals: 18 }, rpcUrls: { default: { http: [RPC ?? "https://testrpc.xlayer.tech/terigon"] } } };
+const transport = http(undefined, { retryCount: 4, retryDelay: 1500, timeout: WAIT });
 const reader = createPublicClient({ chain, transport });
 const file = new URL("../.stress/e2e-keys.json", import.meta.url);
 fs.mkdirSync(new URL("../.stress/", import.meta.url), { recursive: true });
@@ -48,6 +54,7 @@ page.on("pageerror", error => problems.push("pageerror: " + error.message));
 page.on("console", message => { if (message.type() === "error") problems.push("console: " + message.text().slice(0, 200)); });
 page.on("response", async response => { if (response.status() >= 400) { let body = ""; try { body = (await response.text()).slice(0, 200); } catch {} problems.push(`HTTP ${response.status()} ${response.url().slice(0, 120)} req=${(response.request().postData() ?? "").slice(0, 300)} res=${body}`); } });
 const sent = [];
+if (RPC) await page.route(/testrpc\.xlayer\.tech/, async route => route.fulfill({ response: await route.fetch({ url: RPC, timeout: WAIT }) }));
 await page.exposeFunction("__walletRequest", async (method, params) => {
   try {
     switch (method) {
@@ -130,27 +137,23 @@ if (process.env.E2E_FLOW === "lending") {
       if (!(await provide.count())) await page.getByText(/Constant product|USTX\/dUSD/).first().click();
       const connect = page.locator("#provide").getByRole("button", { name: "Connect OKX Wallet" });
       if (await connect.isVisible().catch(() => false)) await connect.click();
-      await page.locator("#provide").getByRole("button", { name: "Add", exact: true }).waitFor({ timeout: 60000 });
+      await page.locator("#liquidity-simple").waitFor({ timeout: WAIT });
     });
-    if (!process.env.SKIP_ADD) await step("add $40 of liquidity from demo dollars", async () => {
+    // The one-button view: an amount of demo dollars and Add liquidity; Withdraw all returns everything as demo dollars.
+    if (!process.env.SKIP_ADD) await step("add $40 of liquidity from demo dollars with one button", async () => {
       const provide = page.locator("#provide");
-      await provide.getByRole("button", { name: "Add", exact: true }).click();
-      await provide.getByRole("button", { name: "dUSD only" }).first().click();
-      await provide.locator("#liquidity-dollars-only").fill("40");
-      await page.waitForFunction(() => { const b = [...document.querySelectorAll("#provide button.gmd-button")].find(x => /Add liquidity/.test(x.textContent)); return b && !b.disabled; }, null, { timeout: 60000 });
+      if (process.env.E2E_STRATEGY) await provide.getByRole("radio", { name: new RegExp(`^${process.env.E2E_STRATEGY.replace("+", "\\+")}`) }).click();
+      await provide.locator("#liquidity-simple").fill("40");
+      await page.waitForFunction(() => { const b = [...document.querySelectorAll("#provide button.gmd-button")].find(x => /Add liquidity/.test(x.textContent)); return b && !b.disabled; }, null, { timeout: WAIT });
       await provide.getByRole("button", { name: /Add liquidity/ }).click();
-      await page.getByText("Liquidity added").first().waitFor({ timeout: 240000 });
+      await page.getByText(/Liquidity added|Position #\d+ opened/).first().waitFor({ timeout: WAIT });
       await page.getByRole("button", { name: "Done", exact: true }).first().click();
     });
-    await step("withdraw all liquidity as demo dollars", async () => {
+    await step("withdraw all liquidity as demo dollars with one button", async () => {
       const provide = page.locator("#provide");
-      await provide.getByRole("button", { name: "Withdraw", exact: true }).first().click();
-      await page.waitForFunction(() => { const b = [...document.querySelectorAll('#provide [aria-label="Part of your liquidity"] button')].find(x => x.textContent === "All"); return b && !b.disabled; }, null, { timeout: 90000 });
-      await provide.locator('[aria-label="Part of your liquidity"]').getByRole("button", { name: "All" }).click();
-      await provide.locator('[aria-label="Receive"]').getByRole("button", { name: "dUSD only" }).click();
-      await page.waitForFunction(() => { const b = [...document.querySelectorAll("#provide button.gmd-button")].find(x => /^Withdraw/.test(x.textContent.trim())); return b && !b.disabled; }, null, { timeout: 60000 });
-      await provide.locator("button.gmd-button", { hasText: /^Withdraw/ }).click();
-      await page.getByText(/Liquidity withdrawn|Withdrawn/).first().waitFor({ timeout: 240000 });
+      await page.waitForFunction(() => { const b = [...document.querySelectorAll("#provide button.gmd-button")].find(x => /Withdraw all as demo dollars/.test(x.textContent)); return b && !b.disabled; }, null, { timeout: WAIT });
+      await provide.getByRole("button", { name: "Withdraw all as demo dollars" }).click();
+      await page.getByText(/Liquidity withdrawn/).first().waitFor({ timeout: WAIT });
     });
   } catch {}
 } else try {

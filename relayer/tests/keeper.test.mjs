@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { ContractFunctionExecutionError, ContractFunctionRevertedError, keccak256, parseAbi, parseTransaction } from "viem";
-import { MIN_PROFIT_MICROS, revertReason, runKeeper, runRepeg, xlayerKeeperChain } from "../src/keeper.ts";
+import { MIN_PROFIT_MICROS, revertReason, runKeeper, runRangeArbitrage, runRepeg, xlayerKeeperChain } from "../src/keeper.ts";
 
 const USD = 1_000_000n;
 const MAX = 2n ** 256n - 1n;
@@ -237,4 +237,17 @@ test("a write that fails before it is mined leaves no nonce gap for the next one
   await chain.approve();
   assert.deepEqual(sent.map((transaction) => transaction.nonce), [7, 8]);
   assert.equal(counts, 2);
+});
+
+test("the range pool's arbitrage is sent only when it pays a cent, insisting on half of it", async () => {
+  const sent = [];
+  const chain = (simulated) => ({
+    simulate: async () => simulated,
+    arbitrage: async (minProfit) => { sent.push(minProfit); return { hash: `0x${"7".repeat(64)}`, success: true }; },
+  });
+  assert.deepEqual(await runRangeArbitrage(chain({ revert: "NothingToDo()" })), { action: "none", reason: "the range pool is within its fee of the NAV" });
+  assert.equal((await runRangeArbitrage(chain({ revert: "NavTooOld(1)" }))).reason, "the arbitrage would revert: NavTooOld(1)");
+  assert.equal((await runRangeArbitrage(chain({ profit: MIN_PROFIT_MICROS - 1n }))).action, "none");
+  assert.deepEqual(await runRangeArbitrage(chain({ profit: 650_000n })), { action: "arbitrage", profit: "650000", hash: `0x${"7".repeat(64)}`, success: true });
+  assert.deepEqual(sent, [325_000n]);
 });

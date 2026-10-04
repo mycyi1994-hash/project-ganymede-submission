@@ -1,6 +1,6 @@
 # Build provenance
 
-Production source revision: `defa322e08db336eaefef9a56311049666912536`.
+Production source revision: `9b03e69f4173e4d2b98aa3f28bb41f1c04a0134c`.
 
 This is a source snapshot, not a claim that the entire project was newly built for this event. The original repository remains private. The entries below were exported from its Git history; reviewers can inspect current implementations and tests, and request original history access from the team if needed. No old secrets, local environment files or full private Git history are published.
 
@@ -562,3 +562,34 @@ Markets keeps fund names left aligned with tickers below them after the names be
 Validation: 261 application tests, typecheck and build; lint with 0 errors and 10 existing warnings. Chromium checked all six fund rows at eight widths from 320 to 1832px, including label positions, text and price boundaries, and selection versus detail navigation. The published site passed the same layout checks. These are point-in-time observations, not continuous availability or a security audit.
 
 Public-snapshot validation: clean `npm ci` and `npm test` passed all 261 application tests; clean relayer `npm ci`, typecheck and all 30 tests passed. The first NAV after deployment was confirmed at 10:45:26 UTC without warnings or blockers.
+
+
+## Income and structured products, liquidity strategies and positions of one's own — 4 October 2026
+
+Production source: `9b03e69f4173e4d2b98aa3f28bb41f1c04a0134c`. App Worker version: `9d5bb6d3-586c-4c95-b7bb-a2a2150eaf27`; prior version: `ffe6868f-5fe6-42e9-8663-c5be0907f1ce`. Arbitrage keeper version: `7c6468c0-a8ed-4057-844e-3f615ca9cfbe`. Settlement relayer remains `cb38524c-cb75-4350-a9ee-a363f49a5c93`. Exported revision: `cde51415bc8fd0220b90509f6a692c83c3998c6c` (application code matches production; release documentation is newer).
+
+This snapshot brings in everything released since the fund list alignment:
+- **Income and structured products:** covered-call funds on SPYx and QQQx, and a step-down autocallable note, recorded on X Layer under their own product keys.
+- **Markets:** grouped into RWA baskets, Income and Structured, with the note's barrier chart at full width.
+- **Ask USTX:** suggestions on every screen.
+- **Pools:**
+  - Adding liquidity takes one button.
+  - Liquidity strategies: Spot, Curve and Spot + Curve split a deposit between the two pooled pools; Bid-Ask and Custom open a position of one's own in a new range pool.
+  - One chart shows either your deposit or the whole pools, with Ask USTX for each strategy.
+- **Range pool (`GanymedeRangeLiquidityHook`, `0x7964c50943c3ea9338d6653b91b872f147fe28c0`):** a second Uniswap v4 USTX/dUSD pool on X Layer Testnet. Each provider holds bins of their own, shaped Spot, Curve or Bid-Ask.
+  - Positions open only within 1% of a fresh NAV.
+  - Swaps need a NAV under an hour old and may not move the price more than 5% from it.
+  - Closing pays out at any NAV.
+- **Range arbitrage (`GanymedeRangeArbitrage`, `0xbe0624ee3d949352498a767f1edbe235de38ca4d`):** brings that pool back to the NAV through the fund. The keeper runs it, and wallet orders route to the pool when it pays the most.
+
+Validation of production source:
+- Application: 270 tests, typecheck and build; lint with 0 errors.
+- Contracts: 108 tests, including the range hook and the app's own calls against it.
+- Relayer and keeper: typecheck and 31 tests.
+- A fork rehearsal of the range deployment.
+- On X Layer Testnet, a test wallet opened a Bid-Ask position and withdrew everything through the app.
+- After deployment, the main routes returned 200 and the legacy routes redirected.
+
+These are point-in-time observations, not continuous availability or a security audit.
+
+Public-snapshot validation: clean `npm ci` and `npm test` passed all 270 application tests; clean relayer `npm ci`, typecheck and all 31 tests passed. The first NAV after deployment was confirmed at 16:30:02 UTC.

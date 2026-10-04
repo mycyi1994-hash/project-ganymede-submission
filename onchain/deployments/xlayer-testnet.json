@@ -120,6 +120,30 @@
       "constructorArgs": [
         "0xe83eee508ce92832488dd9f574ad329a1203641c"
       ]
+    },
+    "GanymedeRangeLiquidityHook": {
+      "address": "0x7964C50943C3eA9338D6653B91b872F147fE28C0",
+      "deployedAt": "2026-10-04T16:20:11.471Z",
+      "deploymentTransaction": "0x1ffc74038ed27e364b351d9c8258b79d724c7b0380c4f82808a481603b3ae34c",
+      "create2Deployer": "0x4e59b44847b379578588920ca78fbf26c0b4956c",
+      "salt": "0x000000000000000000000000000000000000000000000000000000000000085f",
+      "poolId": "0x2ffd6b32d25902cf1bc6714ae74cb0afb2711e2cab38e265d58b2de78afee7a1",
+      "constructorArgs": [
+        "0xe83eee508ce92832488dd9f574ad329a1203641c",
+        "0x77eaeba1366bde7818da12d3cbdbea0a2ee97596",
+        "0xf07535080f74e8b0f571e58dfa600f47e72ea9bf",
+        "0x292c56c5290cc7b73e3ee33c2c2688eb3e04c3c8"
+      ],
+      "seedTransaction": "0x3fed43cc368ff5cc1d03e1a6cddae74278075a9c5c4795fa17371418e13e7709"
+    },
+    "GanymedeRangeArbitrage": {
+      "address": "0xbe0624ee3d949352498a767f1edbe235de38ca4d",
+      "deployedAt": "2026-10-04T16:20:11.471Z",
+      "deploymentTransaction": "0x32c20f309b42529a59e47d6094b411eb22cf3db2034db9a02a607af796ea174e",
+      "constructorArgs": [
+        "0x7964C50943C3eA9338D6653B91b872F147fE28C0",
+        "0x77eaeba1366bde7818da12d3cbdbea0a2ee97596"
+      ]
     }
   }
 }

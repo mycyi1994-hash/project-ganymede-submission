@@ -15,11 +15,12 @@ import { fetchXStockQuotes, onchainOsCredentials } from "../xstocks/prices";
 import { comparePrices, formatDifference, FUND_POOLS, POOL_TOLERANCE, readPoolPrices, type PoolPrices } from "../xstocks/pool-prices";
 import { parseFundComposition } from "../xstocks/proof";
 import { SERIES_LIMIT, type SeriesPoint } from "../xstocks/series";
-import { FUND_INCEPTION_NAV_MICROS, OTHER_FUNDS, fundConstituents, universeToken, type FundDefinition } from "./catalog";
+import { FUND_INCEPTION_NAV_MICROS, INCOME_FUNDS, OTHER_FUNDS, fundConstituents, universeToken, type FundDefinition } from "./catalog";
+import { runIncomeCycle } from "../income/cycle";
 import { ensureFundDemoTables, FundDemoLedger, type FundDb } from "./demo";
 
 export const fundStateKey = (fundId: string, part: "basket" | "latest" | "history" | "confirmed" | "rebalance" | "series") => `fund:${fundId}:${part}`;
-const HISTORY_LIMIT = 12;
+export const HISTORY_LIMIT = 12;
 
 export type FundLatest = {
   evaluatedAt: string;
@@ -36,7 +37,7 @@ export type FundsCycleResult = { navsPublished: number; warnings: string[] };
 
 const unresolved = (status: Publication["status"]) => status === "queued" || status === "submitted";
 
-function navRequest(fundId: string, entry: Pick<Publication, "asOf" | "navPerShareMicros" | "holdingsHash" | "sharesOutstandingMicros">): SettlementRequest {
+export function navRequest(fundId: string, entry: Pick<Publication, "asOf" | "navPerShareMicros" | "holdingsHash" | "sharesOutstandingMicros">): SettlementRequest {
   return {
     entityType: "nav", entityId: `${fundId}:${entry.asOf}`, action: "publish_nav", productId: fundId,
     navPerShareMicros: entry.navPerShareMicros,
@@ -48,7 +49,7 @@ function navRequest(fundId: string, entry: Pick<Publication, "asOf" | "navPerSha
 const rebalanceRequest = (fundId: string, evidence: RebalanceEvidence): SettlementRequest =>
   ({ entityType: "rebalance", entityId: `${fundId}:${evidence.fixedAt}`, action: "publish_rebalance", productId: fundId, holdingsHash: evidence.holdingsHash, effectiveAt: evidence.effectiveAt });
 
-const read = async <T>(repo: EngineRepository, key: string, empty: T): Promise<T> => {
+export const read = async <T>(repo: EngineRepository, key: string, empty: T): Promise<T> => {
   const value = (await repo.getState(key))?.value;
   return value ? JSON.parse(value) as T : empty;
 };
@@ -81,7 +82,7 @@ async function reconcile(repo: EngineRepository, settlement: SettlementClient, f
   }
 }
 
-async function recordConfirmed(repo: EngineRepository, fundId: string, publication: Publication): Promise<void> {
+export async function recordConfirmed(repo: EngineRepository, fundId: string, publication: Publication): Promise<void> {
   const confirmed = await read<Publication | null>(repo, fundStateKey(fundId, "confirmed"), null);
   if (!confirmed || Date.parse(publication.asOf) > Date.parse(confirmed.asOf)) await repo.setState(fundStateKey(fundId, "confirmed"), JSON.stringify(publication));
   const series = await read<SeriesPoint[]>(repo, fundStateKey(fundId, "series"), []);
@@ -106,11 +107,11 @@ export async function runFundsCycle(env: EngineEnv, repo: EngineRepository, sett
   const db = (repo as Partial<EngineRepository> & { db?: FundDb }).db ?? (env.DB as unknown as FundDb);
   try { await ensureFundDemoTables(db); } catch (error) { warnings.push(`Fund demo tables not ready: ${error instanceof Error ? error.message : "unknown error"}`); }
   const demo = new FundDemoLedger(db);
-  for (const fund of OTHER_FUNDS) {
+  for (const fund of [...OTHER_FUNDS, ...INCOME_FUNDS]) {
     try { await reconcile(repo, settlement, fund); } catch (error) { warnings.push(`${fund.ticker} reconcile: ${error instanceof Error ? error.message : "unknown error"}`); }
   }
 
-  const symbols = [...new Set(OTHER_FUNDS.flatMap((fund) => fund.constituents))];
+  const symbols = [...new Set([...OTHER_FUNDS, ...INCOME_FUNDS].flatMap((fund) => fund.constituents))];
   const { quotes, warnings: priceWarnings } = await fetchXStockQuotes(onchainOsCredentials(env), symbols.map((symbol) => ({ symbol, address: universeToken(symbol)!.address })), sources.fetcher, sources.wait ?? (async () => undefined));
   warnings.push(...priceWarnings);
   let pools: PoolPrices | null = null;
@@ -174,5 +175,9 @@ export async function runFundsCycle(env: EngineEnv, repo: EngineRepository, sett
       warnings.push(`${fund.ticker} cycle failed: ${error instanceof Error ? error.message : "unknown error"}`);
     }
   }
+  // The income products, from the same prices (lib/income/cycle.ts).
+  const income = await runIncomeCycle(repo, settlement, demo, quotes, now, maxQuoteAgeMinutes(env), pools);
+  navsPublished += income.published;
+  warnings.push(...income.warnings);
   return { navsPublished, warnings };
 }

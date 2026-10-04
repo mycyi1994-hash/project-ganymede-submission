@@ -272,7 +272,15 @@ test("issuer, developer and embed pages render for partners", async () => {
 
 test("Markets lists every fund, and each fund other than USTX has its own page", async () => {
   const markets = visible(await (await render("/")).text());
-  assert.match(markets, /All funds/);
+  assert.match(markets, /All products/);
+  for (const label of ["RWA baskets", "Income", "Structured"]) assert.match(markets, new RegExp(label), "the category tabs");
+  for (const [id, name, ticker] of [["spy-covered-call", "S&amp;P 500 Covered Call", "SPYC"], ["qqq-covered-call", "Nasdaq-100 Covered Call", "QQQC"], ["spy-qqq-autocall-1", "Step-Down Note", "ELS1"]]) {
+    const html = visible(await (await render(`/funds/${id}`)).text());
+    assert.match(html, new RegExp(name), id);
+    assert.match(html, new RegExp(ticker), id);
+    assert.match(html, /Demo product · model pricing/, id);
+    assert.match(html, /no options market for xStocks on X Layer|nothing hedges it/, id);
+  }
   for (const [id, name, ticker] of [["magnificent-7", "Magnificent 7", "M7X"], ["ai-chips", "AI &amp; Semiconductors", "AIX"], ["crypto-economy", "Crypto Economy", "CRYX"], ["us-core", "US Core Index", "CORX"], ["retail-favorites", "Retail Favorites", "RTLX"]]) {
     const response = await render(`/funds/${id}`);
     assert.equal(response.status, 200, id);

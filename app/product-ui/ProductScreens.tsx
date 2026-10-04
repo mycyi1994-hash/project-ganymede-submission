@@ -1,6 +1,7 @@
 "use client";
 
 import { FundList, FundMarketPreview } from "./Funds";
+import { IncomeMarket } from "./Income";
 import { USTX_FUND, otherFund } from "@/lib/funds/catalog";
 import Link from "next/link";
 import { useEffect, useRef, useState, type ReactNode } from "react";
@@ -81,9 +82,25 @@ function ProductIdentity({ compact = false }: { compact?: boolean }) {
   return <div className={`gmd-product-identity${compact ? " is-compact" : ""}`}><div className="gmd-product-monogram" aria-hidden="true"><i /><i /><i /><i /><i /><i /></div><div><span className="gmd-ticker">USTX <span>Equity basket</span></span>{compact ? <h2>US Tech Basket</h2> : <h1>US Tech Basket</h1>}<p>Apple, Microsoft, NVIDIA, Alphabet, Amazon, Meta, Tesla, Oracle and Palantir.</p></div></div>;
 }
 
+type Category = "all" | "basket" | "income" | "structured";
+const CATEGORIES: { id: Category; label: string; note: string }[] = [
+  { id: "all", label: "All", note: "9 products" },
+  { id: "basket", label: "RWA baskets", note: "6 equity ETFs" },
+  { id: "income", label: "Income", note: "Covered calls" },
+  { id: "structured", label: "Structured", note: "ELS notes" },
+];
+
 export function MarketScreen({ preview = false }: { preview?: boolean }) {
   const { data, loading } = useMarket();
   const [selectedId, setSelectedId] = useState(USTX_FUND.id);
+  const [category, setCategory] = useState<Category>("all");
+  // A link such as /?category=income opens on that category.
+  useEffect(() => {
+    const wanted = new URLSearchParams(window.location.search).get("category");
+    if (!wanted || !CATEGORIES.some(item => item.id === wanted)) return;
+    const timer = window.setTimeout(() => setCategory(wanted as Category), 0);
+    return () => window.clearTimeout(timer);
+  }, []);
   const selectedFund = otherFund(selectedId);
   const feature = useRef<HTMLElement>(null);
   const selectFund = (id: string) => {
@@ -98,12 +115,17 @@ export function MarketScreen({ preview = false }: { preview?: boolean }) {
   const composition = data ? compositionForRecord(data) : null;
   const points = data ? publicationHistory(data) : [];
   const detail = preview ? designLink("product") : "/products/ustx";
-  const screen = <><div className="gmd-page-heading"><div><h1>Markets</h1><p>Explore US stock baskets. Compare funds, follow prices and invest in one place.</p></div>{preview ? <span className="gmd-badge">Example account view</span> : !selectedFund && <RecordCheckStatus />}</div>{!selectedFund && <DataState />}
+  const baskets = category === "all" || category === "basket";
+  const screen = <><div className="gmd-page-heading"><div><h1>Markets</h1><p>RWA baskets, covered-call income and structured notes on tokenized US stocks, priced by OKX and recorded on X Layer.</p></div>{preview ? <span className="gmd-badge">Example account view</span> : baskets && !selectedFund && <RecordCheckStatus />}</div>
+    {!preview && <nav className="gmd-categories" aria-label="Product categories">{CATEGORIES.map(item => <button type="button" key={item.id} aria-pressed={category === item.id} onClick={() => { setCategory(item.id); window.history.replaceState(null, "", item.id === "all" ? "/" : `/?category=${item.id}`); }}><b>{item.label}</b><small>{item.note}</small></button>)}</nav>}
+    {!preview && !baskets && <><div className="gmd-category-intro"><h2>{category === "income" ? "Covered-call income" : "Structured notes (ELS)"}</h2><p>{category === "income" ? "Hold the S&P 500 or the Nasdaq-100 and sell a call each month: income now, in exchange for the gains above the strike. Like XYLD and QYLD." : "A step-down autocallable note on the S&P 500 and the Nasdaq-100: 7% a year if both hold up, paid back early at six-monthly observations; capital at risk only after a 50% fall."}</p></div>
+      <IncomeMarket key={category} kind={category === "income" ? "covered-call" : "autocall"} /></>}
+    {baskets && <>{!selectedFund && <DataState />}
     <section ref={feature} id="market-fund-preview" tabIndex={-1} className="gmd-market-feature" aria-label={selectedFund?.name ?? USTX_FUND.name}>{selectedFund ? <FundMarketPreview key={selectedFund.id} definition={selectedFund} /> : <><div className="gmd-market-primary"><div className="gmd-feature-title"><ProductIdentity compact /><Link prefetch={false} className="gmd-button" href={preview ? detail : `${detail}#investment`}>Invest <Icon name="arrow" size={18} /></Link></div><NavValue />{!preview && <FundStats />}<MarketChart points={points} loading={loading} /><div className="gmd-feature-bottom"><span>Equal weight <i /> Rebalanced quarterly <i /> Min. $10</span><span className="gmd-badge">Demo fund</span></div></div><div className="gmd-market-composition"><Holdings composition={composition} compact loading={loading} /></div></>}</section>
     {!preview && !selectedFund && <PriceConfidence compact />}
-    {!preview && <FundList selectedId={selectedId} onSelect={selectFund} controls="market-fund-preview" />}
-    {!preview && !selectedFund && <MarketPulse />}
-    <div className="gmd-market-foot"><div className="gmd-stock-row" aria-hidden="true">{assetSymbols.map(symbol => <AssetMark key={symbol} symbol={symbol} />)}</div><p>Six funds. US stocks and ETFs. One portfolio.</p><Link prefetch={false} href="/limitations">Risks <Icon name="external" size={14} /></Link></div>
+    {!preview && <FundList selectedId={selectedId} onSelect={selectFund} controls="market-fund-preview" kinds={category === "basket" ? ["basket"] : undefined} />}
+    {!preview && !selectedFund && <MarketPulse />}</>}
+    <div className="gmd-market-foot"><div className="gmd-stock-row" aria-hidden="true">{assetSymbols.map(symbol => <AssetMark key={symbol} symbol={symbol} />)}</div><p>Nine products. US stocks and ETFs. One portfolio.</p><Link prefetch={false} href="/limitations">Risks <Icon name="external" size={14} /></Link></div>
   </>;
   return preview ? screen : <ActivityProvider>{screen}</ActivityProvider>;
 }

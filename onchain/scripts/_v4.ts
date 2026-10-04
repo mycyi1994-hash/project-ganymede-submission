@@ -289,3 +289,52 @@ export function sqrtPriceToUsd(sqrtPriceX96: bigint, assetIsCurrency0: boolean):
   const price = (Number(sqrtPriceX96) / 2 ** 96) ** 2;
   return assetIsCurrency0 ? price : 1 / price;
 }
+
+/**
+ * Deploys GanymedeRangeLiquidityHook (positions of one's own: Spot, Curve and Bid-Ask shapes) at a
+ * mined CREATE2 address on an existing PoolManager, which opens its pool at the NAV, and
+ * GanymedeRangeArbitrage, which brings that pool back to the NAV through the fund. The hook needs
+ * the same four permissions as GanymedeRwaLiquidityHook.
+ */
+export async function deployRangeLiquidity(options: {
+  wallet: WalletClient;
+  publicClient: PublicClient;
+  hookArtifact: Artifact;
+  arbitrageArtifact: Artifact;
+  poolManager: Address;
+  asset: Address;
+  dollar: Address;
+  feed: Address;
+  nonce?: number;
+  log?: (line: string) => void;
+}): Promise<{ hook: Deployed & { salt: Hex }; arbitrage: Deployed; nextNonce: number }> {
+  const { wallet, publicClient, log = () => undefined } = options;
+  const account = wallet.account!;
+  let nonce = options.nonce ?? (await publicClient.getTransactionCount({ address: account.address, blockTag: "pending" }));
+  async function confirm(label: string, hash: Hex): Promise<Deployed> {
+    const receipt = await publicClient.waitForTransactionReceipt({ hash });
+    if (receipt.status !== "success") throw new Error(`${label} reverted: ${hash}`);
+    log(`  ${label.padEnd(26)} ${hash}  gas ${receipt.gasUsed}`);
+    return { address: receipt.contractAddress ?? "0x", hash, gasUsed: receipt.gasUsed };
+  }
+  async function waitForCode(address: Address) {
+    for (let attempt = 0; attempt < 15 && ((await publicClient.getCode({ address })) ?? "0x") === "0x"; attempt++) {
+      await new Promise(resolve => setTimeout(resolve, 1_000));
+    }
+  }
+  if (((await publicClient.getCode({ address: CREATE2_PROXY })) ?? "0x") === "0x") throw new Error(`No CREATE2 proxy at ${CREATE2_PROXY} on this chain.`);
+  const args = [options.poolManager, options.asset, options.dollar, options.feed] as const;
+  const initCode = encodeDeployData({ abi: options.hookArtifact.abi, bytecode: options.hookArtifact.bytecode, args: args as never });
+  const { salt, address: hookAddress } = mineSalt(initCode, RWA_HOOK_FLAGS);
+  log(`  range hook address ${hookAddress} (salt ${salt})`);
+  const hookHash = await wallet.sendTransaction({ account, chain: wallet.chain, to: CREATE2_PROXY, data: concat([salt, initCode]), nonce: nonce++, gas: 6_000_000n });
+  const hook = { ...(await confirm("deploy range hook (CREATE2)", hookHash)), address: hookAddress, salt };
+  await waitForCode(hookAddress);
+  const arbitrageHash = await wallet.deployContract({
+    account, chain: wallet.chain, abi: options.arbitrageArtifact.abi, bytecode: options.arbitrageArtifact.bytecode,
+    args: [hookAddress, options.asset], nonce: nonce++, gas: 2_500_000n,
+  });
+  const arbitrage = await confirm("deploy GanymedeRangeArbitrage", arbitrageHash);
+  await waitForCode(arbitrage.address);
+  return { hook, arbitrage, nextNonce: nonce };
+}

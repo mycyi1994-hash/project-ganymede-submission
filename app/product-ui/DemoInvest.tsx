@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useState, type ReactNode } from "react";
 import { formatUsdMicros, formatUsdRounded } from "@/lib/nav-display";
 import { shortTime } from "@/lib/product-market";
@@ -14,7 +15,8 @@ import { FundHoldings } from "./Funds";
 import { Icon, Skeleton } from "./Icons";
 import { useMarket } from "./MarketProvider";
 import { BasketList, BasketTable, useRecordComposition } from "./Basket";
-import { WalletInvest, useInjectedWallet } from "./WalletInvest";
+import { WalletInvest } from "./WalletInvest";
+import { useWalletAccount } from "./WalletAccount";
 
 // Demo investing with demo dollars in a private browser session. No real money moves and no
 // shares are issued on chain; orders fill at the latest NAV recorded on X Layer. Investing from a
@@ -161,16 +163,33 @@ function DemoInvest({ tabs }: { tabs: ReactNode }) {
   </>;
 }
 
-/** The order panel: pay from a wallet on X Layer Testnet, or from the demo balance without one. */
+/**
+ * The order panel, one view: with OKX Wallet connected, orders go from the wallet and are recorded
+ * on X Layer Testnet; without one, they fill from this browser's demo balance at once. A line at the
+ * top says which, with the one action that changes it.
+ */
 export function InvestPanel() {
-  const provider = useInjectedWallet();
-  const [choice, setChoice] = useState<"wallet" | "demo" | null>(null);
-  const mode = choice ?? (provider ? "wallet" : "demo");
-  const tabs = <div className="gmd-segmented gmd-pay-with" role="group" aria-label="Pay with">
-    <button type="button" aria-pressed={mode === "wallet"} onClick={() => setChoice("wallet")}>Wallet</button>
-    <button type="button" aria-pressed={mode === "demo"} onClick={() => setChoice("demo")}>Demo balance</button>
-  </div>;
-  return <aside className="gmd-order-panel" aria-labelledby="invest-title">{mode === "wallet" ? <WalletInvest tabs={tabs} onUseDemo={() => setChoice("demo")} /> : <DemoInvest tabs={tabs} />}</aside>;
+  const router = useRouter();
+  const { address, source, busy: connecting, connect } = useWalletAccount();
+  const connected = source === "wallet" && Boolean(address);
+  const [demoInstead, setDemoInstead] = useState(false);
+  const mode = connected && !demoInstead ? "wallet" : "demo";
+  const route = mode === "wallet"
+    ? <div className="gmd-invest-route is-chain" role="group" aria-label="Pay with">
+      <p><i aria-hidden="true" /><span><b>From your wallet</b> · recorded on X Layer Testnet</span></p>
+      <button type="button" className="gmd-text-button" onClick={() => setDemoInstead(true)}>Use demo balance</button>
+    </div>
+    : <div className="gmd-invest-route is-demo" role="group" aria-label="Pay with">
+      <p><i aria-hidden="true" /><span><b>Demo balance</b> · no wallet needed, not recorded on chain</span></p>
+      <button type="button" className="gmd-text-button" disabled={connecting} onClick={() => {
+        setDemoInstead(false);
+        if (connected) return;
+        // Without an injected wallet, the portfolio page explains how to connect.
+        if (!window.okxwallet && !window.ethereum) { router.push("/portfolio#wallet"); return; }
+        void connect();
+      }}>{connected ? "Use my wallet" : connecting ? "Connecting…" : "Connect OKX Wallet to invest on X Layer"}</button>
+    </div>;
+  return <aside className="gmd-order-panel" aria-labelledby="invest-title">{mode === "wallet" ? <WalletInvest tabs={route} onUseDemo={() => setDemoInstead(true)} /> : <DemoInvest tabs={route} />}</aside>;
 }
 
 export function DemoPortfolio() {

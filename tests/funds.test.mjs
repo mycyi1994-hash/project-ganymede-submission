@@ -53,8 +53,8 @@ function database() {
   return { db, sql };
 }
 
-test("six funds over eighteen pinned xStocks, each recorded under keccak256 of its id", () => {
-  assert.equal(FUNDS.length, 6);
+test("six funds and three income products over eighteen pinned xStocks, each recorded under keccak256 of its id", () => {
+  assert.equal(FUNDS.length, 9);
   assert.equal(FUNDS[0], USTX_FUND);
   assert.equal(XSTOCK_UNIVERSE.length, 18);
   assert.equal(new Set(XSTOCK_UNIVERSE.map((token) => token.address)).size, 18);
@@ -128,10 +128,11 @@ test("each fund is priced, checked and recorded under its own product, and a fun
   const repo = new EngineRepository(db);
   const relayer = settlement();
   const at = "2026-10-04T03:05:00.000Z";
-  // CRCLx has no OnchainOS price yet: Crypto Economy waits, the others are recorded.
+  // CRCLx has no OnchainOS price yet: Crypto Economy waits, the others are recorded, and so are the
+  // three income products (lib/income/), from the same prices of SPYx and QQQx.
   const first = await runFundsCycle({ ...credentials, DB: db }, repo, relayer, at, { fetcher: priceFetch(at, ["CRCLx"]), poolPrices: pools() });
-  assert.equal(first.navsPublished, 4);
-  assert.deepEqual(relayer.requests.map((request) => request.productId).sort(), ["ai-chips", "magnificent-7", "retail-favorites", "us-core"]);
+  assert.equal(first.navsPublished, 7);
+  assert.deepEqual(relayer.requests.map((request) => request.productId).sort(), ["ai-chips", "magnificent-7", "qqq-covered-call", "retail-favorites", "spy-covered-call", "spy-qqq-autocall-1", "us-core"]);
   assert.ok(relayer.requests.every((request) => request.action === "publish_nav" && request.effectiveAt === at));
   assert.match(first.warnings.join(" "), /CRYX not published: No live price for CRCLx/);
   const core = JSON.parse(sql.prepare("SELECT value FROM engine_state WHERE key = ?").get(fundStateKey("us-core", "confirmed")).value);
@@ -149,16 +150,17 @@ test("each fund is priced, checked and recorded under its own product, and a fun
   // Nothing of USTX's is written.
   assert.equal(sql.prepare("SELECT COUNT(*) AS n FROM engine_state WHERE key = ?").get(STATE_LATEST).n, 0);
 
-  // Five minutes later every price is there: all five are recorded, and a series grows.
+  // Five minutes later every price is there: all five and the income products are recorded, and a series grows.
   const later = "2026-10-04T03:10:00.000Z";
   const second = await runFundsCycle({ ...credentials, DB: db }, repo, relayer, later, { fetcher: priceFetch(later), poolPrices: pools() });
-  assert.equal(second.navsPublished, 5);
+  assert.equal(second.navsPublished, 8);
   assert.equal(JSON.parse(sql.prepare("SELECT value FROM engine_state WHERE key = ?").get(fundStateKey("magnificent-7", "series")).value).length, 2);
   // Pools 5% away from OnchainOS stop a fund they fully cover, and only that kind.
   const third = "2026-10-04T03:15:00.000Z";
   const moved = await runFundsCycle({ ...credentials, DB: db }, repo, relayer, third, { fetcher: priceFetch(third), poolPrices: pools(1.05) });
   assert.match(moved.warnings.join(" "), /M7X not published: The NAV at the X Layer pools is \+5\.00%/);
   assert.match(moved.warnings.join(" "), /CORX not published/);
+  assert.match(moved.warnings.join(" "), /SPYC not published: The SPYx pool on X Layer is \+5\.00%/);
   assert.equal(moved.navsPublished, 3);
   sql.close();
 });
@@ -185,7 +187,7 @@ test("the fund API reads only, and a demo order fills at the fund's record on X 
     assert.equal(list.status, 200);
     assert.equal(list.headers.get("access-control-allow-origin"), "*");
     const body = await list.json();
-    assert.deepEqual(body.funds.map((fund) => fund.ticker), ["USTX", "M7X", "AIX", "CRYX", "CORX", "RTLX"]);
+    assert.deepEqual(body.funds.map((fund) => fund.ticker), ["USTX", "M7X", "AIX", "CRYX", "CORX", "RTLX", "SPYC", "QQQC", "ELS1"]);
     assert.equal(body.funds[1].nav, null);
     assert.equal((await fundsGET(request("/api/v1/funds?id=nope"))).status, 404);
     const detail = await (await fundsGET(request("/api/v1/funds?id=us-core"))).json();

@@ -343,7 +343,7 @@ export function v4Fill(receipt: FundReceipt, deployment: V4Deployment, account: 
 }
 
 /** The revert a hook raised, unwrapped from the pool manager's WrappedError when a swap carried it. */
-function hookRevert(error: unknown): string | null {
+export function hookRevert(error: unknown): string | null {
   const data = revertData(error);
   if (!data || data.slice(0, 10).toLowerCase() !== WRAPPED_ERROR) return data;
   try {

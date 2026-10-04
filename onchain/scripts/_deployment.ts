@@ -96,6 +96,19 @@ export interface Deployment {
       constructorArgs: unknown[];
     };
     GanymedeV4Router?: { address: string; deployedAt: string; deploymentTransaction: string; constructorArgs: unknown[] };
+    // USTX liquidity in positions of one's own, Spot, Curve or Bid-Ask, on the same pool manager
+    // (scripts/deploy-range.ts), and the arbitrage that brings that pool back to the NAV.
+    GanymedeRangeLiquidityHook?: {
+      address: string;
+      deployedAt: string;
+      deploymentTransaction: string;
+      create2Deployer: string;
+      salt: string;
+      poolId: string;
+      seedTransaction?: string;
+      constructorArgs: unknown[];
+    };
+    GanymedeRangeArbitrage?: { address: string; deployedAt: string; deploymentTransaction: string; constructorArgs: unknown[] };
   };
 }
 

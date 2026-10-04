@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { BrandMark } from "../DesignElements";
 import { Icon } from "./Icons";
-import { AskUstx } from "./AskUstx";
+import { AskGuide, AskProvider } from "./AskUstx";
 import { MarketProvider } from "./MarketProvider";
 import { WalletAccountProvider, useWalletAccount } from "./WalletAccount";
 
@@ -55,12 +55,11 @@ export function ProductHeader({ section = "markets", preview }: { section?: Prod
 }
 
 export function ProductShell({ children, section = "markets", preview }: { children: ReactNode; section?: ProductSection; preview?: DesignScreen }) {
-  return <WalletAccountProvider><MarketProvider enabled={section === "markets" || section === "verify" || section === "portfolio"}><div className="gmd-app">
+  return <WalletAccountProvider><MarketProvider enabled={section === "markets" || section === "verify" || section === "portfolio"}><div className="gmd-app"><AskProvider>
     <a className="gmd-skip" href="#product-main">Skip to content</a>
     {preview && <div className="gmd-design-toolbar"><span><b>Design preview</b> Example account data. No transactions.</span><nav aria-label="Design screens">{(["markets", "product", "order", "portfolio", "transaction"] as const).map(screen => <Link prefetch={false} key={screen} href={designLink(screen)} aria-current={preview === screen ? "page" : undefined}>{({ markets: "Markets", product: "Product", order: "Order", portfolio: "Portfolio", transaction: "Transaction" })[screen]}</Link>)}</nav></div>}
     <ProductHeader section={section} preview={preview} />
-    <main id="product-main" className="gmd-main">{children}</main>
+    <main id="product-main" className="gmd-main">{!preview && <AskGuide />}{children}</main>
     <footer className="gmd-footer"><div><b>Ganymede</b><span>US stock baskets on X Layer · Market data by OKX · Not investment advice</span></div><nav aria-label="Resources"><Link prefetch={false} href="/products/ustx/transparency">Transparency</Link><Link prefetch={false} href="/methodology">Methodology</Link><Link prefetch={false} href="/limitations">Risks</Link><Link prefetch={false} href="/developers">Integrations</Link><Link prefetch={false} href="/issuers">For issuers</Link></nav></footer>
-    {!preview && <AskUstx />}
-  </div></MarketProvider></WalletAccountProvider>;
+  </AskProvider></div></MarketProvider></WalletAccountProvider>;
 }

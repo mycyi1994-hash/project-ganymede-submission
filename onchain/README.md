@@ -181,6 +181,31 @@ a second account, which redeems them for 4/10 of the holdings; and redeems the r
 amount. It uses no key and broadcasts nothing. The run on 25 September 2026 is recorded in
 `../docs/IN_KIND_VAULT.md`.
 
+## Positions of one's own: Spot, Curve and Bid-Ask (fork of X Layer Testnet)
+
+`GanymedeRangeLiquidityHook` opens a second USTX/dUSD pool on the same PoolManager in which every
+liquidity provider holds a position of their own: a run of equal-width bins either side of the price,
+demo dollars below it and USTX above, spread evenly (Spot), heaviest next to the price (Curve) or
+heaviest at the far ends (Bid-Ask), with up to 20 bins of 0.1% to 5% on each side. Positions open only
+with the price within 1% of a fresh NAV; swaps need a NAV under an hour old, pay 0.30% rising to 1.00%
+as it ages, and may not leave the price more than 5% from it. Each position's liquidity sits under its
+own salt, so its fees are its owner's alone, and closing pays tokens and fees at any NAV.
+`GanymedeRangeArbitrage` brings the pool back to the NAV through the fund in one transaction with no
+money of the caller's: it swaps in the pool up to the NAV less the fee and redeems (or invests and
+sells), keeping the difference. 5 tests in `test/GanymedeRangeLiquidityHook.test.ts`. Rehearse it:
+
+```bash
+npm run fork:range
+```
+
+forks X Layer Testnet, impersonates the administrator, deploys both contracts on the recorded
+PoolManager, opens one position of each shape, buys $200 of USTX through the router, records a NAV 1%
+higher and runs the arbitrage, then closes the Bid-Ask position with its fees. `npm run deploy:range`
+did the same deployment and seeding on X Layer Testnet on 4 October 2026, with the user's approval, and
+recorded both contracts in `deployments/xlayer-testnet.json`; the app pins the pool in
+`../lib/xstocks/range-liquidity.ts` (checked by `test/AppRangeClient.test.ts`) and the keeper runs the
+arbitrage through `RANGE_ARBITRAGE_ADDRESS`.
+
 ## Uniswap v4 liquidity for USTX (fork of X Layer Testnet)
 
 `GanymedeRwaLiquidityHook` is a Uniswap v4 hook that runs a USTX/dUSD pool around the NAV and holds

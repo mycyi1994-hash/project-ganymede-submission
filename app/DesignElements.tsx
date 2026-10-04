@@ -11,7 +11,7 @@ export function Arrow({ diagonal = false }: { diagonal?: boolean }) {
 }
 
 export function StockMark({ symbol }: { symbol: string }) {
-  const brand = ({ AAPLx: "apple", MSFTx: "microsoft", NVDAx: "nvidia", AMZNx: "amazon", METAx: "meta", TSLAx: "tesla" } as Record<string, string>)[symbol];
+  const brand = ({ AAPLx: "apple", MSFTx: "microsoft", NVDAx: "nvidia", AMZNx: "amazon", METAx: "meta", TSLAx: "tesla", GOOGLx: "google", ORCLx: "oracle", PLTRx: "palantir" } as Record<string, string>)[symbol];
   if (brand === "microsoft") return <span className="stock-mark microsoft-mark" aria-hidden="true"><i /><i /><i /><i /></span>;
   return <span className={`stock-mark stock-${brand ?? "generic"}`} aria-hidden="true">{brand ? <img src={`/brands/${brand}.svg`} width="34" height="34" alt="" /> : symbol.slice(0, 1)}</span>;
 }

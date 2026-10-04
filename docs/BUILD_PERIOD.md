@@ -10,7 +10,7 @@ The last commit before the event was `7a33392` on 30 July 2026, "Add GIWA testne
 - fixed-point accounting and the D1 database schema;
 - fund-share and NAV registry contracts and a settlement relayer, deployed to the GIWA Sepolia testnet with a Dojang verified-address eligibility check.
 
-The engine's strategies still power the separate paper Lab, and the fund-share contract is the GMDCORE test ledger. USTX reuses the other pieces: its five-minute job runs the USTX step added in the build period with the engine's D1 state store and job lease (until 25 September inside the engine's own five-minute cycle), and records the NAV to the NAV registry contract, redeployed to X Layer Testnet without changes, through the settlement relayer, which was extended for X Layer; its arithmetic uses the same fixed-point helpers, and its state is kept in the same D1 database next to new tables. These are the starting point, not the submission's new work.
+The engine's strategies power the separate paper Lab (retired from the public site on 3 October), and the fund-share contract is the GMDCORE test ledger. USTX reuses the other pieces: its five-minute job runs the USTX step added in the build period with the engine's D1 state store and job lease (until 25 September inside the engine's own five-minute cycle), and records the NAV to the NAV registry contract, redeployed to X Layer Testnet without changes, through the settlement relayer, which was extended for X Layer; its arithmetic uses the same fixed-point helpers, and its state is kept in the same D1 database next to new tables. These are the starting point, not the submission's new work.
 
 ## What was built during the event
 
@@ -48,6 +48,12 @@ Ganymede was selected as one of 30 finalists from 150 teams. The organizers conf
 | 2026-10-02 17:16 | `0035e7a` | How to add `/mcp` to an AI client on the developer page; Ask USTX compares quotes as facts |
 | 2026-10-02 17:42 | `4ee593f` | A load test with 30 team test wallets and a browser run of every wallet screen (docs/LOAD_TEST.md), and a fix for a preload of a script the build never wrote |
 | 2026-10-03 03:26 | `ca2b504` | The public pools API and the MCP pools tool answer from a snapshot of both pools taken every minute (with a 30-second memory cache on each server instance): 0.17 s at the median instead of 2.6 s |
+| 2026-10-03 04:49 | `ba11ae4` | The public NAV API answers from a snapshot of the latest record taken every minute; the earlier won-denominated paper Lab leaves the public site, which shows US dollars only |
+| 2026-10-03 04:55 | `8bbb5c5` | Ask USTX streams its answer and shows which tool it is reading |
+| 2026-10-03 05:21 | `e21d8e6` | A product audit of every public page: the GMDCORE test ledger and the operator console retired, the 404 title, phone overflow and 24-hour counts fixed |
+| 2026-10-03 06:16 | `5ad7a95` | Who controls each contract, read in the browser; SECURITY.md and lending-market fuzzing; one-click test OKB for a first wallet; "Open in the OKX app"; hourly OKX DEX aggregator quotes for building the basket by hand; usage counted without the team's wallets; OpenAPI, llms.txt and an agent example |
+| 2026-10-04 02:42 | `22c56b6` | USTX tracks nine xStocks: Alphabet, Oracle and Palantir join, re-fixed at the prevailing NAV, and a name being added joins only at its first priced record |
+| 2026-10-04 04:03 | `42155c8` | Six funds over 18 xStocks: Magnificent 7, AI & Semiconductors, Crypto Economy, US Core Index and Retail Favorites, each recorded under its own product key and verified on its own page, bought with the demo balance |
 
 ## Every commit in the build period (UTC)
 

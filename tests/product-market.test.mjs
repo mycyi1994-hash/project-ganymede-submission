@@ -71,7 +71,7 @@ test("each constituent's fixing price comes back from its units, and its change 
     const difference = item.fixingPriceMicros - item.priceMicros;
     assert.ok((difference < 0n ? -difference : difference) <= 100n, `${item.symbol} fixed at its own price`);
     assert.equal(Math.round(item.changePercent * 100), 0);
-    assert.equal(item.targetPercent, 100 / 6);
+    assert.equal(item.targetPercent, 100 / composition.holdings.length);
     assert.equal(item.unitsWad, BigInt(composition.holdings.find(holding => holding.symbol === item.symbol).unitsWad));
   }
   // Ten percent higher prices on the same units read as ten percent up; their value per share follows.

@@ -1,5 +1,5 @@
 import { engineEnv, isSameSiteRequest, noStoreJson } from "@/lib/engine/api-helpers";
-import { AssistantError, askUstx, parseConversation, takeQuestion } from "@/lib/assistant/ask";
+import { AssistantError, askUstx, parseConversation, streamUstx, takeQuestion, type AskEvent } from "@/lib/assistant/ask";
 import { ustxTools } from "../../mcp/tools";
 
 export const dynamic = "force-dynamic";
@@ -21,8 +21,28 @@ export async function POST(request: Request) {
     const conversation = parseConversation(body);
     const visitor = request.headers.get("cf-connecting-ip") ?? request.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ?? "unknown";
     await takeQuestion(env.DB, visitor, new Date());
-    const result = await askUstx(conversation, ustxTools(new URL(request.url).origin), { apiKey: env.OPENAI_API_KEY, model: env.OPENAI_MODEL });
-    return noStoreJson(result);
+    const tools = ustxTools(new URL(request.url).origin);
+    const options = { apiKey: env.OPENAI_API_KEY, model: env.OPENAI_MODEL };
+    if (!(request.headers.get("accept") ?? "").includes("application/x-ndjson")) return noStoreJson(await askUstx(conversation, tools, options));
+    // Streamed: one JSON event per line as the answer is read and written. The first event is awaited
+    // here, so a model that cannot be reached still answers with its status code.
+    const events = streamUstx(conversation, tools, options);
+    const first = await events.next();
+    const encoder = new TextEncoder();
+    const line = (event: AskEvent | { type: "error"; message: string }) => encoder.encode(`${JSON.stringify(event)}\n`);
+    const stream = new ReadableStream<Uint8Array>({
+      async start(controller) {
+        if (!first.done) controller.enqueue(line(first.value));
+        try {
+          for await (const event of events) controller.enqueue(line(event));
+        } catch (error) {
+          if (!(error instanceof AssistantError)) console.error("Ask USTX failed", error instanceof Error ? error.name : "error");
+          controller.enqueue(line({ type: "error", message: error instanceof AssistantError ? error.message : "The assistant is unavailable right now." }));
+        }
+        controller.close();
+      },
+    });
+    return new Response(stream, { headers: { "Content-Type": "application/x-ndjson; charset=utf-8", "Cache-Control": "no-store", "X-Content-Type-Options": "nosniff" } });
   } catch (error) {
     if (error instanceof AssistantError) return noStoreJson({ error: error.message, code: error.code }, { status: error.status });
     console.error("Ask USTX failed", error instanceof Error ? error.name : "error");

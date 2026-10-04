@@ -13,7 +13,7 @@ export const MCP_PROTOCOL_VERSIONS = ["2025-06-18", "2025-03-26", "2024-11-05"] 
 export const MCP_SERVER_INFO = { name: "ganymede-ustx", title: "Ganymede USTX", version: "1.0.0" } as const;
 
 export const MCP_INSTRUCTIONS = [
-  "Ganymede runs USTX, the US Tech Basket: one share tracks six tokenized US tech stocks (AAPLx, MSFTx, NVDAx, AMZNx, METAx, TSLAx) on X Layer.",
+  "Ganymede runs USTX, the US Tech Basket: one share tracks nine tokenized US tech stocks (AAPLx, MSFTx, NVDAx, AMZNx, METAx, TSLAx, GOOGLx, ORCLx, PLTRx) on X Layer.",
   "Every five minutes the xStocks are priced through OKX OnchainOS and the NAV, with a SHA-256 fingerprint of its full document, is recorded in a registry on X Layer Testnet.",
   "Use get_ustx_nav for the latest NAV and whether it is still valid, verify_ustx_nav to check that record against its document, get_ustx_holdings for what one share holds,",
   "quote_ustx_order to compare the fund at the NAV with the two USTX/dUSD pools, get_ustx_pools for the pools and their results for liquidity providers, and get_ustx_market_activity for the latest trades.",

@@ -41,9 +41,6 @@ function ConnectLedger() {
 function LedgerScope() {
   return <div className="gmd-ledger-scope"><Icon name="info" size={19} /><p><b>Testnet share ledger.</b> GMDCORE records are separate from the USTX model basket. They do not represent custody, redeemable assets or a cash balance.</p></div>;
 }
-function LedgerResources() {
-  return <div className="gmd-lab-reference"><div><b>Saved paper allocations</b><p>Your crypto strategy simulations are kept in Lab.</p></div><Link href="/lab">Open Lab <Icon name="arrow" size={16} /></Link></div>;
-}
 function shortAddress(value: string) { return `${value.slice(0, 6)}…${value.slice(-4)}`; }
 function TransferRows({ rows, account }: { rows: LedgerTransfer[]; account?: string }) {
   return <div className="gmd-ledger-transfers">{rows.map(row => <Link href={`/activity/${row.hash}`} prefetch={false} key={`${row.hash}:${row.index}`}><span className="gmd-transaction-symbol"><Icon name="activity" /></span><span><b>{transferLabel(row, account)}</b><small>Block {row.block.toLocaleString("en-US")} · {shortAddress(row.hash)}</small></span><span><b>{formatShares(row.units)}</b><small>GMDCORE · Testnet</small></span><Icon name="chevron" size={16} /></Link>)}</div>;
@@ -59,7 +56,7 @@ export function LedgerScreen({ activity = false }: { activity?: boolean }) {
       <section className="gmd-ledger-history"><header className="gmd-section-heading"><div><h2>{activity ? "Recorded transfers" : "Recent activity"}</h2><p>{data ? `Blocks ${data.fromBlock.toLocaleString("en-US")}–${data.block.toLocaleString("en-US")}. This is a limited history window.` : "The latest 2,000 blocks are searched for this address."}</p></div>{!activity && data && <Link href="/activity">View all <Icon name="arrow" size={16} /></Link>}</header>
         {data?.transfers.length ? <TransferRows rows={activity ? data.transfers : data.transfers.slice(0, 4)} account={wallet.address} /> : <div className="gmd-ledger-empty"><Icon name="activity" size={24} /><p>{data ? "No share transfers found in this block range." : busy ? "Reading ledger history…" : "Ledger history is unavailable."}</p>{data && <a className="gmd-inline-link" href={`${LEDGER.explorerUrl}/address/${wallet.address}`} target="_blank" rel="noreferrer">Browse older activity in explorer <Icon name="external" size={14} /></a>}</div>}
       </section></>}
-    <div className="gmd-ledger-ustx"><div><b>Looking for US Tech Basket holdings?</b><p>USTX investments and withdrawals are not open. Its published NAV describes a model basket.</p></div><Link href="/products/ustx">Explore USTX <Icon name="arrow" size={16} /></Link></div><LedgerResources />
+    <div className="gmd-ledger-ustx"><div><b>Looking for US Tech Basket holdings?</b><p>USTX investments and withdrawals are not open. Its published NAV describes a model basket.</p></div><Link href="/products/ustx">Explore USTX <Icon name="arrow" size={16} /></Link></div>
   </>;
 }
 

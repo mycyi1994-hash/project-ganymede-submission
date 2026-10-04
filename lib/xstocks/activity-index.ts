@@ -1,7 +1,8 @@
 /**
  * The scheduled job that keeps USTX market activity (lib/xstocks/activity.ts) for the USTX page and
  * GET /api/v1/ustx/activity, and the pools' results for their liquidity providers
- * (lib/xstocks/lp-markout.ts) for Pools and GET /api/v1/ustx/pools. It runs on a cron of its own
+ * (lib/xstocks/lp-markout.ts) for Pools and GET /api/v1/ustx/pools, and usage since launch
+ * (lib/xstocks/usage.ts) for GET /api/v1/ustx/usage. It runs on a cron of its own
  * (worker/index.ts), so its requests and any failure stay apart from the cycle that records the NAV.
  */
 import { EngineRepository } from "../engine/repository";
@@ -9,6 +10,7 @@ import type { EngineEnv } from "../engine/types";
 import { fundRpc, type Rpc } from "./fund";
 import { parseActivityIndex, serializeActivityIndex, updateActivityIndex } from "./activity";
 import { parseLpMarkout, serializeLpMarkout, updateLpMarkout } from "./lp-markout";
+import { STATE_USAGE, parseUsage, updateUsage } from "./usage";
 
 export const STATE_MARKET_ACTIVITY = "xstocks:market-activity";
 export const STATE_LP_MARKOUT = "xstocks:lp-markout";
@@ -20,6 +22,8 @@ export async function runActivityIndex(env: Pick<EngineEnv, "DB">, options: { rp
   const index = parseActivityIndex((await repo.getState(STATE_MARKET_ACTIVITY))?.value);
   const next = await updateActivityIndex(index, options.rpc ?? fundRpc({ signal: AbortSignal.timeout(120_000) }));
   await repo.setState(STATE_MARKET_ACTIVITY, serializeActivityIndex(next));
+  // Usage since launch (lib/xstocks/usage.ts) follows the rows the index has just added.
+  await repo.setState(STATE_USAGE, JSON.stringify(updateUsage(parseUsage((await repo.getState(STATE_USAGE))?.value), next)));
   return { fromBlock: next.fromBlock, toBlock: next.toBlock, rows: next.rows.length };
 }
 

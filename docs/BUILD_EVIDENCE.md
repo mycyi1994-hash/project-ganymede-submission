@@ -1,6 +1,6 @@
 # Build provenance
 
-Production source revision: `ca2b504d5b4ccae501617a2c620f7b114f3c38a4`.
+Production source revision: `93213843b7e04420594a94c38260705d5c589716`.
 
 This is a source snapshot, not a claim that the entire project was newly built for this event. The original repository remains private. The entries below were exported from its Git history; reviewers can inspect current implementations and tests, and request original history access from the team if needed. No old secrets, local environment files or full private Git history are published.
 
@@ -521,5 +521,22 @@ Validation of the snapshot source:
 - In the development repository, the typecheck, a clean build and 230 tests pass, and lint reports 0 errors.
 - After the deployment, the new cron registered but did not run until its triggers were deployed again; from then on it ran every minute. The main routes returned 200 and the legacy routes redirected.
 - The same tests pass in this public checkout after `npm ci` (230), and so do the relayer typecheck and 30 tests.
+
+These are point-in-time observations, not continuous availability or a security audit.
+
+## Finalist-round update: nine xStocks, six funds and the judge review
+
+Production source: 93213843b7e04420594a94c38260705d5c589716. Exported commit: 9e796dbc65fa9ee09f3c083106ce82fc4639fafa (documentation after the source). Worker version: 26d603cf-f5ac-46b6-b0fd-5b935a0fcb2d, deployed 2026-10-04; the releases since the last snapshot were a95ca225-fdc1-4b63-b52a-2dfc093e39ab (NAV snapshot, paper Lab retired), 7e06c522-9b1d-4c4d-9f71-2dd3995bc86d (streaming Ask USTX), 3d2fbad1-448a-45be-8bb3-5df7d9879d44 (product audit), 39034594-c226-4ea8-8450-4bc1290ba6d3 and ed1b3b00-d721-48c3-8e27-bae21aeb389c (judge review), 44d05068-c3b8-45f1-ac29-b99a886d50f0 and d3c08668-b9fd-4f61-960e-c3ad2aa6fada (nine xStocks), 2974906b-c909-4d8e-a32a-b25cdaf97b33, 627ddb17-bfe1-4fdf-b5d8-1e9a8df85cac and 26d603cf-f5ac-46b6-b0fd-5b935a0fcb2d (six funds). The keeper is unchanged (5e23f598-a074-45ee-ac07-b7bd622e9092).
+
+- The public NAV API answers from a snapshot taken every minute; the earlier won-denominated paper Lab and the GMDCORE test ledger left the public site, which shows US dollars only; Ask USTX streams its answers.
+- Who controls each contract, read in the browser on Transparency; SECURITY.md; invariant fuzzing of the lending market; one-click test OKB for a wallet that has none; "Open in the OKX app"; hourly OKX OnchainOS DEX aggregator quotes for building the basket by hand; usage counted without the team's 35 known wallets; an OpenAPI description, llms.txt and a runnable MCP agent example.
+- USTX tracks nine xStocks: Alphabet, Oracle and Palantir joined on 4 October, each the same xStocks token contract as AAPLx with a pool on X Layer about as deep as AAPLx's. The basket re-fixed at the prevailing NAV (US$99.8144 before, US$99.8139 after, five minutes apart), and the rebalance record is on X Layer.
+- Five more funds over 18 xStocks (Magnificent 7, AI & Semiconductors, Crypto Economy, US Core Index, Retail Favorites), each priced by OnchainOS in the same five-minute run, recorded under its own product key in the same registry, verified in the browser on its own page, and bought with the demo balance. Only USTX has a share token, because the demo dollar has a single minter, the USTX fund.
+
+Validation of the snapshot source:
+
+- In the development repository, the typecheck, a clean build and 250 tests pass, and lint reports 0 errors; the contract suite's 100 tests pass.
+- After the deployments, the first nine-stock record and each new fund's first record were confirmed on X Layer with no warnings; on desktop and phone every fund page showed "NAV verified on X Layer", with no accessibility violations, horizontal overflow or console errors; the main routes returned 200 and the legacy routes redirected.
+- The same tests pass in this public checkout after `npm ci` (250), and so do the relayer typecheck and 30 tests.
 
 These are point-in-time observations, not continuous availability or a security audit.

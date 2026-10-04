@@ -224,7 +224,18 @@ export async function runXStocksCycle(env: EngineEnv, repo: EngineRepository, se
     return { navsPublished: 0, settlementsQueued, warnings: [...warnings, `${XSTOCKS_PRODUCT.ticker} lease lost while waiting for prices; stopped before writing`] };
   }
   const previous = deserializeBasket((await repo.getState(STATE_BASKET))?.value);
-  const evaluation = await evaluateBasket({ constituents, quotes, previous, now: calculatedAt, maxQuoteAgeMinutes: maxQuoteAgeMinutes(env) });
+  let evaluation = await evaluateBasket({ constituents, quotes, previous, now: calculatedAt, maxQuoteAgeMinutes: maxQuoteAgeMinutes(env) });
+  // A constituent being added joins at the first record that has a live price for it; until then
+  // the basket already held keeps being recorded, so a new name never stops the NAV.
+  const added = previous ? constituents.filter((constituent) => !previous.holdings.some((holding) => holding.symbol === constituent.symbol)) : [];
+  if (!evaluation.publishable && previous && added.length > 0) {
+    const held = constituents.filter((constituent) => previous.holdings.some((holding) => holding.symbol === constituent.symbol));
+    const fallback = held.length === previous.holdings.length ? await evaluateBasket({ constituents: held, quotes, previous, now: calculatedAt, maxQuoteAgeMinutes: maxQuoteAgeMinutes(env) }) : null;
+    if (fallback?.publishable) {
+      warnings.push(`${XSTOCKS_PRODUCT.ticker} recorded without ${added.map((constituent) => constituent.symbol).join(", ")} this cycle: ${evaluation.blockers.join("; ")}`);
+      evaluation = fallback;
+    }
+  }
 
   // Publish only what the browser verifier will accept: the same parser runs here first.
   if (evaluation.publishable && evaluation.canonical) {

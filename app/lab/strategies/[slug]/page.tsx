@@ -1,25 +1,9 @@
-import type { Metadata } from "next";
-import { notFound } from "next/navigation";
-import { etfs, getEtfBySlug } from "../../../data/etfs";
-import EtfDetailClient from "../../../etfs/[slug]/EtfDetailClient";
+import { notFound, redirect } from "next/navigation";
+import { getEtfBySlug } from "../../../data/etfs";
 
-export function generateStaticParams() {
-  return etfs.map((etf) => ({ slug: etf.slug }));
-}
-
-export async function generateMetadata({ params }: { params: Promise<{ slug: string }> }): Promise<Metadata> {
+// The earlier won-denominated paper strategies are retired from the public site: their links open USTX.
+export default async function LabStrategyPage({ params }: { params: Promise<{ slug: string }> }) {
   const { slug } = await params;
-  const etf = getEtfBySlug(slug);
-  if (!etf) return {};
-  return {
-    title: `${etf.ticker} paper strategy · Ganymede`,
-    description: `${etf.tagline} A crypto model strategy in the Ganymede paper lab: simulation only, no real money moves.`,
-  };
-}
-
-export default async function EtfDetailPage({ params }: { params: Promise<{ slug: string }> }) {
-  const { slug } = await params;
-  const etf = getEtfBySlug(slug);
-  if (!etf) notFound();
-  return <EtfDetailClient etf={etf} />;
+  if (!getEtfBySlug(slug)) notFound();
+  redirect("/products/ustx");
 }

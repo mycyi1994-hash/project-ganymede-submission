@@ -38,8 +38,6 @@ test("public product routes share navigation and select the right destination be
     ["/products/ustx", "/", "About USTX"],
     ["/products/ustx/transparency", "/products/ustx/transparency", "Transparency"],
     ["/portfolio", "/portfolio", "Your wallet on X Layer"],
-    // The separate test share ledger stays reachable by address but is not a primary destination.
-    ["/activity", null, "Your testnet share records"],
   ]) {
     const response = await render(path);
     assert.equal(response.status, 200, path);
@@ -113,20 +111,23 @@ test("Pools offers the live pool's liquidity from a wallet, with its figures rea
   assert.equal(html.match(/You are on X Layer Testnet/g).length, 1, "one testnet notice");
 });
 
-test("legacy URLs route to their matching product or simulation destination", async () => {
-  for (const [path, target] of [["/?app=select", "/products/ustx"], ["/?app=portfolio", "/lab"], ["/proof", "/products/ustx/transparency"], ["/etfs/gmd-core", "/lab/strategies/gmd-core"]]) {
+test("legacy URLs, the retired paper Lab's among them, route to the dollar product", async () => {
+  for (const [path, target] of [["/?app=select", "/products/ustx"], ["/?app=portfolio", "/portfolio"], ["/proof", "/products/ustx/transparency"], ["/etfs/gmd-core", "/products/ustx"], ["/lab", "/portfolio"], ["/lab/strategies/gmd-core", "/products/ustx"], ["/lab/verification", "/developers"], ["/activity", "/products/ustx"], [`/activity/0x${"a".repeat(64)}`, "/products/ustx"]]) {
     const response = await render(path);
     assert.ok([307, 308].includes(response.status), `${path}: ${response.status}`);
     assert.equal(new URL(response.headers.get("location"), "http://localhost").pathname, target);
   }
 });
 
-test("public Portfolio and Activity do not contain the local example account or simulated balances", async () => {
-  for (const path of ["/portfolio", "/activity"]) {
-    const html = visible(await (await render(path)).text());
-    assert.doesNotMatch(html, /12,454|125\.250000|Example account|Preview processing/);
-  }
-  assert.match(visible(await (await render("/activity")).text()), /href="\/lab"/);
+test("public Portfolio does not contain the local example account or simulated balances, and no operator console is public", async () => {
+  const html = visible(await (await render("/portfolio")).text());
+  assert.doesNotMatch(html, /12,454|125\.250000|Example account|Preview processing/);
+  const operations = visible(await (await render("/?app=operations")).text());
+  assert.doesNotMatch(operations, /Operator workspace|Fund operations|operator access/i, "the old operator console is not served to the public");
+  assert.match(operations, /US Tech Basket/);
+  const missing = await render("/not-a-page");
+  assert.equal(missing.status, 404);
+  assert.match(visible(await missing.text()), /Page not found/);
   const response = await render("/design-preview?screen=portfolio");
   assert.equal(response.status, 404, "design fixtures must not be served by the production build");
 });
@@ -142,6 +143,8 @@ test("transparency is a customer proof page that starts unverified and states it
   assert.match(html, /What verification covers/);
   assert.match(html, /What it does not cover/);
   assert.match(html, /href="\/developers#verify"/);
+  // Who can do what to each contract, read by the browser.
+  assert.match(html, /Who controls the contracts/);
   // Developer material lives on /developers, not on the customer page.
   assert.doesNotMatch(html, /Try to break it|npm run verify:evidence|Original composition document|NAV verified on X Layer/);
 });
@@ -163,18 +166,11 @@ test("the developer page keeps the checks, the experiment on a local copy and th
   assert.doesNotMatch(html, /<details[^>]*\bopen(?:[=>\s])/);
 });
 
-test("legacy paper products remain reachable and distinct from the customer portfolio", async () => {
-  const response = await render("/lab/strategies/gmd-core");
-  assert.equal(response.status, 200);
-  const html = visible(await response.text());
-  assert.match(html, /GANYMEDE CORE 20/);
-  assert.match(html, /Review simulation/);
-  assert.doesNotMatch(html, /\$23\.84/);
-  const lab = visible(await (await render("/lab")).text());
-  assert.match(lab, /Your paper portfolio/);
-  assert.match(lab, /aria-label="Paper strategies"/);
-  const exercise = visible(await (await render("/lab/verification")).text());
-  assert.match(exercise, /Try changing one price/);
+test("public pages are in US dollars and say nothing of paper portfolios", async () => {
+  for (const path of ["/", "/pools", "/products/ustx", "/products/ustx/transparency", "/portfolio", "/developers", "/issuers", "/methodology", "/limitations"]) {
+    const html = visible(await (await render(path)).text());
+    assert.doesNotMatch(html, /\bKRW\b|₩|paper portfolio|paper strateg|Strategy Lab|GMDCORE|share ledger|earlier work/i, path);
+  }
 });
 
 test("unknown ETF slugs return not found", async () => {
@@ -218,9 +214,14 @@ test("issuer, developer and embed pages render for partners", async () => {
   assert.match(issuers, /Plans/);
   assert.match(issuers, /Contact us/);
   assert.doesNotMatch(issuers, /Roadmap|Planned/);
+  assert.match(issuers, /How Ganymede earns/);
+  assert.match(issuers, /The road to mainnet/);
+  assert.match(issuers, /Usage so far/);
   const developers = visible(await (await render("/developers")).text());
   assert.match(developers, /\/api\/v1\/ustx/);
   assert.match(developers, /latestNav/);
+  assert.match(developers, /href="\/api\/v1\/openapi.json"/);
+  assert.match(developers, /href="\/llms.txt"/);
   assert.match(developers, /\/embed\/ustx/);
   assert.match(developers, /verify:evidence/);
   assert.match(developers, /Invest from a wallet or a contract/);
@@ -255,4 +256,22 @@ test("issuer, developer and embed pages render for partners", async () => {
   assert.equal(basket.status, 200);
   assert.match(visible(await basket.text()), /Loading the basket/);
   assert.match(visible(await (await render("/embed/basket?config=https://other.example/basket.json")).text()), /No basket configured/);
+});
+
+test("Markets lists every fund, and each fund other than USTX has its own page", async () => {
+  const markets = visible(await (await render("/")).text());
+  assert.match(markets, /All funds/);
+  for (const [id, name, ticker] of [["magnificent-7", "Magnificent 7", "M7X"], ["ai-chips", "AI &amp; Semiconductors", "AIX"], ["crypto-economy", "Crypto Economy", "CRYX"], ["us-core", "US Core Index", "CORX"], ["retail-favorites", "Retail Favorites", "RTLX"]]) {
+    const response = await render(`/funds/${id}`);
+    assert.equal(response.status, 200, id);
+    const html = visible(await response.text());
+    assert.match(html, new RegExp(name), id);
+    assert.match(html, new RegExp(ticker), id);
+    assert.match(html, /Demo fund/);
+    assert.doesNotMatch(html, /KRW|paper portfolio/i);
+  }
+  assert.equal((await render("/funds/nope")).status, 404);
+  const ustx = await render("/funds/us-tech-x");
+  assert.equal(ustx.status, 307);
+  assert.match(ustx.headers.get("location"), /\/products\/ustx$/);
 });

@@ -46,11 +46,11 @@ test("wallet value uses the verified document's price per token address with int
   assert.equal(valuation.totalMicros, total.toString());
   assert.equal(valuation.rows[0].weightBps, 0);
   assert.ok(valuation.rows.reduce((sum, row) => sum + row.weightBps, 0) <= 10_000);
-  assert.ok(valuation.rows.every((row) => row.modelWeightBps > 1600 && row.modelWeightBps < 1700));
+  assert.ok(valuation.rows.every((row) => row.modelWeightBps > 1050 && row.modelWeightBps < 1170));
   const statement = buildStatement(balances, valuation, { effectiveAt: now, holdingsHash: "0x" + "1".repeat(64), transactionHash: null }, new Date(now));
   assert.equal(statement.balances.blockNumber, 10);
   assert.equal(statement.totalValueMicros, valuation.totalMicros);
-  assert.equal(statement.holdings.length, 6);
+  assert.equal(statement.holdings.length, XSTOCK_TOKENS.length);
   const empty = valueWallet({ ...balances, balances: balances.balances.map((row) => ({ ...row, units: "0" })) }, doc);
   assert.equal(empty.totalMicros, "0");
   assert.throws(() => valueWallet({ ...balances, balances: [{ symbol: "XYZx", address: "0x" + "9".repeat(40), units: "1" }] }, doc));
@@ -59,7 +59,7 @@ test("wallet value uses the verified document's price per token address with int
 test("the basket plan splits an amount by current value weights without exceeding it", async () => {
   const doc = await composition();
   const plan = planBasket(1_000_000_000n, doc);
-  assert.equal(plan.length, 6);
+  assert.equal(plan.length, XSTOCK_TOKENS.length);
   const spent = plan.reduce((sum, row) => sum + BigInt(row.usdMicros), 0n);
   assert.ok(spent <= 1_000_000_000n && spent > 999_999_990n);
   for (const row of plan) assert.equal(row.units, (BigInt(row.usdMicros) * WAD / BigInt(row.priceMicros)).toString());
@@ -97,7 +97,7 @@ test("token facts require code, the expected symbol and 18 decimals", async () =
     return "0x" + word(18);
   });
   const facts = await readTokenFacts(fetcher);
-  assert.deepEqual(facts.map((fact) => fact.matches), [true, false, true, true, true, false]);
+  assert.deepEqual(facts.map((fact) => fact.matches), [true, false, true, true, true, false, true, true, true]);
   // The public RPC rejects batches of more than 10 calls, so the 19 reads are split.
   const { fetcher: counting, calls } = rpc((call) => call.method === "eth_chainId" ? "0xc4" : call.method === "eth_getCode" ? "0x60" : call.params[0].data === "0x95d89b41" ? abiString(XSTOCK_TOKENS.find((item) => item.address === call.params[0].to).symbol) : "0x" + word(18));
   assert.ok((await readTokenFacts(counting)).every((fact) => fact.matches));

@@ -88,3 +88,16 @@ PoolManager, each seed deterministic so a failure replays:
 
 What this does not cover: a formal verification, a third-party audit, or trades made before a NAV
 record lands by someone who knows it (see docs/UNISWAP_V4_LIQUIDITY.md, "What this does not cover").
+
+## Lending market fuzzing, 3 October 2026
+
+`onchain/test/GanymedeLendingMarket.test.ts` drives the market with random lending, withdrawals,
+collateral, borrowing (sometimes past the limit), repayment, liquidation, NAV moves from 15% down to 9%
+up, time jumps of up to two weeks and administrator pauses. After every step it checks that each
+account's principal and collateral add up to the market's totals, that the market holds every USTX
+posted, and that the dUSD it holds and is owed covers what it owes its lenders; that no borrow or
+collateral withdrawal leaves a loan past its limit; that only loans past the liquidation threshold are
+liquidated, at most half at a time, and every such loan can be; and that a pause never stops an exit. At
+the end every borrower repays and every lender withdraws in full, leaving only the market's reserves. A
+run of 10 seeds × 200 steps (`LENDING_FUZZ_SEEDS=10 LENDING_FUZZ_STEPS=200`) passed with 74 loans, 8
+liquidations and 98 repayments among 2,000 steps.

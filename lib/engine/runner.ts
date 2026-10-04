@@ -1,3 +1,4 @@
+import { runFundsCycle } from "../funds/cycle";
 import { ASSET_UNIVERSE, PRODUCT_DEFINITIONS } from "./seed";
 import { asBigInt, krwForShares, newId, notionalToUnitsAtomic, sharesForSubscription, unitsToMarketValueKrw } from "./fixed";
 import { SettlementClient, type SettlementRequest, type SettlementResult } from "./settlement";
@@ -432,7 +433,19 @@ export async function runUstxNavCycle(env: EngineEnv): Promise<XStocksCycleResul
   const owner = `${newId("cycle")}:scheduled`;
   if (!(await repo.acquireLease("portfolio-engine", owner, LEASE_TTL_SECONDS))) return null;
   try {
-    return await runXStocksCycle(env, repo, new SettlementClient(env), undefined, { renewLease: () => repo.acquireLease("portfolio-engine", owner, LEASE_TTL_SECONDS) });
+    const settlement = new SettlementClient(env);
+    const result = await runXStocksCycle(env, repo, settlement, undefined, { renewLease: () => repo.acquireLease("portfolio-engine", owner, LEASE_TTL_SECONDS) });
+    // The other funds follow the USTX record, which has already been sent; a failure here only
+    // leaves them unrecorded this cycle.
+    if (await repo.acquireLease("portfolio-engine", owner, LEASE_TTL_SECONDS)) {
+      try {
+        const funds = await runFundsCycle(env, repo, settlement);
+        console.log("Ganymede funds cycle", JSON.stringify({ navsPublished: funds.navsPublished, warnings: funds.warnings.slice(0, 8) }));
+      } catch (error) {
+        console.error("Ganymede funds cycle failed", error instanceof Error ? error.message : "error");
+      }
+    }
+    return result;
   } finally {
     await repo.releaseLease("portfolio-engine", owner).catch(() => undefined);
   }

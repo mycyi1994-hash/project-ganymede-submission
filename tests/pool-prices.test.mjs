@@ -1,11 +1,11 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { comparePrices, formatDifference, poolPriceMicros, POOL_FACTORY, readPoolPrices, XSTOCK_POOLS } from "../lib/xstocks/pool-prices.ts";
-import { runXStocksCycle, STATE_LATEST } from "../lib/xstocks/cycle.ts";
-import { XSTOCKS_CONSTITUENTS } from "../lib/xstocks/basket.ts";
+import { runXStocksCycle, STATE_BASKET, STATE_LATEST } from "../lib/xstocks/cycle.ts";
+import { XSTOCKS_CONSTITUENTS, basketNavMicros, fixBasket, serializeBasket } from "../lib/xstocks/basket.ts";
 
-// sqrtPriceX96 and the wrapper rate read from X Layer mainnet on 25 September 2026, with the prices
-// they give; every pool but MSFTx lists the stablecoin first.
+// sqrtPriceX96 and the wrapper rate read from X Layer mainnet on 25 September 2026 (GOOGLx, ORCLx and
+// PLTRx on 4 October), with the prices they give; MSFTx, ORCLx and PLTRx list the wrapper first.
 const SNAPSHOT = {
   AAPLx: { sqrt: "4294489313063688175353045796660612", rate: "1003269012539818700", micros: "339249108" },
   MSFTx: { sqrt: "1807632206191072682304369", rate: "1005903390478745600", micros: "517493264" },
@@ -13,12 +13,16 @@ const SNAPSHOT = {
   AMZNx: { sqrt: "5005966426575011346018237028070874", rate: "1000000000000000000", micros: "250485910" },
   METAx: { sqrt: "2889457901570345100966747783134730", rate: "1002851543327289800", micros: "749703912" },
   TSLAx: { sqrt: "4107125565436188973220897818428118", rate: "1000000000000000000", micros: "372120166" },
+  GOOGLx: { sqrt: "4269580521692971062703282575104386", rate: "1002377250060348700", micros: "343524367" },
+  ORCLx: { sqrt: "949692794221597732775262", rate: "1009318667481834000", micros: "142356994" },
+  PLTRx: { sqrt: "1089324422765352671509948", rate: "1000000000000000000", micros: "189040698" },
 };
+const WRAPPER_FIRST = new Set(["MSFTx", "ORCLx", "PLTRx"]);
 
 test("a pool's sqrt price and the wrapper rate give dollars per whole xStock", () => {
   for (const pool of XSTOCK_POOLS) {
     const { sqrt, rate, micros } = SNAPSHOT[pool.symbol];
-    assert.equal(poolPriceMicros(BigInt(sqrt), pool.symbol !== "MSFTx", BigInt(rate)).toString(), micros, pool.symbol);
+    assert.equal(poolPriceMicros(BigInt(sqrt), !WRAPPER_FIRST.has(pool.symbol), BigInt(rate)).toString(), micros, pool.symbol);
   }
   assert.throws(() => poolPriceMicros(0n, true, 10n ** 18n), /no price/);
 });
@@ -45,7 +49,7 @@ function mainnet(change = () => undefined) {
         else if (to === POOL_FACTORY) result = "0x" + word(pool.pool);
         else if (data === "0x38d52e0f") result = "0x" + word(pool.token);
         else if (data.startsWith("0x07a2d13a")) result = "0x" + word(BigInt(SNAPSHOT[pool.symbol].rate));
-        else if (data === "0x0dfe1681") result = "0x" + word(pool.symbol === "MSFTx" ? pool.wrapper : pool.stable.address);
+        else if (data === "0x0dfe1681") result = "0x" + word(WRAPPER_FIRST.has(pool.symbol) ? pool.wrapper : pool.stable.address);
         else if (data === "0x3850c7bd") result = "0x" + word(BigInt(SNAPSHOT[pool.symbol].sqrt)) + word(0).repeat(6);
       }
       return { jsonrpc: "2.0", id, result: change({ method, params, result }) ?? result };
@@ -59,7 +63,7 @@ test("the browser reads every pool at one block after confirming the pool and th
   const read = await readPoolPrices(fetcher);
   assert.equal(read.blockNumber, 71588383);
   assert.deepEqual(read.prices.map((price) => [price.symbol, price.priceMicros]), XSTOCK_POOLS.map((pool) => [pool.symbol, SNAPSHOT[pool.symbol].micros]));
-  assert.deepEqual(requests, [2, 10, 10, 10, 9]);
+  assert.deepEqual(requests, [2, 10, 10, 10, 10, 10, 7]);
   // A pool the factory does not name, a wrapper around another token, or another chain is refused.
   const elsewhere = "0x" + "9".repeat(40);
   await assert.rejects(readPoolPrices(mainnet(({ params, result }) => params[0]?.to === POOL_FACTORY && params[0].data.includes(XSTOCK_POOLS[0].wrapper.slice(2)) ? "0x" + word(elsewhere) : result).fetcher), /different AAPLx pool/);
@@ -127,4 +131,32 @@ test("the publisher records a NAV only when OnchainOS agrees with the pools, and
   assert.deepEqual(unreadable.latest.blockers, []);
   assert.equal(unreadable.requests.filter((request) => request.action === "publish_nav").length, 1);
   assert.match(unreadable.result.warnings.join(" "), /not compared with the X Layer pools: X Layer RPC 503/);
+});
+
+test("a constituent being added joins at its first priced record, and until then the six held are recorded", async (t) => {
+  const priced = (symbols) => async () => Response.json({ code: "0", data: XSTOCK_POOLS.filter((pool) => symbols.includes(pool.symbol)).map((pool) => ({ chainIndex: "196", tokenContractAddress: pool.token, price: (Number(SNAPSHOT[pool.symbol].micros) / 1e6).toString(), time: now })) });
+  const six = XSTOCK_POOLS.slice(0, 6);
+  const prices = new Map(six.map((pool) => [pool.symbol, BigInt(SNAPSHOT[pool.symbol].micros)]));
+  const previous = fixBasket(six.map((pool) => ({ symbol: pool.symbol, address: pool.token })), prices, 99_500_000n, "2026-09-25T17:00:00.000Z");
+  const run = async (symbols) => {
+    const repo = memoryRepo();
+    repo.rows.set(STATE_BASKET, serializeBasket(previous));
+    const requests = [];
+    const settlement = { async settle(request) { requests.push(request); return { id: "stl", payloadHash: "0x", blockNumber: null, status: "confirmed", txHash: "0x1", error: null }; } };
+    t.mock.method(globalThis, "fetch", priced(symbols));
+    const result = await runXStocksCycle(credentials, repo, settlement, now, { poolPrices: async () => ({ blockNumber: 71588383, blockTime: now, ...pools }) });
+    t.mock.restoreAll();
+    return { result, requests, basket: JSON.parse(repo.rows.get(STATE_BASKET)) };
+  };
+  // OnchainOS has no price for the three new names yet: the six are recorded, with a warning.
+  const waiting = await run(six.map((pool) => pool.symbol));
+  assert.equal(waiting.requests.filter((request) => request.action === "publish_nav").length, 1);
+  assert.equal(waiting.basket.holdings.length, 6);
+  assert.match(waiting.result.warnings.join(" "), /recorded without GOOGLx, ORCLx, PLTRx this cycle: No live price for GOOGLx/);
+  // Once every name is priced, the basket re-fixes to nine at the prevailing NAV and says so on chain.
+  const joined = await run(XSTOCK_POOLS.map((pool) => pool.symbol));
+  const actions = joined.requests.map((request) => request.action);
+  assert.ok(actions.includes("publish_nav") && actions.includes("publish_rebalance"), actions.join(","));
+  assert.equal(joined.basket.holdings.length, 9);
+  assert.equal(joined.basket.navAtFixingMicros, basketNavMicros(previous, prices).toString());
 });

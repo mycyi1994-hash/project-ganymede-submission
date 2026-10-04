@@ -1,3 +1,4 @@
-import ProofClient from "../../proof/ProofClient";
-export const metadata = { title: "Verification lab · Ganymede" };
-export default function VerificationLabPage() { return <ProofClient />; }
+import { redirect } from "next/navigation";
+
+// The verification exercise lives on the developer page.
+export default function VerificationLabPage() { redirect("/developers#verify"); }

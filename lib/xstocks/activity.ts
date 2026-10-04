@@ -16,7 +16,7 @@ export const ACTIVITY_FIRST_BLOCK = 41_844_113;
 /** Rows served and shown, newest first. */
 export const ACTIVITY_LIMIT = 40;
 /** Rows the scheduled job keeps: more than a day of activity, which the 24-hour figures count. */
-export const ACTIVITY_KEEP = 200;
+export const ACTIVITY_KEEP = 1_500;
 /** The most blocks a page reads itself past the served rows: ten requests. */
 export const ACTIVITY_TAIL_BLOCKS = 1_000;
 const CHUNK_BLOCKS = 100;

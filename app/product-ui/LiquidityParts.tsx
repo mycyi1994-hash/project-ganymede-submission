@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState, type Ref } from "react";
 import { FUND_WALLET_CHAIN, POOL_ORDER_SECONDS, fundErrorMessage, readChainTime, simulateFundCall, waitForFundReceipt, type FundReceipt, type TransactionCall } from "@/lib/xstocks/fund";
 import { Icon } from "./Icons";
+import { OkxAppLink } from "./OkxApp";
 import { useWalletAccount } from "./WalletAccount";
 import { TxLink, sendFromWallet, switchToTestnet, type Provider } from "./WalletInvest";
 
@@ -79,7 +80,7 @@ export function WalletGate({ provider, chain, purpose }: { provider: Provider | 
   const connected = source === "wallet" && Boolean(address);
   if (!provider) return <div className="gmd-wallet-gate">
     <p>{purpose} from your own wallet on X Layer Testnet. Install the OKX Wallet extension, or open this page in the OKX app’s browser.</p>
-    <a className="gmd-button" href="https://www.okx.com/web3" target="_blank" rel="noreferrer">Get OKX Wallet <Icon name="external" size={16} /><span className="gmd-sr-only"> (opens in a new tab)</span></a>
+    <div className="gmd-wallet-gate-actions"><OkxAppLink className="gmd-button" /><a className="gmd-button is-secondary" href="https://www.okx.com/web3" target="_blank" rel="noreferrer">Get OKX Wallet <Icon name="external" size={16} /><span className="gmd-sr-only"> (opens in a new tab)</span></a></div>
   </div>;
   if (!connected) return <div className="gmd-wallet-gate">
     <p>Connect OKX Wallet to provide liquidity with USTX and demo dollars, which have no value, and earn the pool’s fees.</p>

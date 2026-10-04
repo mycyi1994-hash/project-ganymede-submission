@@ -105,7 +105,7 @@ export function ustxTools(origin: string): McpTool[] {
     {
       name: "get_ustx_holdings",
       title: "What one USTX share holds",
-      description: "The six xStocks behind one USTX share in the latest verified record: each token's X Layer mainnet address, units per share, OKX OnchainOS price, value per share and weight.",
+      description: "The xStocks behind one USTX share in the latest verified record: each token's X Layer mainnet address, units per share, OKX OnchainOS price, value per share and weight.",
       inputSchema: NO_INPUT,
       run: async () => {
         const { record, checks } = await verifiedRecord();

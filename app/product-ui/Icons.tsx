@@ -22,15 +22,16 @@ export function Icon({ name, size = 20 }: { name: "arrow" | "back" | "external" 
 }
 
 // One hue per xStock, in basket order. Checked as a ring (the last segment meets the first) with the
-// dataviz palette validator on white: adjacent colour-blind separation ΔE 8.4, normal vision 17.8.
-// AMZNx sits under 3:1 against white, so every chart that uses them also names each asset in text.
-export const assetColors: Record<string, string> = { AAPLx: "#296dc0", MSFTx: "#d66235", NVDAx: "#25a071", AMZNx: "#da971f", METAx: "#d47498", TSLAx: "#097508" };
+// dataviz palette validator on white: adjacent colour-blind separation ΔE 8.4, normal vision 15.8.
+// Nine is past the eight-hue palette, so PLTRx's plum was chosen to pass every check beside its
+// neighbours, and AMZNx sits under 3:1 against white: every chart that uses them names each asset in text.
+export const assetColors: Record<string, string> = { AAPLx: "#296dc0", MSFTx: "#d66235", NVDAx: "#25a071", AMZNx: "#da971f", METAx: "#d47498", TSLAx: "#097508", GOOGLx: "#4a3aa7", ORCLx: "#e34948", PLTRx: "#8f4f8f" };
 export function assetStyle(symbol: string): CSSProperties { return { "--asset-color": assetColors[symbol] ?? "#526570" } as CSSProperties; }
-export const assetNames: Record<string, string> = { AAPLx: "Apple", MSFTx: "Microsoft", NVDAx: "NVIDIA", AMZNx: "Amazon", METAx: "Meta", TSLAx: "Tesla" };
+export const assetNames: Record<string, string> = { AAPLx: "Apple", MSFTx: "Microsoft", NVDAx: "NVIDIA", AMZNx: "Amazon", METAx: "Meta", TSLAx: "Tesla", GOOGLx: "Alphabet", ORCLx: "Oracle", PLTRx: "Palantir" };
 export const assetSymbols = Object.keys(assetNames);
 
 export function AssetMark({ symbol }: { symbol: string }) {
-  const brand = ({ AAPLx: "apple", MSFTx: "microsoft", NVDAx: "nvidia", AMZNx: "amazon", METAx: "meta", TSLAx: "tesla" } as Record<string, string>)[symbol];
+  const brand = ({ AAPLx: "apple", MSFTx: "microsoft", NVDAx: "nvidia", AMZNx: "amazon", METAx: "meta", TSLAx: "tesla", GOOGLx: "google", ORCLx: "oracle", PLTRx: "palantir", AMDx: "amd", INTCx: "intel", COINx: "coinbase", MSTRx: "microstrategy", CRCLx: "circle", HOODx: "robinhood" } as Record<string, string>)[symbol];
   return <span className="gmd-asset-mark" aria-hidden="true">{brand === "microsoft" ? <span className="gmd-ms"><i /><i /><i /><i /></span> : brand ? <img src={`/brands/${brand}.svg`} alt="" width="24" height="24" /> : symbol.slice(0, 1)}</span>;
 }
 

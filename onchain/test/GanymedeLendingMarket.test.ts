@@ -17,6 +17,19 @@ function expectNear(actual: bigint, expected: bigint, tolerance: bigint) {
   expect(difference <= tolerance, `${actual} is not within ${tolerance} of ${expected}`).to.equal(true);
 }
 
+/** The revert reasons in a viem error and its causes. */
+function errorNames(error: unknown): string {
+  const parts: string[] = [];
+  let current = error as Record<string, unknown> | undefined;
+  for (let depth = 0; current && depth < 10; depth++) {
+    const data = current.data as Record<string, unknown> | undefined;
+    if (data && typeof data.errorName === "string") parts.push(data.errorName);
+    if (typeof current.details === "string") parts.push(current.details);
+    current = current.cause as Record<string, unknown> | undefined;
+  }
+  return parts.join(" ");
+}
+
 async function deploy() {
   const [admin, relayer, lender, borrower, liquidator, other] = await hre.viem.getWalletClients();
   const publicClient = await hre.viem.getPublicClient();
@@ -362,4 +375,177 @@ describe("GanymedeLendingMarket", () => {
     await market.write.unpause({ account: lender.account });
     expect(await market.read.paused()).to.equal(false);
   });
+  it("stays solvent and keeps every account's books, across random orders, NAV paths, time and pauses", async () => {
+    // LENDING_FUZZ_SEEDS and LENDING_FUZZ_STEPS run it longer (LENDING_FUZZ_REPORT prints what
+    // happened); each seed replays.
+    const seeds = Number(process.env.LENDING_FUZZ_SEEDS ?? 3);
+    const steps = Number(process.env.LENDING_FUZZ_STEPS ?? 60);
+    const { market, dollar, fund, admin, lender, borrower, liquidator, other, publish, prepare, activate } = await deploy();
+    const accounts = [lender, borrower, other];
+    let nav = NAV;
+    await publish(nav);
+    for (const wallet of [...accounts, liquidator]) await prepare(wallet);
+    await activate();
+    let paused = false;
+    const counts: Record<string, number> = {};
+    const tally = (name: string) => { counts[name] = (counts[name] ?? 0) + 1; };
+    // Runs one order; a refusal must be one of the reasons it may give, and never a pause unless it
+    // is an order a pause stops.
+    async function attempt(name: string, order: () => Promise<unknown>, allowed: string[]) {
+      try {
+        await order();
+        tally(name);
+        return true;
+      } catch (error) {
+        const names = errorNames(error);
+        const reason = allowed.find(allowedReason => names.includes(allowedReason));
+        if (!reason) throw new Error(`${name} failed with ${names}: ${String(error).slice(0, 1500)}`);
+        tally(`${name} refused: ${reason}`);
+        return false;
+      }
+    }
+    const pauseStops = (stoppable: boolean) => (stoppable && paused ? ["ContractPaused"] : []);
+    async function checkBooks(where: string) {
+      const principals = await Promise.all(accounts.map(async wallet => [
+        await market.read.supplyPrincipalOf([wallet.account.address]),
+        await market.read.borrowPrincipalOf([wallet.account.address]),
+        await market.read.collateralOf([wallet.account.address]),
+      ]));
+      const sum = (index: number) => principals.reduce((total, row) => total + row[index], 0n);
+      expect(sum(0), `${where}: lenders' principal`).to.equal(await market.read.totalSupplyPrincipal());
+      expect(sum(1), `${where}: borrowers' principal`).to.equal(await market.read.totalBorrowPrincipal());
+      expect(sum(2), `${where}: collateral`).to.equal(await market.read.totalCollateral());
+      expect(await fund.read.balanceOf([market.address]), `${where}: USTX held`).to.equal(await market.read.totalCollateral());
+      // What the market holds and is owed always covers what it owes its lenders, to rounding.
+      const assets = (await market.read.cash()) + (await market.read.totalBorrowed());
+      const owed = await market.read.totalSupplied();
+      expect(assets + 10n >= owed, `${where}: holds and is owed ${assets}, owes ${owed}`).to.equal(true);
+    }
+    for (let run = 0; run < seeds; run++) {
+      let state = 0x51ed2701n + BigInt(run) * 0x9e3779b9n;
+      const random = (below: bigint) => {
+        state = (state * 6364136223846793005n + 1442695040888963407n) & ((1n << 64n) - 1n);
+        return (state >> 33n) % below;
+      };
+      for (let step = 0; step < steps; step++) {
+        const where = `seed ${run} step ${step}`;
+        // Time passes, from seconds to a couple of weeks, and a new record follows, from 15% down to
+        // 9% up, so loans drift toward liquidation; after a crash below $20 the price recovers.
+        if (random(4n) === 0n) await time.increase(Number(random(14n * 86_400n)) + 1);
+        if (random(2n) === 0n) nav = (nav * (10_000n + random(2_400n) - 1_500n)) / 10_000n;
+        if (nav < 20n * USD) nav = NAV;
+        await publish(nav);
+        // The administrator pauses now and then, for a few steps at a time.
+        if (random(paused ? 4n : 25n) === 0n) {
+          paused = !paused;
+          await (paused ? market.write.pause({ account: admin.account }) : market.write.unpause({ account: admin.account }));
+        }
+        const wallet = accounts[Number(random(BigInt(accounts.length)))];
+        const address = wallet.account.address;
+        // A wallet low on demo dollars claims more the next day.
+        if (await dollar.read.balanceOf([address]) < 1_000n * USD) {
+          await time.increase(86_400);
+          await dollar.write.claim({ account: wallet.account });
+          await publish(nav);
+        }
+        const dollars = await dollar.read.balanceOf([address]);
+        const amount = (random(1_500n) + 1n) * USD + random(USD);
+        switch (random(11n)) {
+          case 0n:
+            await attempt("supply", () => market.write.supply([amount < dollars ? amount : dollars], { account: wallet.account }), ["InvalidAmount", ...pauseStops(true)]);
+            break;
+          case 1n: {
+            const all = random(3n) === 0n;
+            const balance = await market.read.supplyBalanceOf([address]);
+            await attempt("withdraw", () => market.write.withdraw([all ? maxUint256 : random(balance + 1n)], { account: wallet.account }), ["InvalidAmount", "InsufficientLiquidity", "InsufficientBalance"]);
+            break;
+          }
+          case 2n:
+          case 3n: {
+            const invest = amount / 2n < dollars ? amount / 2n : dollars;
+            if (invest >= 10n * USD && !paused) await fund.write.invest([invest, 0n], { account: wallet.account });
+            const shares = await fund.read.balanceOf([address]);
+            await attempt("post collateral", () => market.write.supplyCollateral([shares], { account: wallet.account }), ["InvalidAmount", ...pauseStops(true)]);
+            break;
+          }
+          case 4n: {
+            const held = await market.read.collateralOf([address]);
+            if (await attempt("withdraw collateral", () => market.write.withdrawCollateral([random(4n) === 0n ? maxUint256 : random(held + 1n)], { account: wallet.account }), ["InvalidAmount", "InsufficientCollateral"])) {
+              const [, limit] = await market.read.collateralValueOf([address]);
+              const debt = await market.read.borrowBalanceOf([address]);
+              expect(debt === 0n || debt <= limit + 1n, `${where}: collateral left ${limit} under debt ${debt}`).to.equal(true);
+            }
+            break;
+          }
+          case 5n:
+          case 6n:
+          case 7n: {
+            const [, limit] = await market.read.collateralValueOf([address]);
+            const debt = await market.read.borrowBalanceOf([address]);
+            const room = limit > debt ? limit - debt : 0n;
+            // Mostly within the limit, sometimes over it, which must be refused.
+            const ask = random(5n) === 0n ? room + USD : random(2n) === 0n ? room : room / 2n + random(room / 2n + 1n);
+            if (await attempt("borrow", () => market.write.borrow([ask], { account: wallet.account }), ["InvalidAmount", "BelowMinimum", "InsufficientLiquidity", "InsufficientCollateral", ...pauseStops(true)])) {
+              const [, after] = await market.read.collateralValueOf([address]);
+              expect(await market.read.borrowBalanceOf([address]) <= after + 1n, `${where}: borrowed past the limit`).to.equal(true);
+            }
+            break;
+          }
+          case 8n: {
+            const debt = await market.read.borrowBalanceOf([address]);
+            if (debt > dollars) {
+              await time.increase(86_400);
+              await dollar.write.claim({ account: wallet.account });
+              await publish(nav);
+            }
+            await attempt("repay", () => market.write.repay([random(3n) === 0n ? maxUint256 : random(debt + 1n)], { account: wallet.account }), ["InvalidAmount"]);
+            break;
+          }
+          default: {
+            const liquidatable = await market.read.isLiquidatable([address]);
+            const held = await market.read.collateralOf([address]);
+            const debtBefore = await market.read.borrowBalanceOf([address]);
+            if (await dollar.read.balanceOf([liquidator.account.address]) < debtBefore) {
+              await time.increase(86_400);
+              await dollar.write.claim({ account: liquidator.account });
+              await publish(nav);
+            }
+            const done = await attempt("liquidate", () => market.write.liquidate([address, maxUint256, 0n], { account: liquidator.account }), ["NotLiquidatable", "InvalidAmount"]);
+            // Only a loan past the threshold can be liquidated, at most half of it is repaid at a
+            // time, and never more USTX is taken than was posted.
+            if (done) {
+              expect(liquidatable, `${where}: liquidated a covered loan`).to.equal(true);
+              expect(await market.read.collateralOf([address]) <= held).to.equal(true);
+              expect(await market.read.borrowBalanceOf([address]) >= debtBefore / 2n - 1n, `${where}: repaid more than the close factor`).to.equal(true);
+            } else if (liquidatable && debtBefore > 0n && held > 0n) {
+              throw new Error(`${where}: a loan past the threshold could not be liquidated`);
+            }
+          }
+        }
+        await checkBooks(where);
+      }
+    }
+    // Everyone can still leave: borrowers repay and take back their USTX, then lenders withdraw all.
+    if (paused) await market.write.unpause({ account: admin.account });
+    await time.increase(86_400);
+    await publish(nav);
+    for (const wallet of accounts) {
+      if (await market.read.borrowBalanceOf([wallet.account.address]) > 0n) {
+        await dollar.write.claim({ account: wallet.account });
+        await market.write.repay([maxUint256], { account: wallet.account });
+      }
+      if (await market.read.collateralOf([wallet.account.address]) > 0n) await market.write.withdrawCollateral([maxUint256], { account: wallet.account });
+    }
+    for (const wallet of accounts) {
+      if (await market.read.supplyPrincipalOf([wallet.account.address]) > 0n) await market.write.withdraw([maxUint256], { account: wallet.account });
+    }
+    await checkBooks("after everyone left");
+    expect([await market.read.totalSupplyPrincipal(), await market.read.totalBorrowPrincipal(), await market.read.totalCollateral()]).to.deep.equal([0n, 0n, 0n]);
+    // What stays is the market's share of the interest.
+    expect(await market.read.cash()).to.equal(await market.read.reserves());
+    if (process.env.LENDING_FUZZ_REPORT) console.log(JSON.stringify(counts));
+    for (const name of ["supply", "withdraw", "post collateral", "borrow", "repay", "liquidate"]) {
+      expect((counts[name] ?? 0) > 0, `no ${name} in ${JSON.stringify(counts)}`).to.equal(true);
+    }
+  }).timeout(0); // its length follows LENDING_FUZZ_SEEDS and LENDING_FUZZ_STEPS
 });

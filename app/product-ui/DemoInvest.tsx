@@ -205,7 +205,7 @@ export function DemoPortfolio() {
       <div className="gmd-position-table">
         <div className="gmd-position-row is-head"><span>Basket</span><span>Shares</span><span>Value</span><span>Return</span><span>Actions</span></div>
         {shares === 0n ? <p className="gmd-empty-note">You hold no USTX yet. Start with {formatUsdMicros(cash, 2)} in demo dollars.</p> : <div className="gmd-position-row">
-          <div className="gmd-position-name"><span className="gmd-mini-monogram">G</span><div><b>US Tech Basket</b><small>USTX · 6 xStocks</small></div></div>
+          <div className="gmd-position-name"><span className="gmd-mini-monogram">G</span><div><b>US Tech Basket</b><small>USTX · 9 xStocks</small></div></div>
           <div><span className="gmd-mobile-label">Shares</span><b>{formatShares(shares)}</b><small>{nav ? `${formatUsdMicros(nav.navMicros, 4)} / share` : ""}</small></div>
           <div><span className="gmd-mobile-label">Value</span><b>{value === null ? "—" : formatUsdRounded(value)}</b><small>{formatUsdMicros(cost, 2)} invested</small></div>
           <div className={tone}><span className="gmd-mobile-label">Return</span><b>{gain === null ? "—" : signed(gain)}</b><small>{percent === null ? "" : signedPercent(percent)}</small></div>
@@ -213,7 +213,7 @@ export function DemoPortfolio() {
         </div>}
       </div>
       {shares > 0n && <section className="gmd-inside" aria-labelledby="inside-title">
-        <header className="gmd-section-heading"><div><h3 id="inside-title">Inside your USTX</h3><p>Your {formatShares(shares)} shares, looked through to the six xStocks.</p></div></header>
+        <header className="gmd-section-heading"><div><h3 id="inside-title">Inside your USTX</h3><p>Your {formatShares(shares)} shares, looked through to the nine xStocks.</p></div></header>
         {composition ? <BasketTable composition={composition} sharesMicros={shares} label="Your USTX looked through to each xStock" chart /> : <p className="gmd-caption">Waiting for the latest record to show what your shares hold…</p>}
         <p className="gmd-caption">Each USTX share is valued as fixed token amounts of each xStock until the next quarterly rebalance. Values use the latest OKX OnchainOS prices recorded on X Layer.</p>
       </section>}

@@ -16,6 +16,7 @@ import {
   type LiquidityAccount, type LiquidityFill, type PoolLiquidity, type PoolYield,
 } from "@/lib/xstocks/liquidity";
 import { Icon, Skeleton } from "./Icons";
+import GasNotice from "./GasNotice";
 import { useMarket } from "./MarketProvider";
 import { PremiumGauge } from "./Fund";
 import { plain } from "./Lending";
@@ -527,7 +528,7 @@ function LiquidityPanel({ provider, chain, owner, reader, onBusy }: { provider: 
       : claimable ? <button type="button" className="gmd-small-button" disabled={!fresh} onClick={() => void claimDollars()}>Get {formatUsdRounded(FUND_CLAIM_MICROS)} demo dollars</button>
       : <span>More demo dollars in {waitLabel(account.nextClaimAt, now)}</span>}
       {claim?.state === "failed" && <p className="gmd-inline-error" role="alert">{claim.message}</p>}</div>
-    {account.gasWei === 0n && <p className="gmd-wallet-gas" role="status"><Icon name="info" size={16} /><span>You need test OKB to pay network fees. <a href={FUND_DEPLOYMENT.faucetUrl} target="_blank" rel="noreferrer">Get test OKB<span className="gmd-sr-only"> (opens in a new tab)</span></a></span></p>}
+    <GasNotice address={address} gasWei={account.gasWei} onFunded={reader.retry} />
     {tab === "add" ? <>
       <div className="gmd-segmented gmd-liquidity-mode" role="group" aria-label="Deposit with">
         <button type="button" aria-pressed={mode === "pair"} onClick={() => { setMode("pair"); setFailure(null); }}>USTX + dUSD</button>

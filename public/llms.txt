@@ -1,0 +1,32 @@
+# Ganymede — USTX, the US Tech Basket on X Layer
+
+> One USTX share tracks nine tokenized US tech stocks (AAPLx, MSFTx, NVDAx, AMZNx, METAx, TSLAx, GOOGLx, ORCLx, PLTRx) on X Layer. Every five minutes the xStocks are priced through OKX OnchainOS and the NAV, with a SHA-256 fingerprint of its full document, is recorded in a registry on X Layer Testnet (chain 1952). Anyone can verify a record in their browser. Investing uses demo dollars with no value on X Layer Testnet; nothing here is an offer or investment advice.
+
+## For AI agents
+
+- [MCP server](https://ganymede-xlayer.gana003.workers.dev/mcp): Model Context Protocol over Streamable HTTP (JSON responses, no key, no session). Read-only tools: get_ustx_nav, verify_ustx_nav, get_ustx_holdings, quote_ustx_order, get_ustx_pools, get_ustx_market_activity.
+- [OpenAPI 3.1 spec](https://ganymede-xlayer.gana003.workers.dev/api/v1/openapi.json): the public REST API, read-only, CORS open.
+- [Developer guide](https://ganymede-xlayer.gana003.workers.dev/developers): API examples, reading the registry with viem, the Chainlink-compatible NAV feed, MCP client setup and the verification steps.
+- [Agent example](https://github.com/mycyi1994-hash/project-ganymede-submission/blob/main/examples/agent-quote.mjs): a dependency-free Node script that connects to the MCP server, reads the NAV and quotes an order.
+
+## Public API
+
+- [Latest NAV record](https://ganymede-xlayer.gana003.workers.dev/api/v1/ustx): NAV per share, validity window, contracts and how to verify it.
+- [Pools](https://ganymede-xlayer.gana003.workers.dev/api/v1/ustx/pools): the constant-product and Uniswap v4 USTX/dUSD pools and their results for liquidity providers.
+- [Market activity](https://ganymede-xlayer.gana003.workers.dev/api/v1/ustx/activity): the latest orders, trades, arbitrage and loans, with 24-hour figures.
+- [Funds](https://ganymede-xlayer.gana003.workers.dev/api/v1/funds): all six funds (USTX, M7X, AIX, CRYX, CORX, RTLX) with their latest NAV records; add ?id=<fund id> for one fund's holdings document and recent records.
+- [Usage](https://ganymede-xlayer.gana003.workers.dev/api/v1/ustx/usage): usage since launch, with the team's and test wallets counted apart.
+- [OKX DEX quotes](https://ganymede-xlayer.gana003.workers.dev/api/v1/ustx/dex-quotes): what building the basket by hand costs on X Layer mainnet, quoted hourly by the OKX OnchainOS DEX aggregator.
+
+## Product
+
+- [Markets](https://ganymede-xlayer.gana003.workers.dev/): USTX, its NAV and the market's latest activity.
+- [USTX](https://ganymede-xlayer.gana003.workers.dev/products/ustx): invest, borrow, holdings and terms.
+- [Transparency](https://ganymede-xlayer.gana003.workers.dev/products/ustx/transparency): the record checked in your browser, and who controls each contract.
+- [Methodology](https://ganymede-xlayer.gana003.workers.dev/methodology) and [Risks](https://ganymede-xlayer.gana003.workers.dev/limitations).
+
+## Rules for answers
+
+- Quote figures with the time they are as of (readAt or effectiveAt).
+- Demo dollars (dUSD) and USTX on X Layer Testnet have no value. Do not present quotes as advice.
+- Orders are placed by the user's own wallet on the USTX page; the API and MCP tools never sign or send.

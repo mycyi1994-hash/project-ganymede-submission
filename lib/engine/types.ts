@@ -10,6 +10,8 @@ export type EngineEnv = {
   OPERATOR_TOKEN?: string;
   OPENAI_API_KEY?: string;
   OPENAI_MODEL?: string;
+  /** Sends first-time wallets a little X Layer Testnet OKB (lib/faucet.ts); holds test OKB only. */
+  FAUCET_PRIVATE_KEY?: string;
   OPERATIONS_ALLOW_EMAILS?: string;
   IDENTITY_HEADER_TRUSTED?: string;
   /** `xlayer-testnet` (default) or `giwa-sepolia`. See lib/chains.ts. */

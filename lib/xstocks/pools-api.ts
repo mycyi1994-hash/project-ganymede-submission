@@ -13,6 +13,7 @@ import { FUND_DEPLOYMENT, POOL_FEE_BPS, fundExplorer } from "./fund";
 import { POOL_LAUNCHED_AT, lpTokenValueMicros, poolValueMicros, readLiquidity, readPoolYield } from "./liquidity";
 import { annualizedPer, parseLpMarkout, type LpMarkout, type PoolResult } from "./lp-markout";
 import { V4_POOL_DEPLOYMENT, readV4Pool, v4ValueMicros } from "./v4-liquidity";
+import { snapshotOrRead, storeSnapshot, type Snapshot } from "./snapshot";
 
 /** Every minute: a snapshot of both pools for the public API. */
 export const POOLS_CRON = "* * * * *";
@@ -22,7 +23,7 @@ export const POOLS_SNAPSHOT_FRESH_MS = 90_000;
 
 type Db = EngineEnv["DB"];
 export type PoolsBody = Record<string, unknown>;
-export type PoolsRead = { body: PoolsBody; readAt: number };
+export type PoolsRead = Snapshot<PoolsBody>;
 
 const WAD = 10n ** 18n;
 /** "6.62" from an 18-decimal fraction: percent to two decimals, rounded toward zero. */
@@ -122,36 +123,10 @@ export async function readPools(db: Db): Promise<PoolsBody> {
 
 /** The cron's job: read both pools and store them for the public API. */
 export async function runPoolsSnapshot(env: Pick<EngineEnv, "DB">, now: () => number = Date.now): Promise<PoolsRead> {
-  const body = await readPools(env.DB);
-  const read = { body, readAt: now() };
-  await new EngineRepository(env.DB).setState(STATE_POOLS_SNAPSHOT, JSON.stringify(read));
-  return read;
+  return storeSnapshot(env.DB, STATE_POOLS_SNAPSHOT, await readPools(env.DB), now());
 }
 
-/** The last stored snapshot, or null. */
-export async function readPoolsSnapshot(db: Db): Promise<PoolsRead | null> {
-  const raw = (await new EngineRepository(db).getState(STATE_POOLS_SNAPSHOT))?.value;
-  if (!raw) return null;
-  try {
-    const read = JSON.parse(raw) as PoolsRead;
-    return read && typeof read.readAt === "number" && read.body && typeof read.body === "object" ? read : null;
-  } catch {
-    return null;
-  }
-}
-
-/**
- * The pools for a public request: the cron's snapshot while it is fresh, otherwise a read of X Layer
- * now, otherwise (X Layer down) a snapshot up to staleMs old, marked stale. Reads only.
- */
-export async function poolsForRequest(db: Db, staleMs: number, now: () => number = Date.now): Promise<PoolsRead & { stale: boolean }> {
-  const snapshot = await readPoolsSnapshot(db).catch(() => null);
-  const age = snapshot ? now() - snapshot.readAt : Infinity;
-  if (snapshot && age < POOLS_SNAPSHOT_FRESH_MS) return { ...snapshot, stale: false };
-  try {
-    return { body: await readPools(db), readAt: now(), stale: false };
-  } catch (error) {
-    if (snapshot && age < staleMs) return { ...snapshot, stale: true };
-    throw error;
-  }
+/** The pools for a public request: see snapshotOrRead. Reads only. */
+export function poolsForRequest(db: Db, staleMs: number, now: () => number = Date.now) {
+  return snapshotOrRead(db, STATE_POOLS_SNAPSHOT, () => readPools(db), { freshMs: POOLS_SNAPSHOT_FRESH_MS, staleMs, now });
 }

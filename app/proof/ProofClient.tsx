@@ -167,7 +167,7 @@ export default function ProofClient() {
   const checkList = [
     { label: "Direct chain read", check: checks?.chain, description: "Read from X Layer in your browser." },
     { label: "Composition hash", check: checks?.hash, description: "The document matches the hash on chain." },
-    { label: "Recalculated NAV", check: checks?.nav, description: "Six holding values sum to the recorded NAV." },
+    { label: "Recalculated NAV", check: checks?.nav, description: "The holding values sum to the recorded NAV." },
   ];
   const passed = checkList.filter(({ check }) => check?.state === "pass").length;
   const summaryState = error || checks?.rpcError ? "unavailable" : !data ? "loading" : !record ? "waiting" : !checks ? "checking" : checkList.some(({ check }) => check?.state === "fail") ? "fail" : passed === 3 ? "pass" : "waiting";
@@ -198,7 +198,7 @@ export default function ProofClient() {
         <div>
           <p className="proof-kicker">GMD USTX · NAV evidence</p>
           <h1 id="proof-title">The value.<br />And the evidence.</h1>
-          <p className="proof-lede">Follow one published model share from its six holding values to the X Layer Testnet record. Your browser checks whether the calculation, document and record agree.</p>
+          <p className="proof-lede">Follow one published model share from its holding values to the X Layer Testnet record. Your browser checks whether the calculation, document and record agree.</p>
           <div className="proof-jump-links"><a href="#proof-verify">Results</a><a href="#proof-experiment">Try a change</a><a href="#proof-holdings">Calculation</a><a href="#proof-record">Chain record</a></div>
         </div>
         <div className="proof-record" role="group" aria-label="Last on-chain NAV">
@@ -238,7 +238,7 @@ export default function ProofClient() {
           {(composition?.holdings ?? []).map((holding) => <tr key={holding.symbol}><th scope="row"><div className="proof-stock"><StockMark symbol={holding.symbol} /><span><b>{holding.symbol}</b><small>{data?.pricing.constituents.find((item) => item.symbol === holding.symbol)?.name}</small></span></div></th><td><span>{(holding.weightBps / 100).toFixed(2)}%</span><span className="proof-weight-track" aria-hidden="true"><i style={{ width: `${Math.max(0, Math.min(100, holding.weightBps / 100))}%` }} /></span></td><td>{usd(holding.valueMicros, 4)}</td></tr>)}
         </tbody></table>{!composition && <p className="proof-empty">{data ? "No published composition matched this chain record. Check again or inspect the source records below." : error ? "Composition unavailable." : "Loading composition…"}</p>}</div>
         </div>
-        <div className="nav-calculation"><div><span>For each holding</span><strong>Token units × token price</strong><p>Each holding is rounded down to USD micros before summing. Displayed amounts are rounded for reading; checks use full precision.</p></div><div><span>Sum of the six holding values</span><strong>{composition ? usd(composition.holdings.reduce((sum, item) => sum + BigInt(item.valueMicros), 0n).toString(), 4) : "—"}</strong><p>USD per model share in the published document</p></div></div>
+        <div className="nav-calculation"><div><span>For each holding</span><strong>Token units × token price</strong><p>Each holding is rounded down to USD micros before summing. Displayed amounts are rounded for reading; checks use full precision.</p></div><div><span>Sum of the holding values</span><strong>{composition ? usd(composition.holdings.reduce((sum, item) => sum + BigInt(item.valueMicros), 0n).toString(), 4) : "—"}</strong><p>USD per model share in the published document</p></div></div>
         <p className="proof-footnote">Weights are set at fixing and can drift with prices. {composition ? `Basket fixed ${time(composition.basketFixedAt)}.` : ""}</p>
         <details className="detail-disclosure"><summary>Token addresses & pricing details <span aria-hidden="true">+</span></summary><div className="disclosure-content"><div className="proof-table-wrap"><table className="proof-table"><thead><tr><th scope="col">Token / address</th><th scope="col">Units / share</th><th scope="col">Price</th><th scope="col">Priced at</th></tr></thead><tbody>{(composition?.holdings ?? []).map((holding) => <tr key={holding.symbol}><th scope="row">{holding.symbol}<small><a href={`${data?.pricing.explorerUrl}/address/${holding.address}`} target="_blank" rel="noreferrer">{shortHash(holding.address)} ↗</a></small></th><td>{units(holding.unitsWad)}</td><td>{usd(holding.priceMicros, 4)}</td><td>{time(holding.priceTime)}</td></tr>)}</tbody></table></div>{data?.latest?.blockers && data.latest.blockers.length > 0 && <ul className="proof-blockers" aria-label="Why the latest NAV was not published">{data.latest.blockers.map((blocker) => <li key={blocker}>Not published: {blocker}</li>)}</ul>}<p className="proof-footnote">Latest pricing: {status === "loading" ? "LOADING DATA" : status === "unavailable" ? "DATA UNAVAILABLE" : STATUS_LABEL[status]} · {time(data?.latest?.evaluatedAt)}. Prices: OKX OnchainOS DEX, X Layer (chain {data?.pricing.chainIndex ?? "196"}).</p></div></details>
       </section>

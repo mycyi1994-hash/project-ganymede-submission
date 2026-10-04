@@ -11,7 +11,7 @@ import { useMarket } from "./MarketProvider";
 import { AssetMark, assetColors, assetNames, assetStyle, Icon } from "./Icons";
 import { useConstituentDrawer } from "./ConstituentDrawer";
 
-// A USTX share is a slice of the basket: fixed token units of six xStocks. These views show
+// A USTX share is a slice of the basket: fixed token units of nine xStocks. These views show
 // what a number of shares holds of each one, at the prices in the record on X Layer.
 
 const percent = (bps: number) => `${(bps / 100).toFixed(2)}%`;
@@ -76,7 +76,7 @@ function arc(start: number, end: number): string {
 }
 
 /**
- * The value in each xStock as a ring of six slices, clockwise from the top in basket order, with
+ * The value in each xStock as a ring of slices, one per xStock, clockwise from the top in basket order, with
  * the total in the middle. The legend beside it names every slice with its weight
  * and value, so nothing depends on colour or on hovering.
  */

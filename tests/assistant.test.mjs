@@ -3,7 +3,7 @@ import test from "node:test";
 import { DatabaseSync } from "node:sqlite";
 import { readFileSync } from "node:fs";
 import { env } from "cloudflare:workers";
-import { ASSISTANT_LIMITS, ASSISTANT_SYSTEM_PROMPT, AssistantError, askUstx, parseConversation, takeQuestion } from "../lib/assistant/ask.ts";
+import { ASSISTANT_LIMITS, ASSISTANT_SYSTEM_PROMPT, AssistantError, askUstx, parseConversation, streamUstx, takeQuestion } from "../lib/assistant/ask.ts";
 import { ToolInputError } from "../lib/mcp/server.ts";
 import { POST } from "../app/api/assistant/route.ts";
 
@@ -50,8 +50,10 @@ test("each question counts against the visitor's and the site's daily allowance,
   for (let index = 0; index < ASSISTANT_LIMITS.perVisitorPerDay; index += 1) await takeQuestion(db, "203.0.113.7", day);
   await assert.rejects(takeQuestion(db, "203.0.113.7", day), (error) => error instanceof AssistantError && error.status === 429 && error.code === "visitor_limit");
   await takeQuestion(db, "198.51.100.2", day);
-  const keys = db.sql.prepare("SELECT key FROM engine_state ORDER BY key").all().map((row) => row.key);
+  const keys = db.sql.prepare("SELECT key FROM engine_state WHERE key LIKE 'assistant:%' ORDER BY key").all().map((row) => row.key);
   assert.equal(keys.length, 3);
+  // Every question is also counted since launch, for the public usage figures.
+  assert.equal(db.sql.prepare("SELECT value FROM engine_state WHERE key = 'usage:ask-questions'").get().value, String(ASSISTANT_LIMITS.perVisitorPerDay + 2));
   assert.ok(keys.every((key) => !key.includes("203.0.113.7") && !key.includes("198.51.100.2")), "addresses are stored only as hashes");
   assert.equal(db.sql.prepare("SELECT value FROM engine_state WHERE key = 'assistant:site:2026-10-02'").get().value, String(ASSISTANT_LIMITS.perVisitorPerDay + 2));
   await takeQuestion(db, "203.0.113.7", new Date("2026-10-03T00:01:00.000Z"));
@@ -136,3 +138,57 @@ test("the endpoint takes same-site questions only, needs its key, and counts eac
   delete env.OPENAI_API_KEY;
   delete env.DB;
 });
+
+/** The model's streamed reply: server-sent events, split across network chunks at awkward places. */
+function sse(chunks) {
+  const text = chunks.map(chunk => `data: ${JSON.stringify(chunk)}\n\n`).join("") + "data: [DONE]\n\n";
+  const encoder = new TextEncoder();
+  const pieces = [text.slice(0, 37), text.slice(37, 120), text.slice(120)];
+  return new Response(new ReadableStream({ start(controller) { for (const piece of pieces) controller.enqueue(encoder.encode(piece)); controller.close(); } }), { headers: { "Content-Type": "text/event-stream" } });
+}
+
+test("a streamed answer reports the tools it reads, then the answer piece by piece", async () => {
+  const { fetcher, requests } = model([
+    () => sse([
+      { choices: [{ delta: { tool_calls: [{ index: 0, id: "c1", type: "function", function: { name: "get_ustx_nav", arguments: "" } }] } }] },
+      { choices: [{ delta: { tool_calls: [{ index: 0, function: { arguments: "{}" } }] } }] },
+      { choices: [{ delta: {}, finish_reason: "tool_calls" }] },
+    ]),
+    () => sse([
+      { choices: [{ delta: { content: "USTX's NAV is " } }] },
+      { choices: [{ delta: { content: "$99.77." } }] },
+      { choices: [{ delta: {}, finish_reason: "stop" }] },
+    ]),
+  ]);
+  const events = [];
+  for await (const event of streamUstx([{ role: "user", content: "NAV?" }], [NAV_TOOL], { apiKey: "k", fetcher })) events.push(event);
+  assert.deepEqual(events, [
+    { type: "tool", name: "get_ustx_nav" },
+    { type: "delta", text: "USTX's NAV is " },
+    { type: "delta", text: "$99.77." },
+    { type: "done", answer: "USTX's NAV is $99.77.", toolsUsed: ["get_ustx_nav"] },
+  ]);
+  assert.equal(requests[0].body.stream, true);
+  assert.deepEqual(requests[1].body.messages.at(-1), { role: "tool", tool_call_id: "c1", content: JSON.stringify({ navUsd: "99.774330", effectiveAt: "2026-10-02T16:10:59.000Z" }) });
+});
+
+test("the endpoint streams one event per line when asked, and a refused model still answers with its status", async (t) => {
+  const ask = (headers = {}) => POST(new Request("https://ganymede.example/api/assistant", { method: "POST", headers: { "Content-Type": "application/json", Accept: "application/x-ndjson", "CF-Connecting-IP": "203.0.113.10", ...headers }, body: JSON.stringify({ messages: [{ role: "user", content: "Hello" }] }) }));
+  env.DB = database();
+  env.OPENAI_API_KEY = "sk-test";
+  t.mock.method(globalThis, "fetch", async () => sse([{ choices: [{ delta: { content: "Hi." } }] }, { choices: [{ delta: { content: " Ask me about USTX." } }] }]));
+  const streamed = await ask();
+  assert.equal(streamed.status, 200);
+  assert.match(streamed.headers.get("content-type"), /application\/x-ndjson/);
+  const lines = (await streamed.text()).trim().split("\n").map(line => JSON.parse(line));
+  assert.deepEqual(lines.map(line => line.type), ["delta", "delta", "done"]);
+  assert.equal(lines.at(-1).answer, "Hi. Ask me about USTX.");
+  t.mock.method(console, "error", () => {});
+  t.mock.method(globalThis, "fetch", async () => Response.json({ error: { code: "invalid_api_key" } }, { status: 401 }));
+  const refused = await ask();
+  assert.equal(refused.status, 502);
+  assert.doesNotMatch(JSON.stringify(await refused.json()), /invalid_api_key|sk-/);
+  delete env.OPENAI_API_KEY;
+  delete env.DB;
+});
+

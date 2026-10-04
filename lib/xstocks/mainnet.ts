@@ -18,6 +18,10 @@ export const XSTOCK_TOKENS = [
   { symbol: "AMZNx", address: "0x3557ba345b01efa20a1bddc61f573bfd87195081" },
   { symbol: "METAx", address: "0x96702be57cd9777f835117a809c7124fe4ec989a" },
   { symbol: "TSLAx", address: "0x8ad3c73f833d3f9a523ab01476625f269aeb7cf0" },
+  // Added 4 October 2026: the same xStocks proxy and implementation as the six above.
+  { symbol: "GOOGLx", address: "0xe92f673ca36c5e2efd2de7628f815f84807e803f" },
+  { symbol: "ORCLx", address: "0x548308e91ec9f285c7bff05295badbd56a6e4971" },
+  { symbol: "PLTRx", address: "0x6d482cec5f9dd1f05ccee9fd3ff79b246170f8e2" },
 ] as const;
 
 export const tokenExplorerUrl = (address: string) => `${MAINNET.explorerUrl}/token/${address}`;
@@ -97,7 +101,7 @@ export type WalletBalances = { owner: string; blockNumber: number; blockTime: st
 
 const addressWord = (owner: string) => owner.toLowerCase().replace(/^0x/, "").padStart(64, "0");
 
-/** Reads the six balances at one block, so the statement can name exactly what was read. */
+/** Reads every balance at one block, so the statement can name exactly what was read. */
 export async function readBalances(owner: string, fetcher: typeof fetch = fetch): Promise<WalletBalances> {
   if (!/^0x[0-9a-f]{40}$/i.test(owner)) throw new Error("Enter a valid public EVM address.");
   const head = await batch([{ method: "eth_chainId", params: [] }, { method: "eth_blockNumber", params: [] }], fetcher);

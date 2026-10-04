@@ -502,7 +502,7 @@ export default function HomeClient({ initialView }: { initialView: View | "overv
         {view === "select" ? (
           <main className="etf-select-page product-market-page">
             <header className="etf-page-intro product-market-intro">
-              <div><p className="section-kicker">The USTX basket</p><h1>Start with what’s inside.</h1><p>Six tokenized US stocks. Inspect their composition, then follow the published NAV to its evidence.</p></div>
+              <div><p className="section-kicker">The USTX basket</p><h1>Start with what’s inside.</h1><p>Nine tokenized US stocks. Inspect their composition, then follow the published NAV to its evidence.</p></div>
               <span className="catalog-environment"><i /> Testnet models</span>
             </header>
             <BasketOverview /><aside className="journey-lab-link"><span>Looking for crypto simulations?</span><Link {...viewLink("portfolio", "paper-strategy-lab")} prefetch={false}>Explore Paper lab</Link></aside>
@@ -534,7 +534,7 @@ export default function HomeClient({ initialView }: { initialView: View | "overv
       <div className="launch-layout">
       <section className="launch-copy etf-launch-copy">
         <h1 id="hero-title">An index you<br />can inspect.</h1>
-        <p className="launch-description">A reported NAV should come with the numbers behind it. Recalculate a six-stock basket and compare its report with the record on X Layer.</p>
+        <p className="launch-description">A reported NAV should come with the numbers behind it. Recalculate a nine-stock basket and compare its report with the record on X Layer.</p>
         <div className="launch-actions"><a className="button is-primary" href="#try-verification">Try verification <Arrow /></a><Link className="button" {...viewLink("select")} prefetch={false}>View basket details</Link></div>
         <div className="launch-status-line"><span className="badge badge-blue">X Layer Testnet</span><span className="badge badge-sand">Model basket</span></div>
       </section>

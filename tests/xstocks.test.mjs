@@ -16,7 +16,8 @@ import { decodeLatestNav, XSTOCKS_PRODUCT_KEY } from "../lib/xstocks/onchain.ts"
 import { fetchXStockQuotes, normalizeQuoteTime, signedHeaders } from "../lib/xstocks/prices.ts";
 
 const NOW = "2026-09-23T09:00:00.000Z";
-const PRICES = { AAPLx: "231.25", MSFTx: "512.4", NVDAx: "187.431234", AMZNx: "228.9", METAx: "742.05", TSLAx: "402.117" };
+const FIRST_SIX = { AAPLx: "231.25", MSFTx: "512.4", NVDAx: "187.431234", AMZNx: "228.9", METAx: "742.05", TSLAx: "402.117" };
+const PRICES = { ...FIRST_SIX, GOOGLx: "343.52", ORCLx: "142.36", PLTRx: "189.04" };
 const address = (index) => `0x${String(index + 1).padStart(40, "a")}`;
 const ADDRESSES = XSTOCKS_CONSTITUENTS.map((constituent, index) => `${constituent.symbol}=${address(index)}`).join(",");
 
@@ -58,7 +59,7 @@ test("NAV follows prices once units are fixed", () => {
   const nav = basketNavMicros(basket, prices);
   // Each holding floors to a micro-dollar independently, so allow one micro per holding.
   const gap = nav * 2n - basketNavMicros(basket, doubled);
-  assert.ok(gap >= -6n && gap <= 6n, `doubling prices moved NAV off 2x by ${gap} micros`);
+  assert.ok(gap >= -9n && gap <= 9n, `doubling prices moved NAV off 2x by ${gap} micros`);
 });
 
 test("a missing or stale price blocks publication", async () => {
@@ -99,9 +100,42 @@ test("a record carries the time of its oldest price, never later than the calcul
 });
 
 test("unconfigured addresses block publication instead of guessing", async () => {
-  const evaluation = await evaluateBasket({ constituents: constituentsWithAddresses(""), quotes: quotes(), previous: null, now: NOW, maxQuoteAgeMinutes: 60 });
+  const unconfigured = constituentsWithAddresses("").map((constituent, index) => index === 0 ? { ...constituent, address: null } : constituent);
+  const evaluation = await evaluateBasket({ constituents: unconfigured, quotes: quotes(), previous: null, now: NOW, maxQuoteAgeMinutes: 60 });
   assert.equal(evaluation.status, "awaiting_configuration");
   assert.equal(evaluation.publishable, false);
+});
+
+test("the pinned xStock addresses fill any constituent the configuration leaves out", () => {
+  const constituents = constituentsWithAddresses(`AAPLx=${address(0)}`);
+  assert.equal(constituents.length, 9);
+  assert.equal(constituents[0].address, address(0));
+  assert.deepEqual(constituents.slice(6).map((constituent) => [constituent.symbol, constituent.address]), [
+    ["GOOGLx", "0xe92f673ca36c5e2efd2de7628f815f84807e803f"], ["ORCLx", "0x548308e91ec9f285c7bff05295badbd56a6e4971"], ["PLTRx", "0x6d482cec5f9dd1f05ccee9fd3ff79b246170f8e2"],
+  ]);
+});
+
+test("adding constituents re-fixes at the prevailing NAV, and waits rather than restart at US$100", async () => {
+  const constituents = constituentsWithAddresses(ADDRESSES);
+  const six = constituents.slice(0, 6);
+  const first = await evaluateBasket({ constituents: six, quotes: quotes(FIRST_SIX), previous: null, now: NOW, maxQuoteAgeMinutes: 60 });
+  const later = "2026-09-29T09:00:00.000Z";
+  const risen = Object.fromEntries(Object.entries(PRICES).map(([symbol, price]) => [symbol, (Number(price) * 1.07).toFixed(4)]));
+  const kept = await evaluateBasket({ constituents: six, quotes: quotes(risen, later), previous: first.basket, now: later, maxQuoteAgeMinutes: 60 });
+  const nine = await evaluateBasket({ constituents, quotes: quotes(risen, later), previous: first.basket, now: later, maxQuoteAgeMinutes: 60 });
+  assert.equal(nine.publishable, true);
+  assert.equal(nine.rebalanced, true);
+  assert.equal(nine.basket.holdings.length, 9);
+  assert.deepEqual(nine.basket.holdings.map((holding) => holding.weightBps), [1112, 1111, 1111, 1111, 1111, 1111, 1111, 1111, 1111]);
+  // Continuity: the nine-stock basket is worth what the six-stock one was at that moment, not US$100.
+  const drift = BigInt(nine.composition.navPerShareMicros) - BigInt(kept.composition.navPerShareMicros);
+  assert.ok(drift <= 0n && drift > -10n, `NAV jumped by ${drift} micros when constituents were added`);
+  // Without a price for a holding being replaced, the record waits.
+  const missing = quotes(risen, later);
+  missing.delete("AAPLx");
+  const waiting = await evaluateBasket({ constituents: constituents.slice(1), quotes: missing, previous: first.basket, now: later, maxQuoteAgeMinutes: 60 });
+  assert.equal(waiting.publishable, false);
+  assert.match(waiting.blockers.join(" "), /re-fix without a live price for AAPLx/);
 });
 
 test("the published holdings hash is sha256 of the canonical composition", async () => {

@@ -3,7 +3,9 @@ import test from "node:test";
 import { DatabaseSync } from "node:sqlite";
 import { readFileSync } from "node:fs";
 import { env } from "cloudflare:workers";
-import { GET, OPTIONS } from "../app/api/v1/ustx/route.ts";
+import { GET, OPTIONS, NAV_FRESH_MS } from "../app/api/v1/ustx/route.ts";
+import { clearReadCache } from "../lib/read-cache.ts";
+import { NAV_SNAPSHOT_FRESH_MS, STATE_NAV_SNAPSHOT, runNavSnapshot } from "../lib/xstocks/nav-api.ts";
 import { STATE_HISTORY } from "../lib/xstocks/cycle.ts";
 import { lookThrough, fundValueMicros } from "../lib/demo/basket.ts";
 import { formatUsdRounded } from "../lib/nav-display.ts";
@@ -40,6 +42,8 @@ function chain(chainId = "0x7a0") {
   };
 }
 
+test.beforeEach(() => clearReadCache());
+
 test("the public NAV API serves the X Layer record to any origin and never writes", async (t) => {
   const { db, sql } = database();
   try {
@@ -75,20 +79,52 @@ test("the public NAV API serves the X Layer record to any origin and never write
     assert.equal(body.lending.market, "0xae2f54ae3d0370295de18510d56de92afb8843c7");
     // The second price source is named with its pools, so a partner can repeat the comparison.
     assert.equal(body.pricing.crossCheck.factory, "0x4b2ab38dbf28d31d467aa8993f6c2585981d6804");
-    assert.deepEqual(body.pricing.crossCheck.pools.map((pool) => pool.symbol), ["AAPLx", "MSFTx", "NVDAx", "AMZNx", "METAx", "TSLAx"]);
+    assert.deepEqual(body.pricing.crossCheck.pools.map((pool) => pool.symbol), ["AAPLx", "MSFTx", "NVDAx", "AMZNx", "METAx", "TSLAx", "GOOGLx", "ORCLx", "PLTRx"]);
     assert.deepEqual(body.pricing.crossCheck.toleranceBps, { nav: 100 });
+    assert.equal(body.stale, false);
+    assert.ok(Math.abs(Date.now() - Date.parse(body.readAt)) < 60_000, "readAt is when X Layer was read");
     const preflight = OPTIONS();
     assert.equal(preflight.status, 204);
     assert.match(preflight.headers.get("access-control-allow-methods"), /GET/);
     // A wrong network or an unreachable RPC is a clean 503 that names no upstream URL.
     t.mock.method(globalThis, "fetch", chain("0x1"));
     t.mock.method(console, "error", () => {});
+    clearReadCache();
     assert.equal((await GET(new Request("https://ganymede.test/api/v1/ustx"))).status, 503);
     t.mock.method(globalThis, "fetch", async () => { throw new TypeError("fetch failed https://rpc.secret.example/key"); });
+    clearReadCache();
     const down = await GET(new Request("https://ganymede.test/api/v1/ustx"));
     assert.equal(down.status, 503);
     assert.equal(down.headers.get("access-control-allow-origin"), "*");
     assert.doesNotMatch(await down.text(), /secret/);
+  } finally { delete env.DB; delete env.NAV_REGISTRY_ADDRESS; sql.close(); }
+});
+
+test("the NAV API serves the cron's snapshot without reading X Layer while it is under 90 seconds old", async (t) => {
+  const { db, sql } = database();
+  try {
+    env.DB = db;
+    env.NAV_REGISTRY_ADDRESS = REGISTRY;
+    t.mock.timers.enable({ apis: ["Date"], now: Date.parse("2026-09-24T18:06:00Z") });
+    const mock = t.mock.method(globalThis, "fetch", chain());
+    const stored = await runNavSnapshot(env);
+    assert.equal(JSON.parse(sql.prepare("SELECT value FROM engine_state WHERE key = ?").get(STATE_NAV_SNAPSHOT).value).body.record.navPerShareMicros, "99449929");
+    db.readOnly = true;
+    const calls = mock.mock.callCount();
+    t.mock.timers.tick(NAV_SNAPSHOT_FRESH_MS - 1_000);
+    const served = await (await GET(new Request("https://ganymede.test/api/v1/ustx"))).json();
+    assert.equal(mock.mock.callCount(), calls, "no read of X Layer");
+    assert.equal(served.readAt, new Date(stored.readAt).toISOString());
+    assert.equal(served.nav.perShareUsd, "99.449929");
+    assert.equal(served.verify.page, "https://ganymede.test/products/ustx/transparency", "the page link follows the request's origin");
+    // Older than 90 seconds and with X Layer down, the snapshot is served for up to ten minutes, marked.
+    t.mock.timers.tick(NAV_FRESH_MS + 2_000);
+    mock.mock.mockImplementation(async () => { throw new TypeError("fetch failed"); });
+    t.mock.method(console, "error", () => {});
+    const stale = await GET(new Request("https://ganymede.test/api/v1/ustx"));
+    assert.equal(stale.status, 200);
+    assert.equal(stale.headers.get("cache-control"), "public, max-age=15");
+    assert.equal((await stale.json()).stale, true);
   } finally { delete env.DB; delete env.NAV_REGISTRY_ADDRESS; sql.close(); }
 });
 

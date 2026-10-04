@@ -17,11 +17,12 @@ export default function TokenContractsCheck({ canonical }: { canonical: string |
   if (canonical) {
     try {
       const holdings = parseComposition(canonical).holdings;
-      documentMatches = XSTOCK_TOKENS.every(token => holdings.some(holding => holding.symbol === token.symbol && holding.address.toLowerCase() === token.address));
+      documentMatches = holdings.length > 0 && holdings.every(holding => XSTOCK_TOKENS.some(token => holding.symbol === token.symbol && holding.address.toLowerCase() === token.address));
     } catch { documentMatches = false; }
   }
-  const matching = facts?.filter(fact => fact.matches).length ?? 0;
-  const label = failed ? "Not read" : !facts || documentMatches === null ? "Checking…" : documentMatches && matching === XSTOCK_TOKENS.length ? `${matching} of ${XSTOCK_TOKENS.length} match` : "Mismatch";
+  const held = canonical ? (() => { try { return parseComposition(canonical).holdings.map(holding => holding.symbol); } catch { return []; } })() : [];
+  const matching = facts?.filter(fact => fact.matches && held.includes(fact.symbol)).length ?? 0;
+  const label = failed ? "Not read" : !facts || documentMatches === null ? "Checking…" : documentMatches && matching === held.length ? `${matching} of ${held.length} match` : "Mismatch";
   const detail = failed ? "X Layer mainnet could not be read from this browser." : documentMatches === false ? "The document's token addresses differ from the pinned xStock contracts." : "Each address in the document is a pinned xStock contract. Its code, symbol and 18 decimals are read from X Layer mainnet.";
   return <div className="gmd-record-condition" aria-live="polite"><span>xStock contracts</span><b>{label}</b><p>{detail}</p></div>;
 }

@@ -8,7 +8,7 @@ import { changeTone, useConstituentDrawer, useConstituents, WeightMeter } from "
 
 const shortDay = (value: string) => new Date(value).toLocaleDateString("en-GB", { day: "numeric", month: "short", timeZone: "UTC" });
 
-/** The six xStocks with their price, change since the fixing and weight; each opens its detail panel. */
+/** The xStocks with their price, change since the fixing and weight; each opens its detail panel. */
 export default function Holdings({ composition, compact = false, loading = false }: { composition: Composition | null; compact?: boolean; loading?: boolean }) {
   const { open, drawer } = useConstituentDrawer();
   const recorded = useConstituents();
@@ -17,10 +17,10 @@ export default function Holdings({ composition, compact = false, loading = false
   const same = Boolean(composition && recorded.composition && recorded.composition.asOf === composition.asOf && recorded.composition.basketFixedAt === composition.basketFixedAt);
   const figures = same ? recorded.figures : composition ? constituentFigures(composition, null) : [];
   const since = same && recorded.fixedAt ? shortDay(recorded.fixedAt) : null;
-  return <section className={`gmd-holdings ${compact ? "is-compact" : ""}`} aria-label="Basket composition"><header className="gmd-section-heading"><div><h2>{compact ? "The basket" : "Constituents"}</h2><p>{composition ? "Weights at the latest OKX OnchainOS prices" : "Six US technology xStocks"}</p></div><span className="gmd-count">6 assets</span></header>
+  return <section className={`gmd-holdings ${compact ? "is-compact" : ""}`} aria-label="Basket composition"><header className="gmd-section-heading"><div><h2>{compact ? "The basket" : "Constituents"}</h2><p>{composition ? "Weights at the latest OKX OnchainOS prices" : "Nine US technology xStocks"}</p></div><span className="gmd-count">{composition?.holdings.length ?? assetSymbols.length} assets</span></header>
     {composition && <div className="gmd-composition-strip" role="group" aria-label="Weights in the basket">{assetSymbols.map(symbol => <button key={symbol} type="button" style={{ ...assetStyle(symbol), flexGrow: weights.get(symbol) ?? 0 }} onClick={() => open(symbol)} aria-haspopup="dialog" aria-label={`${assetNames[symbol]}, ${weights.get(symbol)?.toFixed(2)} percent. Details`} />)}</div>}
     <div className="gmd-constituents-head" aria-hidden="true"><span>Asset</span><span>Price</span><span>Weight</span></div>
-    <ul className="gmd-constituents" aria-label="The six xStocks" aria-busy={!composition && loading}>{assetSymbols.map(symbol => {
+    <ul className="gmd-constituents" aria-label="The xStocks in the basket" aria-busy={!composition && loading}>{assetSymbols.map(symbol => {
       const asset = figures.find(item => item.symbol === symbol);
       return <li key={symbol} style={assetStyle(symbol)}><button type="button" className="gmd-constituent" aria-haspopup="dialog" onClick={() => open(symbol)} disabled={!composition && loading}>
         <AssetMark symbol={symbol} />

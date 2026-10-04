@@ -12,6 +12,8 @@ import {
 } from "@/lib/xstocks/fund";
 import { V4_POOL_DEPLOYMENT, formatFeePips, readV4Quote, v4ErrorMessage, v4SwapCalls, v4SwapFill, type V4Quote } from "@/lib/xstocks/v4-liquidity";
 import { Icon } from "./Icons";
+import GasNotice from "./GasNotice";
+import { OkxAppLink } from "./OkxApp";
 import { useMarket } from "./MarketProvider";
 import { BasketList, useRecordComposition } from "./Basket";
 import { useWalletAccount } from "./WalletAccount";
@@ -286,7 +288,7 @@ export function WalletInvest({ tabs, onUseDemo }: { tabs: ReactNode; onUseDemo: 
 
   if (!provider) return <>{head}{tabs}<div className="gmd-wallet-gate">
     <p>Invest from your own wallet on X Layer Testnet. Install the OKX Wallet extension, or open this page in the OKX app’s browser.</p>
-    <a className="gmd-button" href="https://www.okx.com/web3" target="_blank" rel="noreferrer">Get OKX Wallet <Icon name="external" size={16} /><span className="gmd-sr-only"> (opens in a new tab)</span></a>
+    <div className="gmd-wallet-gate-actions"><OkxAppLink className="gmd-button" /><a className="gmd-button is-secondary" href="https://www.okx.com/web3" target="_blank" rel="noreferrer">Get OKX Wallet <Icon name="external" size={16} /><span className="gmd-sr-only"> (opens in a new tab)</span></a></div>
     <button type="button" className="gmd-text-button" onClick={onUseDemo}>Try it with a demo balance instead</button>
   </div></>;
   if (!connected) return <>{head}{tabs}<div className="gmd-wallet-gate">
@@ -374,7 +376,7 @@ export function WalletInvest({ tabs, onUseDemo }: { tabs: ReactNode; onUseDemo: 
       : claimable ? <button type="button" className="gmd-small-button" disabled={!fresh} onClick={() => void claimDollars()}>Get {formatUsdRounded(FUND_CLAIM_MICROS)} demo dollars</button>
       : <span>More demo dollars in {waitLabel(account.nextClaimAt, now)}</span>}
       {claim?.state === "failed" && <p className="gmd-inline-error" role="alert">{claim.message}</p>}</div>
-    {account.gasWei === 0n && <p className="gmd-wallet-gas" role="status"><Icon name="info" size={16} /><span>You need test OKB to pay network fees. <a href={FUND_DEPLOYMENT.faucetUrl} target="_blank" rel="noreferrer">Get test OKB<span className="gmd-sr-only"> (opens in a new tab)</span></a></span></p>}
+    <GasNotice address={address} gasWei={account.gasWei} onFunded={() => setReload(value => value + 1)} />
     {unavailable && <p className="gmd-inline-error" role="status">{unavailable}</p>}
     <div className="gmd-segmented" role="group" aria-label="Order type">
       <button type="button" aria-pressed={side === "buy"} onClick={() => choose("buy")}>Buy</button>

@@ -4,7 +4,7 @@
  * units in wei (18 decimals), USD in micros.
  */
 import type { Composition } from "./basket";
-import type { WalletBalances } from "./mainnet";
+import { XSTOCK_TOKENS, type WalletBalances } from "./mainnet";
 
 const WAD = 10n ** 18n;
 const BPS = 10_000n;
@@ -17,7 +17,10 @@ const modelWeight = (composition: Composition, valueMicros: string) => BigInt(co
 
 /** Values each balance at the price the verified document used for the same token address. */
 export function valueWallet(balances: WalletBalances, composition: Composition): WalletValuation {
-  const rows = balances.balances.map(balance => {
+  // A pinned xStock the verified document does not hold yet (a constituent being added) is left out.
+  const held = balances.balances.filter(balance => composition.holdings.some(item => item.address.toLowerCase() === balance.address.toLowerCase())
+    || !XSTOCK_TOKENS.some(token => token.address === balance.address.toLowerCase()));
+  const rows = held.map(balance => {
     const holding = composition.holdings.find(item => item.address.toLowerCase() === balance.address.toLowerCase());
     if (!holding) throw new Error(`${balance.symbol} is not in the verified document.`);
     const value = BigInt(balance.units) * BigInt(holding.priceMicros) / WAD;
@@ -30,7 +33,7 @@ export function valueWallet(balances: WalletBalances, composition: Composition):
 
 export type PlanRow = { symbol: string; address: string; priceMicros: string; modelWeightBps: number; usdMicros: string; units: string };
 
-/** Splits an amount across the six tokens in the document's current value weights. */
+/** Splits an amount across the tokens in the document's current value weights. */
 export function planBasket(amountMicros: bigint, composition: Composition): PlanRow[] {
   if (amountMicros <= 0n) return [];
   const nav = BigInt(composition.navPerShareMicros);
@@ -68,6 +71,6 @@ export function buildStatement(balances: WalletBalances, valuation: WalletValuat
     holdings: valuation.rows.map(row => ({ symbol: row.symbol, token: row.address, unitsWei: row.units, priceMicros: row.priceMicros, valueMicros: row.valueMicros })),
     totalValueMicros: valuation.totalMicros,
     method: "valueMicros = floor(unitsWei × priceMicros / 10^18) per token; the total is their sum. Re-read each balanceOf at blockNumber on X Layer mainnet and each price from the document with this holdingsHash.",
-    scope: "A valuation of the six xStocks at the recorded prices. It is not an executable quote and does not cover other assets or prove ownership.",
+    scope: "A valuation of the nine xStocks at the recorded prices. It is not an executable quote and does not cover other assets or prove ownership.",
   };
 }

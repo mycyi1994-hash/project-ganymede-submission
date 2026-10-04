@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { DemoPortfolio } from "./DemoInvest";
+import { FundHoldings } from "./Funds";
 import { WalletFundPosition } from "./WalletFund";
 import { parseComposition } from "@/lib/xstocks/proof";
 import { readBalances, tokenExplorerUrl, type WalletBalances } from "@/lib/xstocks/mainnet";
@@ -69,15 +70,16 @@ export default function WalletPortfolio() {
   return <>
     <div className="gmd-page-heading"><div><h1>Portfolio</h1><p>Your USTX and your xStocks on X Layer, valued at OKX OnchainOS prices.</p></div><RecordCheckStatus /></div>
     <DemoPortfolio />
+    <FundHoldings />
     <header id="wallet" className="gmd-section-heading gmd-wallet-heading"><div><h2>Your wallet on X Layer</h2><p>Connect OKX Wallet or view any public address: USTX on X Layer Testnet, and real xStocks on X Layer mainnet valued at OKX OnchainOS prices.</p></div></header>
     <AddressBar />
     {address && <WalletFundPosition address={address} />}
     {address && <section className="gmd-wallet-holdings" aria-labelledby="holdings-title" aria-live="polite"><header className="gmd-section-heading"><h2 id="holdings-title">xStock holdings</h2><span>{current ? `Block ${current.blockNumber.toLocaleString("en-US")} · ${shortTime(current.blockTime)} · X Layer mainnet` : failure ? "Not read" : "Reading balances…"}</span></header>
       {failure ? <div className="gmd-data-notice" role="status"><Icon name="info" /><span>{failure}</span><button onClick={() => setAttempt(value => value + 1)}>Try again</button></div>
-        : !current ? <p className="gmd-caption">Reading the six xStock balances at the latest block…</p>
+        : !current ? <p className="gmd-caption">Reading the nine xStock balances at the latest block…</p>
         : !valuation ? <p className="gmd-caption">{priceNote}</p>
         : <><div className="gmd-data-table-scroll"><table className="gmd-table"><thead><tr><th>Asset</th><th>Balance</th><th>OKX price</th><th>Value</th><th>Weight</th><th>USTX weight</th></tr></thead><tbody>{valuation.rows.map(row => <tr key={row.symbol}><th scope="row"><a href={tokenExplorerUrl(row.address)} target="_blank" rel="noreferrer">{row.symbol} <Icon name="external" size={12} /></a></th><td>{formatUnits(row.units)}</td><td>{formatUsdMicros(row.priceMicros, 2)}</td><td>{formatUsdMicros(row.valueMicros, 2)}</td><td>{BigInt(valuation.totalMicros) === 0n ? "—" : percent(row.weightBps)}</td><td>{percent(row.modelWeightBps)}</td></tr>)}</tbody></table></div>
-          <div className="gmd-wallet-summary"><div><span>Value of the six xStocks</span><strong>{formatUsdMicros(valuation.totalMicros, 2)}</strong><small>{priceNote}</small></div><button type="button" className="gmd-small-button" onClick={downloadStatement}><Icon name="download" size={16} />Download statement</button></div>
+          <div className="gmd-wallet-summary"><div><span>Value of the nine xStocks</span><strong>{formatUsdMicros(valuation.totalMicros, 2)}</strong><small>{priceNote}</small></div><button type="button" className="gmd-small-button" onClick={downloadStatement}><Icon name="download" size={16} />Download statement</button></div>
           {BigInt(valuation.totalMicros) === 0n && <p className="gmd-caption">{valuation.rows.some(row => row.units !== "0") ? "This address holds only amounts too small to value to the cent." : "This address holds none of the six xStocks on X Layer."}</p>}</>}
     </section>}
   </>;

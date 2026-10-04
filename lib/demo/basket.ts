@@ -1,5 +1,5 @@
 /**
- * What USTX shares hold, looked through to the six xStocks. Each model share carries fixed
+ * What USTX shares hold, looked through to the nine xStocks. Each model share carries fixed
  * token units, so a holding of N shares carries N times those units, worth N times each
  * row's value per share at the recorded prices. Integer arithmetic throughout: shares and
  * USD in micros, token units in wei (18 decimals).

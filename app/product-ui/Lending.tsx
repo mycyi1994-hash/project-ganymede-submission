@@ -9,7 +9,9 @@ import {
   LENDING_ALL, LENDING_TERMS, formatWadPercent, lendingCalls, lendingErrorMessage, lendingFill, lendingPosition, readLending,
   type LendingAccount, type LendingAction, type LendingMarket,
 } from "@/lib/xstocks/lending";
+import { OkxAppLink } from "./OkxApp";
 import { Icon, Skeleton } from "./Icons";
+import GasNotice from "./GasNotice";
 import { useWalletAccount } from "./WalletAccount";
 import { TxLink, sendFromWallet, switchToTestnet, useInjectedWallet, useWalletChain } from "./WalletInvest";
 
@@ -222,7 +224,7 @@ export function LendingSection() {
 
   let wallet;
   if (!provider) {
-    wallet = <p>Borrow from your own wallet on X Layer Testnet. Install the OKX Wallet extension, or open this page in the OKX app’s browser. <a className="gmd-inline-link" href="https://www.okx.com/web3" target="_blank" rel="noreferrer">Get OKX Wallet <Icon name="external" size={14} /><span className="gmd-sr-only"> (opens in a new tab)</span></a></p>;
+    wallet = <p>Borrow from your own wallet on X Layer Testnet. Install the OKX Wallet extension, or open this page in the OKX app’s browser. <a className="gmd-inline-link" href="https://www.okx.com/web3" target="_blank" rel="noreferrer">Get OKX Wallet <Icon name="external" size={14} /><span className="gmd-sr-only"> (opens in a new tab)</span></a> · <OkxAppLink className="gmd-inline-link" /></p>;
   } else if (!connected) {
     wallet = <><p>Connect OKX Wallet to deposit USTX, borrow against it, or lend demo dollars.</p>
       <button type="button" className="gmd-button" disabled={connecting} onClick={() => void connect()}><Icon name="wallet" size={17} />{connecting ? "Connecting…" : "Connect OKX Wallet"}</button>
@@ -251,7 +253,7 @@ export function LendingSection() {
       </dl>
       {position && account.debtMicros > 0n && <LoanHealth loanToValueWad={position.loanToValueWad} />}
       {phase === "done" && done && <p ref={doneRef} tabIndex={-1} className="gmd-lending-done" role="status"><Icon name="check" size={16} /><span>{DONE[done.action]} {inShares(done.action) ? `${formatShares(done.micros)} USTX` : usd(done.micros)}. <TxLink hash={done.hash} /></span></p>}
-      {account.gasWei === 0n && <p className="gmd-wallet-gas" role="status"><Icon name="info" size={16} /><span>You need test OKB to pay network fees. <a href={FUND_DEPLOYMENT.faucetUrl} target="_blank" rel="noreferrer">Get test OKB<span className="gmd-sr-only"> (opens in a new tab)</span></a></span></p>}
+      <GasNotice address={address} gasWei={account.gasWei} onFunded={() => setReload(value => value + 1)} />
       <div className="gmd-lending-actions" role="group" aria-label="Lending action">
         {ACTIONS.map(item => <button type="button" key={item.key} aria-pressed={action === item.key} onClick={() => choose(item.key)}>{item.label}</button>)}
       </div>

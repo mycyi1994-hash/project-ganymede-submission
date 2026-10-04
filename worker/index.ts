@@ -5,6 +5,8 @@ import { runUstxNavCycle } from "../lib/engine/runner";
 import type { EngineEnv } from "../lib/engine/types";
 import { ACTIVITY_CRON, runActivityIndex, runLpMarkout } from "../lib/xstocks/activity-index";
 import { POOLS_CRON, runPoolsSnapshot } from "../lib/xstocks/pools-api";
+import { runNavSnapshot } from "../lib/xstocks/nav-api";
+import { runDexQuotes } from "../lib/xstocks/dex-quotes";
 
 interface Env extends EngineEnv {
   ASSETS: Fetcher;
@@ -59,10 +61,15 @@ const worker = {
       controller.noRetry();
       return;
     }
-    // A snapshot of both pools for the public pools API, every minute, apart from the NAV record.
+    // Snapshots for the public NAV and pools APIs, every minute, apart from the NAV record; each
+    // job apart, so a failure in one leaves the other.
     if (controller.cron === POOLS_CRON) {
       ctx.waitUntil(runPoolsSnapshot(env).catch((error) => {
         console.error("Ganymede pools snapshot failed", error);
+        throw error;
+      }));
+      ctx.waitUntil(runNavSnapshot(env).catch((error) => {
+        console.error("Ganymede NAV snapshot failed", error);
         throw error;
       }));
       return;
@@ -76,6 +83,13 @@ const worker = {
       // The pools' results for their providers: apart, so a failure in either leaves the other.
       ctx.waitUntil(runLpMarkout(env).catch((error) => {
         console.error("Ganymede pool results run failed", error);
+        throw error;
+      }));
+      // OKX DEX quotes for building the basket by hand, once an hour (lib/xstocks/dex-quotes.ts).
+      ctx.waitUntil(runDexQuotes(env).then((quotes) => {
+        if (quotes) console.log("Ganymede DEX quotes", quotes.error ?? `${quotes.legs.length} legs`);
+      }).catch((error) => {
+        console.error("Ganymede DEX quotes failed", error);
         throw error;
       }));
       return;

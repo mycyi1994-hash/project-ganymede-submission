@@ -44,7 +44,7 @@ export default function EvidencePreview({ basketLink = { href: "/?app=select" } 
   }, [attempt]);
   const composition = snapshot ? parseComposition(snapshot.canonical) : null;
   return <section className="home-verification" id="try-verification" aria-label="Try live report verification">
-    <div className="home-verification-intro"><div><h2>Six holdings. One reported value.</h2><p>Each holding contributes to the value of one model share. Follow a published report from its basket to its checks, then change a copy. No wallet needed.</p></div><Link className="text-link" {...basketLink} prefetch={false}>View basket details</Link></div>
+    <div className="home-verification-intro"><div><h2>Nine holdings. One reported value.</h2><p>Each holding contributes to the value of one model share. Follow a published report from its basket to its checks, then change a copy. No wallet needed.</p></div><Link className="text-link" {...basketLink} prefetch={false}>View basket details</Link></div>
     {snapshot && composition ? <>
       <div className="journey-composition"><ol aria-label="Published holding values">{composition.holdings.map(holding => <li key={holding.symbol}><StockMark symbol={holding.symbol} /><b>{holding.symbol}</b><span>{formatUsdMicros(holding.valueMicros, 4)}</span></li>)}</ol><div className="journey-total"><span>Sum per model share</span><strong>{formatUsdMicros(composition.navPerShareMicros, 4)}</strong><small>From this published report, not a live quote</small></div></div>
       <div className="journey-baseline" role="status"><strong>Original report verified</strong><span>Direct chain read · Document fingerprint matched · NAV calculation matched</span></div>

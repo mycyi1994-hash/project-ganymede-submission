@@ -11,6 +11,7 @@ import {
   parseActivityDay, parseActivityIndex, parseHighlights, readActivityTail, scanActivity, serializeActivityIndex, updateActivityIndex, withNewerRows,
 } from "../lib/xstocks/activity.ts";
 import { ACTIVITY_CRON, STATE_MARKET_ACTIVITY, runActivityIndex } from "../lib/xstocks/activity-index.ts";
+import { STATE_USAGE } from "../lib/xstocks/usage.ts";
 import { GET, OPTIONS } from "../app/api/v1/ustx/activity/route.ts";
 
 const F = ACTIVITY_FIRST_BLOCK;
@@ -188,9 +189,10 @@ test("an index never claims blocks whose rows it dropped", async () => {
   assert.equal(index.fromBlock, F);
   // A new event past a full index drops the oldest row, and the range starts after the new oldest.
   const full = Array.from({ length: ACTIVITY_KEEP }, (_, n) => ({ ...row, hash: tx(100 + n), block: F + 5_000 - n }));
-  network = chain({ head: F + 5_001 + ACTIVITY_INDEX_MARGIN, logs: [log(fund, [FUND_EVENTS.invested, topic(BOB)], [20n * USD, 200_000n, 100n * USD, TIME], { block: F + 5_001, index: 0, hash: tx(900) })] });
-  index = await updateActivityIndex({ fromBlock: F + 4_000, toBlock: F + 5_000, keep: ACTIVITY_KEEP, rows: full }, network.rpc, { chunks: 3 });
-  assert.deepEqual([index.rows.length, index.rows[0].block, index.rows.at(-1).block, index.fromBlock], [ACTIVITY_KEEP, F + 5_001, F + 4_802, F + 4_803]);
+  network = chain({ head: F + 5_001 + ACTIVITY_INDEX_MARGIN, logs: [log(fund, [FUND_EVENTS.invested, topic(BOB)], [20n * USD, 200_000n, 100n * USD, TIME], { block: F + 5_001, index: 0, hash: tx(90_000) })] });
+  index = await updateActivityIndex({ fromBlock: F + 5_000 - ACTIVITY_KEEP, toBlock: F + 5_000, keep: ACTIVITY_KEEP, rows: full }, network.rpc, { chunks: 3 });
+  const oldest = F + 5_001 - (ACTIVITY_KEEP - 1);
+  assert.deepEqual([index.rows.length, index.rows[0].block, index.rows.at(-1).block, index.fromBlock], [ACTIVITY_KEEP, F + 5_001, oldest, oldest + 1]);
   assert.deepEqual(network.ranges(), [[F + 5_001, F + 5_001]], "a full index reads no history");
 });
 
@@ -308,7 +310,8 @@ test("the scheduled run keeps the index, and the public API serves it to any ori
   db.readOnly = false;
   const network = chain({ head: F + 400 + ACTIVITY_INDEX_MARGIN, logs: MARKET });
   assert.deepEqual(await runActivityIndex({ DB: db }, { rpc: network.rpc }), { fromBlock: F, toBlock: F + 400, rows: 5 });
-  assert.deepEqual(sql.prepare("SELECT key FROM engine_state").all().map(row => row.key), [STATE_MARKET_ACTIVITY]);
+  // Usage since launch follows the index (lib/xstocks/usage.ts).
+  assert.deepEqual(sql.prepare("SELECT key FROM engine_state ORDER BY key").all().map(row => row.key), [STATE_MARKET_ACTIVITY, STATE_USAGE]);
 
   db.readOnly = true;
   t.mock.method(globalThis, "fetch", async () => { throw new Error("the API reads only the stored index"); });
@@ -348,14 +351,16 @@ test("the Worker runs market activity on its own cron, apart from the NAV cycle"
   const pending = [];
   const errors = t.mock.method(console, "error", () => {});
   await worker.scheduled({ cron: ACTIVITY_CRON, scheduledTime: Date.now(), noRetry() {} }, { DB: db }, { waitUntil: promise => pending.push(promise), passThroughOnException() {} });
-  // Two jobs: the activity index and the pools' results. This chain cannot answer the fund's NAV, so
-  // the second fails, alone, and says so.
-  const [activity, results] = await Promise.allSettled(pending);
+  // Three jobs: the activity index, the pools' results and the hourly OKX DEX quotes. This chain
+  // cannot answer the fund's NAV, so the second fails, alone, and says so; without OnchainOS
+  // credentials the third does nothing.
+  const [activity, results, quotes] = await Promise.allSettled(pending);
   assert.equal(activity.status, "fulfilled");
   assert.equal(results.status, "rejected");
+  assert.equal(quotes.status, "fulfilled");
   assert.match(String(errors.mock.calls[0].arguments[0]), /pool results run failed/);
-  assert.deepEqual(sql.prepare("SELECT key FROM engine_state").all().map(row => row.key), [STATE_MARKET_ACTIVITY], "only the activity index; no engine cycle ran");
-  assert.equal(parseActivityIndex(sql.prepare("SELECT value FROM engine_state").get().value)?.rows.length, 5);
+  assert.deepEqual(sql.prepare("SELECT key FROM engine_state ORDER BY key").all().map(row => row.key), [STATE_MARKET_ACTIVITY, STATE_USAGE], "only the activity index and usage; no engine cycle ran");
+  assert.equal(parseActivityIndex(sql.prepare("SELECT value FROM engine_state WHERE key = ?").get(STATE_MARKET_ACTIVITY).value)?.rows.length, 5);
 });
 
 test("the NAV chart marks every arbitrage and orders of $1,000 or more, and nothing from a malformed list", () => {

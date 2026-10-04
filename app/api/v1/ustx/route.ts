@@ -1,12 +1,10 @@
 import { engineEnv } from "@/lib/engine/api-helpers";
-import { EngineRepository } from "@/lib/engine/repository";
 import { SettlementClient } from "@/lib/engine/settlement";
+import { cachedRead } from "@/lib/read-cache";
 import { POOL_FACTORY, POOL_FEE, POOL_TOLERANCE, XSTOCK_POOLS } from "@/lib/xstocks/pool-prices";
-import { XSTOCKS_CHAIN, XSTOCKS_PRODUCT } from "@/lib/xstocks/basket";
-import { STATE_CONFIRMED, STATE_HISTORY, type Publication } from "@/lib/xstocks/cycle";
-import { readLatestNav } from "@/lib/xstocks/onchain";
+import { XSTOCKS_CHAIN, XSTOCKS_CONSTITUENTS, XSTOCKS_PRODUCT } from "@/lib/xstocks/basket";
 import { FUND_DEPLOYMENT } from "@/lib/xstocks/fund";
-import { ledger, walletTotals } from "@/lib/demo/api";
+import { navForRequest } from "@/lib/xstocks/nav-api";
 
 export const dynamic = "force-dynamic";
 
@@ -21,33 +19,26 @@ function json(value: unknown, status: number, cache: string): Response {
 const NAV_VALIDITY_MS = 3_600_000;
 const usd = (micros: string) => `${BigInt(micros) / 1_000_000n}.${(BigInt(micros) % 1_000_000n).toString().padStart(6, "0")}`;
 
-/** The latest USTX NAV record, read from the registry on X Layer at request time. Reads only. */
+/**
+ * Each Worker isolate keeps what it served for 30 seconds. Behind that, the once-a-minute cron's
+ * snapshot is served while under 90 seconds old, and X Layer is read only when it is older; when
+ * X Layer cannot be read, a snapshot up to 10 minutes old is served, marked stale.
+ */
+export const NAV_FRESH_MS = 30_000;
+export const NAV_STALE_MS = 10 * 60_000;
+
+/** The latest USTX NAV record, read from the registry on X Layer at readAt. Reads only. */
 export async function GET(request: Request) {
   const env = engineEnv();
   const origin = new URL(request.url).origin;
   const registry = env.NAV_REGISTRY_ADDRESS ?? "";
   const settlement = new SettlementClient(env);
   try {
-    if (!/^0x[a-fA-F0-9]{40}$/.test(registry)) throw new Error("The NAV registry is not configured.");
-    const record = await readLatestNav(settlement.rpcUrl, registry, { chainId: settlement.chain.chainId });
-    if (!record.effectiveAt) throw new Error("No NAV has been recorded yet.");
-    // The transaction hash is a convenience from this server's log; the record itself came from the chain.
-    let transactionHash: string | null = null;
-    let calculatedAt: string | null = null;
-    try {
-      const repo = new EngineRepository(env.DB);
-      const [history, confirmed] = await Promise.all([repo.getState(STATE_HISTORY), repo.getState(STATE_CONFIRMED)]);
-      const entries = [...(history ? JSON.parse(history.value) as Publication[] : []), ...(confirmed ? [JSON.parse(confirmed.value) as Publication] : [])];
-      const match = entries.find(entry => entry.holdingsHash.toLowerCase() === record.holdingsHash.toLowerCase() && typeof entry.txHash === "string" && /^0x[0-9a-f]{64}$/i.test(entry.txHash));
-      transactionHash = match?.txHash ?? null;
-      const entry = entries.find(item => item.holdingsHash.toLowerCase() === record.holdingsHash.toLowerCase() && typeof item.calculatedAt === "string");
-      calculatedAt = entry?.calculatedAt ?? null;
-    } catch { /* The record stands without it. */ }
-    // The count recorded with the NAV covers two kinds of shares; each part is read now, and a part that
-    // cannot be read is null rather than a guess.
-    const [demo, wallets] = await Promise.all([ledger().fund(new Date()).catch(() => null), walletTotals().catch(() => null)]);
+    const { value: read, stale: memoryStale } = await cachedRead("ustx-nav", () => navForRequest(env, NAV_STALE_MS), { freshMs: NAV_FRESH_MS, staleMs: NAV_STALE_MS });
+    const { record, transactionHash, calculatedAt, demo, wallets } = read.body;
+    const stale = memoryStale || read.stale;
     return json({
-      product: { id: XSTOCKS_PRODUCT.id, ticker: "USTX", name: "US Tech Basket", constituents: ["AAPLx", "MSFTx", "NVDAx", "AMZNx", "METAx", "TSLAx"] },
+      product: { id: XSTOCKS_PRODUCT.id, ticker: "USTX", name: "US Tech Basket", constituents: XSTOCKS_CONSTITUENTS.map(constituent => constituent.symbol) },
       nav: {
         perShareUsd: usd(record.navPerShareMicros),
         perShareMicros: record.navPerShareMicros,
@@ -124,7 +115,10 @@ export async function GET(request: Request) {
         rule: "sha256 of the composition document equals holdingsHash, and the sum of token units × price equals perShareMicros.",
       },
       environment: "X Layer Testnet record of a model basket. Shares are bought with demo dollars that have no value; not an offer.",
-    }, 200, "public, max-age=30");
+      readAt: new Date(read.readAt).toISOString(),
+      stale,
+      readRule: "readAt is when X Layer Testnet was read: a scheduled job reads the registry every minute and this API serves that read while it is under 90 seconds old (each server instance keeps what it served for up to 30 seconds), reading X Layer itself only when it is older; when X Layer cannot be read, a read up to 10 minutes old is served with stale set to true.",
+    }, 200, stale ? "public, max-age=15" : "public, max-age=30");
   } catch (error) {
     console.error("Public NAV read failed", (error instanceof Error ? error.message : String(error)).replace(/https?:\/\/\S+/g, "[rpc]"));
     return json({ error: "The NAV record on X Layer could not be read. Try again shortly.", code: "nav_unavailable" }, 503, "no-store");

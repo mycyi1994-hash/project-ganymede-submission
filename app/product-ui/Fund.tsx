@@ -172,7 +172,7 @@ export function FundHoldings() {
   const { composition } = useRecordComposition();
   if (!composition || figures.shares === null || figures.shares <= 0n) return <Holdings composition={data ? compositionForRecord(data) : null} loading={loading} />;
   return <section className="gmd-fund-holdings" aria-labelledby="holdings-title">
-    <header className="gmd-section-heading"><div><h2 id="holdings-title">Holdings</h2><p>All {formatSharesShort(figures.shares)} USTX shares, looked through to each xStock at OKX OnchainOS prices as of {shortTime(composition.asOf)}.</p></div><span className="gmd-count">6 assets</span></header>
+    <header className="gmd-section-heading"><div><h2 id="holdings-title">Holdings</h2><p>All {formatSharesShort(figures.shares)} USTX shares, looked through to each xStock at OKX OnchainOS prices as of {shortTime(composition.asOf)}.</p></div><span className="gmd-count">{composition.holdings.length} assets</span></header>
     <BasketTable composition={composition} sharesMicros={figures.shares} label="Fund holdings" />
     <p className="gmd-caption">Equal weight at each quarterly rebalance; weights move with prices. On testnet no xStocks are bought.</p>
   </section>;

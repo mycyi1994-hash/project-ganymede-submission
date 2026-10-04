@@ -1,10 +1,10 @@
 # Ganymede — a tokenized-stock fund you can verify yourself
 
-Ganymede sells **USTX, the US Tech Basket**: one share tracks Apple, Microsoft, NVIDIA, Amazon, Meta and Tesla through their xStocks on X Layer. You invest from OKX Wallet on X Layer Testnet and receive USTX at the recorded NAV, see exactly which tokens your money put in the basket, and check every price yourself. Every five minutes Ganymede prices the xStocks through OKX OnchainOS, records the NAV, the shares outstanding and a SHA-256 fingerprint of the full composition on X Layer, and your browser reads that record directly and recalculates the NAV. The result can be downloaded as an evidence file and re-checked anywhere with one command.
+Ganymede runs six tokenized-stock funds on X Layer. Its flagship is **USTX, the US Tech Basket**: one share tracks Apple, Microsoft, NVIDIA, Amazon, Meta, Tesla, Alphabet, Oracle and Palantir through their xStocks on X Layer. You invest from OKX Wallet on X Layer Testnet and receive USTX at the recorded NAV, see exactly which tokens your money put in the basket, and check every price yourself. Every five minutes Ganymede prices the xStocks through OKX OnchainOS, records the NAV, the shares outstanding and a SHA-256 fingerprint of the full composition on X Layer, and your browser reads that record directly and recalculates the NAV. The result can be downloaded as an evidence file and re-checked anywhere with one command.
 
 [Markets](https://ganymede-xlayer.gana003.workers.dev/) · [Pools](https://ganymede-xlayer.gana003.workers.dev/pools) · [USTX](https://ganymede-xlayer.gana003.workers.dev/products/ustx) · [Transparency](https://ganymede-xlayer.gana003.workers.dev/products/ustx/transparency) · [Portfolio](https://ganymede-xlayer.gana003.workers.dev/portfolio) · [For issuers](https://ganymede-xlayer.gana003.workers.dev/issuers) · [Docs & API](https://ganymede-xlayer.gana003.workers.dev/developers) · [Methodology](https://ganymede-xlayer.gana003.workers.dev/methodology) · [Risks](https://ganymede-xlayer.gana003.workers.dev/limitations)
 
-![Markets: USTX priced by OKX OnchainOS and recorded on X Layer, with the countdown to the next record, the NAV history and the six xStocks](docs/images/markets.png)
+![Markets: USTX priced by OKX OnchainOS and recorded on X Layer, with the countdown to the next record, the NAV history and the xStocks](docs/images/markets.png)
 
 Investing uses demo dollars with no value. From a wallet, the USTX contract on X Layer Testnet issues shares at the NAV recorded on X Layer; with a demo balance, nothing is issued on chain. No real money moves.
 
@@ -16,7 +16,7 @@ Investing uses demo dollars with no value. From a wallet, the USTX contract on X
 <td width="50%"><img src="docs/images/detail.png" alt="An xStock's detail panel: OKX price, change since the units were fixed, weight against the equal-weight target and its token contract on X Layer mainnet"><br><sub>Each xStock: its OKX price, change since the units were fixed, weight against the target and token contract on X Layer mainnet.</sub></td>
 </tr>
 <tr>
-<td width="50%"><img src="docs/images/portfolio.png" alt="Portfolio for a public test address: USTX in the wallet and as lending collateral, looked through to the six xStocks"><br><sub>Portfolio: a wallet's USTX and its lending collateral, looked through to the six xStocks.</sub></td>
+<td width="50%"><img src="docs/images/portfolio.png" alt="Portfolio for a public test address: USTX in the wallet and as lending collateral, looked through to the xStocks"><br><sub>Portfolio: a wallet's USTX and its lending collateral, looked through to the six xStocks.</sub></td>
 <td width="50%"><img src="docs/images/transparency.png" alt="Transparency: the visitor's browser checks the NAV against the record on X Layer"><br><sub>Transparency: the visitor's browser checks the NAV against the record on X Layer.</sub></td>
 </tr>
 </table>
@@ -47,18 +47,18 @@ The command repeats the fingerprint and arithmetic checks against the verifier's
 
 Nothing needs a sign-up. Wallet orders are transactions on X Layer Testnet; everything else needs no signature.
 
-## USTX or six separate xStocks
+## USTX or nine separate xStocks
 
-The same exposure, $1,000 spread equally over the six xStocks, measured on X Layer Testnet on 25 September 2026 and priced at X Layer mainnet's gas price then (0.02 gwei, with OKB at $120.49):
+The same exposure, $1,000 spread equally over the nine xStocks (six until 4 October 2026), measured on X Layer Testnet on 25 September 2026 and priced at X Layer mainnet's gas price then (0.02 gwei, with OKB at $120.49):
 
-| | Six xStocks bought separately | One USTX order through the fund |
+| | Nine xStocks bought separately | One USTX order through the fund |
 | --- | --- | --- |
-| Wallet confirmations to buy | 7 or more: a token approval and six swaps | 2: an approval and the investment (1 once the approval exists) |
-| Wallet confirmations to sell | 6 swaps, plus an approval for each token the first time | 1 redemption |
-| Positions to follow | 6 | 1, looked through to the six on Portfolio |
-| Back to equal weight | up to 6 more swaps every quarter | done in the basket at each quarterly re-fixing |
+| Wallet confirmations to buy | 10 or more: a token approval and nine swaps | 2: an approval and the investment (1 once the approval exists) |
+| Wallet confirmations to sell | 9 swaps, plus an approval for each token the first time | 1 redemption |
+| Positions to follow | 9 | 1, looked through to the nine on Portfolio |
+| Back to equal weight | up to 9 more swaps every quarter | done in the basket at each quarterly re-fixing |
 | Price check | each pool's price, separately | one NAV recorded on X Layer and checked in the browser |
-| Network fees | six swaps, not measured here | investment 75,500 gas and approval 46,200 gas: about $0.0003 |
+| Network fees | nine swaps, estimated hourly by the OKX DEX aggregator (`/api/v1/ustx/dex-quotes`) | investment 75,500 gas and approval 46,200 gas: about $0.0003 |
 
 Network fees on X Layer are a fraction of a cent on either path, so they do not decide the choice; confirmations, positions and rebalancing do. Trading cost is the open question. Each separate swap pays its pool's fee and price impact. The testnet fund pays none because it holds no assets, but a mainnet fund would buy the xStocks and carry those costs itself, netting many orders into fewer trades. The order panel's "Best price" compares what the two USTX routes pay out, the fund at the NAV and the pool after its 0.3% fee and price impact; network fees are paid in OKB and are not part of that comparison.
 
@@ -75,8 +75,8 @@ Network fees on X Layer are a fraction of a cent on either path, so they do not 
 | Area | New in the build period |
 | --- | --- |
 | X Layer | Settlement moved from the GIWA Sepolia testnet to X Layer Testnet. NAV registry, share ledger and relayer deployed; sources verified on the explorer. The USTX share token and demo dollars deployed on 25 September |
-| Tokenized stocks | Six-xStock basket priced through OKX OnchainOS on X Layer mainnet. Publication gates reject missing, stale or mismatched quotes. NAV and fingerprint published every five minutes |
-| Verification | Direct browser read and recalculation, a mainnet check of the six xStock contracts, the three-way tamper experiment, the evidence file and `verify:evidence` |
+| Tokenized stocks | Nine-xStock basket priced through OKX OnchainOS on X Layer mainnet. Publication gates reject missing, stale or mismatched quotes. NAV and fingerprint published every five minutes |
+| Verification | Direct browser read and recalculation, a mainnet check of the xStock contracts, the three-way tamper experiment, the evidence file and `verify:evidence` |
 | Investing | Wallet investing on X Layer Testnet: the order panel quotes the USTX contract at the recorded NAV and the USTX/dUSD pool at its price after fee and price impact, routes each buy or sell to the better one (or the one the visitor picks), and OKX Wallet approves and sends it, with each step, the fill and the explorer link shown. Demo accounts with $10,000 in demo dollars, instant orders at the recorded NAV, idempotent retries and a daily order cap; a confirmation that shows the tokens each order put in the basket; a portfolio that looks through to every xStock |
 | Fund | Fund overview with size, investors, return since launch and look-through holdings; the shares outstanding in wallets and demo balances recorded on X Layer with every NAV |
 | Market activity | Markets shows the last 24 hours of the USTX market (volume, trades, keeper arbitrage and what it earned, loan actions) and the latest trades; the USTX page lists the market's latest events from X Layer Testnet: investments and redemptions at the NAV, pool trades with their price, the keeper's arbitrage as one row with what it earned, and every lending step, each linked to its transaction. A scheduled job on its own cron reads new blocks every five minutes (the public RPC answers 100 blocks per request) and the page reads the blocks since, so a visitor's own order appears within seconds |
@@ -100,11 +100,18 @@ From 30 September, with the organizers' confirmation that finalists may present 
 | AI agents | An MCP server at `/mcp` (Streamable HTTP, no key) lets AI agents, such as an OKX.AI A2MCP client, read the latest NAV, check it against its document, look through a share, quote an order at the fund and both pools, and read the pools and the market's activity. Every tool reads; orders still need the user's own wallet |
 | Ask USTX | An assistant on every product screen answers questions about USTX with an OpenAI model that reads X Layer through the same read-only tools as the MCP server, and names the tools behind each answer. It gives no investment advice, keeps the demo labels and has a daily allowance per visitor and for the site |
 | Load test | 30 team test wallets ran every wallet flow on X Layer Testnet (618 transactions, none failed; 90 wrong orders refused with the contracts' errors), a browser with a test wallet ran the order, borrow and liquidity screens, and 1,198 page, API and MCP requests had no errors, while every NAV record landed on time ([docs/LOAD_TEST.md](docs/LOAD_TEST.md)). The wallets are the team's, not users |
-| Assurance | Invariant fuzzing of the hook against Uniswap's compiled PoolManager (1,000 random steps) and a Slither pass over every contract with each High and Medium finding triaged ([docs/STATIC_ANALYSIS.md](docs/STATIC_ANALYSIS.md)) |
+| Assurance | Invariant fuzzing of the hook against Uniswap's compiled PoolManager (1,000 random steps) and of the lending market (2,000 random steps of lending, borrowing, NAV moves, time and pauses: the books balance, the market stays solvent, no loan opens past its limit, only loans past the threshold are liquidated, a pause never blocks an exit, and everyone can leave), and a Slither pass over every contract with each High and Medium finding triaged ([docs/STATIC_ANALYSIS.md](docs/STATIC_ANALYSIS.md)) |
+| Who controls what | The Transparency page reads each contract's administrator, publisher, minter, owner and pause flag from X Layer in the visitor's browser and says what each role can and cannot do; [SECURITY.md](SECURITY.md) has the same inventory, what is trusted, how it is tested and how to report a vulnerability |
+| First run | A wallet with almost no test OKB gets 0.0005 (about a hundred transactions) with one click on the USTX, Pools and Borrow screens, once per wallet within daily limits, so a first visitor does not need to find a faucet. On a phone without the extension, "Open in the OKX app" opens the page in the OKX app's browser with OKX Wallet connected |
+| OKX DEX comparison | Once an hour the OKX OnchainOS DEX aggregator quotes buying the nine xStocks with $1,000 of USDT on X Layer mainnet; the issuer page shows the swaps, what they lose to price and fees, and the largest price impact, against one order for a fund share (`/api/v1/ustx/dex-quotes`) |
+| Nine xStocks | On 4 October 2026 Alphabet (GOOGLx), Oracle (ORCLx) and Palantir (PLTRx) joined the first six. Each is the same xStocks token contract as the others, with a Uniswap V3 pool on X Layer about as deep as AAPLx's (the thinner ones, such as AMDx and NFLXx, were left out). The basket re-fixed to equal ninths at the prevailing NAV, so the NAV continued, and a name being added joins only at the first record with an OnchainOS price for it, so it can never stop the NAV |
+| Six funds | Markets lists six funds over 18 xStocks: USTX (nine tech leaders) and five more, Magnificent 7 (M7X), AI & Semiconductors (AIX), Crypto Economy (CRYX), US Core Index (CORX: S&P 500 and Nasdaq-100) and Retail Favorites (RTLX). Every token is the same xStocks contract as AAPLx. Each fund is priced by OnchainOS in the same five-minute run, recorded in the NAV registry under its own product key (keccak256 of its id), checked against the X Layer pools when every holding has a deep one, and verified in the browser on its own page (`/funds/<id>`), where the demo balance buys and redeems it. Only USTX has a share token, pools and lending: dUSD has a single minter, the USTX fund, so a second share token could not pay redemptions without replacing it (`/api/v1/funds`) |
+| Usage, honestly counted | `/api/v1/ustx/usage` and the issuer page count every fund, pool and lending event since launch with the team's 35 known wallets (administrator, relayer, keeper, faucet, load-test and end-to-end wallets) apart, and the questions asked of Ask USTX |
+| For developers and agents | An OpenAPI 3.1 description of the public API (`/api/v1/openapi.json`), `/llms.txt` for AI agents, and [examples/agent-quote.mjs](examples/agent-quote.mjs), a dependency-free MCP client that reads the NAV and quotes an order |
 
 ## Project history
 
-Ganymede started in July 2026 as a Korean-won crypto strategy engine. Its paper portfolios are priced from Upbit market data, and its fund-share settlement was first built for the GIWA Sepolia testnet with a Dojang verified-address check. That code is still in the repository: its strategies power the separate paper Lab, which is not part of the submission's new work.
+Ganymede started in July 2026 as a Korean-won crypto strategy engine. Its paper portfolios are priced from Upbit market data, and its fund-share settlement was first built for the GIWA Sepolia testnet with a Dojang verified-address check. That code is still in the repository: its strategies ran a separate paper Lab, which is not part of the submission's new work and was retired from the public site on 3 October 2026 (its links open the dollar product).
 
 For OKX Dev Day we moved settlement to X Layer and built the tokenized-stock product on top of that earlier code. A five-minute cron runs the new USTX step with the earlier engine's D1 state store and job lease (until 25 September it ran inside the engine's own five-minute cycle); it records the NAV to the NAV registry contract from the earlier rail, redeployed to X Layer Testnet without changes, through the settlement relayer, which we extended for X Layer; these reused parts are not counted as new work. The GMDCORE share-ledger contract deployed to X Layer comes from the same rail, so its verified source still describes GIWA settlement. The same X Layer registry also carries NAV records for the earlier paper strategies under a different product key. The USTX check reads only the USTX key.
 
@@ -112,8 +119,8 @@ For OKX Dev Day we moved settlement to X Layer and built the tokenized-stock pro
 
 | Component | Use |
 | --- | --- |
-| OKX OnchainOS Market API | Signed price requests for the six xStock tokens on X Layer mainnet (196). The prices are the inputs of every NAV |
-| X Layer mainnet | Where the priced xStock tokens live. The browser reads the six pinned token contracts (code, symbol, decimals) and any wallet's balances directly |
+| OKX OnchainOS Market API | Signed price requests for the nine xStock tokens on X Layer mainnet (196). The prices are the inputs of every NAV |
+| X Layer mainnet | Where the priced xStock tokens live. The browser reads the nine pinned token contracts (code, symbol, decimals) and any wallet's balances directly |
 | X Layer Testnet (1952) | `GanymedeNavRegistry` stores each NAV, the shares outstanding, the effective time and the composition fingerprint and emits `NavPublished`. `GanymedeBasketFund` (USTX) issues and redeems shares only at that NAV, and `GanymedeDemoDollar` (dUSD) pays for them |
 | OKX Wallet | `window.okxwallet` first: the USTX page switches it to X Layer Testnet and sends the claim, approve, invest, redeem, pool trade and lending transactions, and the Pools screen its liquidity deposits and withdrawals; Portfolio reads its balances |
 | OKX explorer | Every record, token and transaction links to the OKX X Layer explorer |
@@ -123,6 +130,8 @@ For OKX Dev Day we moved settlement to X Layer and built the tokenized-stock pro
 | NAV price feed | `GanymedeNavFeed` serves the registry's USTX NAV through `AggregatorV3Interface`, the interface Chainlink price feeds use (8 decimals, "USTX / USD"), so X Layer contracts that read Chainlink prices can read USTX without custom code |
 | Browser verifier | Reads the registry over public RPC after checking the chain ID, then verifies exact document bytes and integer arithmetic |
 | Evidence command | Re-checks a downloaded file and matches it to the `NavPublished` event in its transaction receipt |
+| OKX OnchainOS DEX aggregator | Signed quote requests, hourly, for buying each xStock with USDT on X Layer mainnet, to show what building the basket by hand costs. Quotes only; nothing is sent |
+| OKX app | "Open in the OKX app" uses OKX's universal link to open the current page in the app's browser with OKX Wallet |
 
 On X Layer Testnet: NAV registry [`0xf320d2a7f280b7ab61e24374986869d7be34289c`](https://web3.okx.com/explorer/x-layer-testnet/address/0xf320d2a7f280b7ab61e24374986869d7be34289c), USTX [`0x77eaeba1366bde7818da12d3cbdbea0a2ee97596`](https://web3.okx.com/explorer/x-layer-testnet/address/0x77eaeba1366bde7818da12d3cbdbea0a2ee97596), dUSD [`0xf07535080f74e8b0f571e58dfa600f47e72ea9bf`](https://web3.okx.com/explorer/x-layer-testnet/address/0xf07535080f74e8b0f571e58dfa600f47e72ea9bf), NAV feed [`0x292c56c5290cc7b73e3ee33c2c2688eb3e04c3c8`](https://web3.okx.com/explorer/x-layer-testnet/address/0x292c56c5290cc7b73e3ee33c2c2688eb3e04c3c8), USTX/dUSD pool [`0x286f5e7ffdbc30db12665d7a3854217d7cd05cc1`](https://web3.okx.com/explorer/x-layer-testnet/address/0x286f5e7ffdbc30db12665d7a3854217d7cd05cc1), NAV arbitrage [`0xaeba15aa92d6f3109e2b992f18933e1abe2fa3d9`](https://web3.okx.com/explorer/x-layer-testnet/address/0xaeba15aa92d6f3109e2b992f18933e1abe2fa3d9), lending market [`0xae2f54ae3d0370295de18510d56de92afb8843c7`](https://web3.okx.com/explorer/x-layer-testnet/address/0xae2f54ae3d0370295de18510d56de92afb8843c7). Their sources are verified on the OKX explorer and match exactly on Sourcify ([list](onchain/README.md#verify-the-sources)).
 
@@ -137,7 +146,7 @@ A record's time is the time of its oldest price, never later than the calculatio
 - **USTX** is a model basket. On X Layer Testnet its contract issues shares for demo dollars at the recorded NAV; it holds no assets, and shares give no rights. An investment's demo dollars are burned and a redemption mints new ones, so no xStock is bought or sold. Demo-balance orders issue nothing on chain. The fund size counts both kinds of shares, and the USTX page shows how many are tokens in wallets, which trade in the pool and serve as loan collateral, and how many are in demo balances, which stay in the app.
 - **xStocks** carry the rights their issuer's documents describe. Ganymede does not hold them.
 - **GMDCORE** is an issuer-controlled test share ledger from the earlier settlement work. Its supply is zero, and it is not a claim on USTX.
-- **Portfolio valuations** price the six xStocks at the recorded prices. A valuation is not an executable quote and does not prove who controls an address.
+- **Portfolio valuations** price the nine xStocks at the recorded prices. A valuation is not an executable quote and does not prove who controls an address.
 
 Ganymede has no deposit address for real funds and no deployed custody contract; dUSD and USTX exist only on X Layer Testnet and have no value. Contracts are unaudited, and there is no public offering. [Limitations and data policy](https://ganymede-xlayer.gana003.workers.dev/limitations).
 
@@ -149,7 +158,7 @@ Ganymede's contribution is narrower. Any visitor can reproduce a published baske
 
 ## Business model and next steps (not built)
 
-Ganymede is built to become the verification and distribution layer for tokenized-stock baskets on X Layer. The intended pricing is a free sandbox (today's testnet product), a per-basket subscription for issuers publishing on X Layer mainnet, and a distribution fee on assets raised through licensed partners. The [issuer page](https://ganymede-xlayer.gana003.workers.dev/issuers) lists these plans with a contact route.
+Ganymede is built to become the verification and distribution layer for tokenized-stock baskets on X Layer. The intended pricing is a free sandbox (today's testnet product), a per-basket subscription for issuers publishing on X Layer mainnet, and a distribution fee on assets raised through licensed partners. The [issuer page](https://ganymede-xlayer.gana003.workers.dev/issuers) lists these plans with a contact route, how Ganymede would earn (a share of the issuer's fee, a distribution share and a verified NAV feed), the road to mainnet (an audit, NAV records on mainnet as a price feed only, a licensed issuer with custody, then distribution) and the usage so far, counted without the team's wallets.
 
 The first thing to sell is the NAV record and its verification to basket issuers; the investing app shows it working. The unit cost is small and measured. One NAV record on X Layer uses about 68,200 gas. At X Layer mainnet's gas price on 25 September 2026 (0.02 gwei) and OKB at $120.49, that is about $0.00016 a record, so a basket recorded every five minutes, 288 times a day, costs about $0.05 a day, or $1.40 a month, in gas. Each record also makes one OnchainOS price request and a few database writes, and one Cloudflare Workers Paid plan ($5 a month) hosts every basket. The costs that grow with each issuer are onboarding, monitoring and support, not chain fees. No customers or prices are claimed.
 
@@ -183,7 +192,7 @@ See `.env.example` for setting names and [the engine reference](docs/ENGINE_REFE
 
 ## Source and release
 
-This public review snapshot corresponds to production source commit `ca2b504d5b4ccae501617a2c620f7b114f3c38a4`. Application code matches the recorded source; documentation may be newer. The original development history remains private, and public-hosting identifiers are adjusted. See [snapshot provenance](docs/BUILD_EVIDENCE.md). Cloudflare deployment messages identify the production source commit. [Release rules and identity model](docs/release-identity.md).
+This public review snapshot corresponds to production source commit `93213843b7e04420594a94c38260705d5c589716`. Application code matches the recorded source; documentation may be newer. The original development history remains private, and public-hosting identifiers are adjusted. See [snapshot provenance](docs/BUILD_EVIDENCE.md). Cloudflare deployment messages identify the production source commit. [Release rules and identity model](docs/release-identity.md).
 
 - [Dev Day submission notes](docs/OKX_DEV_DAY.md) and [build-period work](docs/BUILD_PERIOD.md)
 - [Asset credits](public/ASSET-CREDITS.md)

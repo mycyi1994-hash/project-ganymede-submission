@@ -242,8 +242,6 @@
 .gmd-empty-symbol { width: 80px; height: 80px; display: flex; align-items: center; justify-content: center; border-radius: 50%; background: #e8f0ee; color: var(--gmd-accent); margin-bottom: 26px; }
 .gmd-account-empty h2 { font-size: 28px; }
 .gmd-account-empty p { max-width: 54ch; margin-block: 14px 26px; }
-.gmd-lab-reference { margin-top: 28px; display: flex; justify-content: space-between; align-items: center; gap: 20px; }
-.gmd-lab-reference p { font-size: 14px; margin-top: 5px; }
 .gmd-lab-reference a { display: flex; align-items: center; gap: 8px; font-size: 14px; color: var(--gmd-accent); }
 .gmd-design-toolbar { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 8px 20px; padding: 10px 28px; background: #f3e8d6; border-bottom: 1px solid #d9c3a0; font-size: 12px; }
 .gmd-design-toolbar b { margin-inline-end: 10px; }
@@ -1273,3 +1271,98 @@ a.gmd-pool-pair:hover b { text-decoration: underline; text-underline-offset: 3px
   .gmd-ask { z-index: 45; inset: auto 0 0 0; width: 100%; height: min(88dvh, 640px); border-radius: 14px 14px 0 0; padding-bottom: env(safe-area-inset-bottom); }
 }
 .gmd-ask form button svg { width: 18px; height: 18px; }
+
+/* Long names and addresses in running text wrap on narrow screens; code blocks scroll inside their box. */
+.gmd-document { min-width: 0; }
+.gmd-document :is(p,li,dd,td) code { overflow-wrap: anywhere; }
+.gmd-code, .gmd-code pre { max-width: 100%; min-width: 0; }
+.gmd-wallet-gate-actions { display: flex; flex-wrap: wrap; gap: 10px; }
+.gmd-wallet-gate-actions > * { flex: 1 1 180px; }
+.gmd-controls td p { margin: 0; font-size: 13px; }
+.gmd-controls td p + p { margin-top: 4px; }
+.gmd-controls :is(th,td) { vertical-align: top; text-align: left; }
+.gmd-controls td:last-child { min-width: 280px; }
+.gmd-app .gmd-wallet-gas.is-done { background: #edf6ef; color: #1f5a32; }
+.gmd-wallet-gas-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; margin-top: 8px; }
+.gmd-wallet-gas .gmd-inline-error { margin-top: 8px; }
+.gmd-usage { display: grid; grid-template-columns: repeat(4,minmax(0,1fr)); gap: 12px; margin: 16px 0 8px; }
+.gmd-usage div { background: #fff; border: 1px solid var(--gmd-line); border-radius: 10px; padding: 16px; }
+.gmd-usage dt { font-size: 12px; color: var(--gmd-copy); }
+.gmd-usage dd { margin: 6px 0 0; }
+.gmd-usage strong { display: block; font-size: 22px; }
+.gmd-usage small { display: block; margin-top: 4px; font-size: 12px; color: var(--gmd-copy); }
+.gmd-roadmap { margin-top: 16px; }
+.gmd-roadmap li { margin-bottom: 12px; }
+.gmd-roadmap b { display: block; }
+@media (max-width: 760px) { .gmd-usage { grid-template-columns: 1fr 1fr; } }
+.gmd-dex-compare { margin-top: 18px; }
+.gmd-dex-compare h3 { font-size: 16px; margin: 0 0 4px; }
+
+/* Funds: the list on Markets, each fund's page and its holdings on Portfolio. */
+.gmd-fund-list { margin-top: 30px; background: #fff; border: 1px solid var(--gmd-line); border-radius: 10px; padding: 24px; }
+.gmd-fund-list .gmd-section-heading { margin-bottom: 8px; }
+.gmd-fund-list ul { list-style: none; margin: 0; padding: 0; }
+.gmd-fund-list li { border-top: 1px solid #e8ecee; }
+.gmd-fund-list li.is-loading span { display: block; height: 56px; margin: 8px 0; border-radius: 6px; background: var(--gmd-soft); }
+.gmd-fund-list a { display: grid; grid-template-columns: minmax(150px,1.2fr) 160px minmax(0,1.3fr) 120px 110px 16px; gap: 16px; align-items: center; padding: 14px 4px; color: inherit; text-decoration: none; }
+.gmd-fund-list a:hover { background: #f8fafa; }
+.gmd-fund-list a:focus-visible { outline: 2px solid var(--gmd-accent); outline-offset: 2px; }
+.gmd-fund-name b, .gmd-fund-nav b { display: block; font-size: 15px; }
+.gmd-fund-name small, .gmd-fund-nav small { display: block; margin-top: 3px; font-size: 12px; color: var(--gmd-copy); }
+.gmd-fund-nav { text-align: right; }
+.gmd-fund-theme { font-size: 13px; color: var(--gmd-copy); }
+.gmd-fund-marks { display: flex; align-items: center; }
+.gmd-fund-marks .gmd-asset-mark { width: 30px; height: 30px; min-width: 30px; border-radius: 50%; margin-left: -6px; box-shadow: 0 0 0 2px #fff; overflow: hidden; }
+.gmd-fund-marks .gmd-asset-mark img { width: 17px; height: 17px; }
+.gmd-fund-marks .gmd-ms { transform: scale(.75); }
+.gmd-fund-marks .gmd-asset-mark:first-child { margin-left: 0; }
+.gmd-fund-marks > i { font-style: normal; font-size: 12px; color: var(--gmd-copy); margin-left: 6px; }
+.gmd-app small.is-up, .gmd-app td.is-up { color: var(--gmd-accent); }
+.gmd-app small.is-down, .gmd-app td.is-down { color: #a23e39; }
+.gmd-fund-line { margin: 0; }
+.gmd-fund-line svg { display: block; width: 100%; height: 180px; touch-action: none; }
+.gmd-fund-line.is-compact { width: 100%; height: 36px; }
+.gmd-fund-line.is-compact.is-empty { background: linear-gradient(var(--gmd-line),var(--gmd-line)) center/100% 1px no-repeat; }
+.gmd-fund-line path { fill: none; stroke: var(--gmd-accent); stroke-width: 2; vector-effect: non-scaling-stroke; stroke-linejoin: round; }
+.gmd-fund-line.is-down path { stroke: #a23e39; }
+.gmd-fund-line line { stroke: var(--gmd-line); stroke-width: 1; vector-effect: non-scaling-stroke; }
+.gmd-fund-line circle { fill: #fff; stroke: var(--gmd-ink); stroke-width: 2; vector-effect: non-scaling-stroke; }
+.gmd-fund-line figcaption { margin-top: 8px; font-size: 13px; color: var(--gmd-copy); min-height: 20px; }
+.gmd-fund-line figcaption b { color: var(--gmd-ink); }
+.gmd-fund-layout { display: grid; grid-template-columns: minmax(0,1fr) 340px; gap: 28px; align-items: start; margin-top: 8px; }
+.gmd-fund-main > * + * { margin-top: 24px; }
+.gmd-fund-main .gmd-proof-history { margin-top: 24px; }
+.gmd-fund-hero { background: #fff; border: 1px solid var(--gmd-line); border-radius: 10px; padding: 24px; display: grid; grid-template-columns: 1fr auto; gap: 12px 24px; }
+.gmd-fund-hero > div:first-child span { display: block; font-size: 13px; color: var(--gmd-copy); }
+.gmd-fund-hero strong { display: block; font-size: 40px; letter-spacing: -.02em; margin-top: 6px; font-variant-numeric: tabular-nums; }
+.gmd-fund-hero small { display: block; margin-top: 4px; font-size: 13px; }
+.gmd-fund-hero-side { display: flex; flex-direction: column; align-items: flex-end; gap: 8px; font-size: 13px; }
+.gmd-fund-hero .gmd-fund-line { grid-column: 1 / -1; }
+.gmd-fund-hero .gmd-inline-tx, .gmd-fund-main .gmd-inline-tx { display: inline-flex; align-items: center; gap: 4px; color: var(--gmd-accent); }
+.gmd-fund-asset { display: inline-flex; align-items: center; gap: 10px; text-align: left; }
+.gmd-fund-asset b { display: block; font-size: 14px; }
+.gmd-fund-asset small { display: block; font-size: 12px; color: var(--gmd-copy); font-weight: 400; }
+.gmd-fund-holdings th[scope="row"] { text-align: left; }
+.gmd-fund-order { position: sticky; top: 20px; background: #fff; border: 1px solid var(--gmd-line); border-top: 3px solid var(--gmd-accent); border-radius: 10px; padding: 22px; }
+.gmd-fund-order h2 { font-size: 20px; margin: 0 0 6px; }
+.gmd-fund-order .gmd-caption { margin-bottom: 14px; }
+.gmd-fund-order .gmd-segmented, .gmd-fund-order .gmd-order-input, .gmd-fund-order .gmd-order-presets { margin-bottom: 14px; }
+.gmd-app .gmd-fund-order .gmd-segmented { width: 100%; }
+.gmd-app .gmd-fund-order .gmd-segmented button { flex: 1; font-size: 14px; min-height: 36px; }
+.gmd-fund-order .gmd-button { width: 100%; justify-content: center; }
+.gmd-fund-filled { margin-top: 12px; padding: 10px 12px; border-radius: 6px; background: #edf6ef; color: #1f5a32; font-size: 14px; }
+.gmd-fund-portfolio { margin-top: 24px; }
+.gmd-fund-portfolio th[scope="row"] { text-align: left; }
+.gmd-fund-portfolio th a { color: var(--gmd-accent); }
+@media (max-width: 960px) {
+  .gmd-fund-layout { grid-template-columns: 1fr; }
+  .gmd-fund-order { position: static; }
+  .gmd-fund-list a { grid-template-columns: minmax(0,1fr) 120px 16px; }
+  .gmd-fund-list .gmd-fund-marks, .gmd-fund-list .gmd-fund-theme, .gmd-fund-list .gmd-fund-line { display: none; }
+}
+@media (max-width: 560px) {
+  .gmd-fund-list { padding: 18px 16px; }
+  .gmd-fund-hero { grid-template-columns: 1fr; padding: 18px; }
+  .gmd-fund-hero-side { align-items: flex-start; }
+  .gmd-fund-hero strong { font-size: 32px; }
+}

@@ -188,7 +188,7 @@ test("the API serves the cron's snapshot without reading X Layer while it is und
   assert.ok(Date.parse(fresh.readAt) > stored.readAt);
 });
 
-test("the Worker stores the pools snapshot on its own once-a-minute cron and runs no NAV record", async (t) => {
+test("the Worker stores the pools and NAV snapshots on its own once-a-minute cron and runs no NAV record", async (t) => {
   const config = JSON.parse(readFileSync(new URL("../dist/server/wrangler.json", import.meta.url), "utf8"));
   assert.ok(config.triggers.crons.includes(POOLS_CRON));
   const { db, sql } = database();
@@ -198,8 +198,14 @@ test("the Worker stores the pools snapshot on its own once-a-minute cron and run
   const { default: worker } = await import(workerUrl.href);
   const pending = [];
   await worker.scheduled({ cron: POOLS_CRON, scheduledTime: Date.now(), noRetry() {} }, { DB: db }, { waitUntil: promise => pending.push(promise), passThroughOnException() {} });
-  assert.equal(pending.length, 1);
-  await pending[0];
-  assert.deepEqual(sql.prepare("SELECT key FROM engine_state").all().map(row => row.key), [STATE_POOLS_SNAPSHOT], "only the snapshot; no NAV cycle ran");
+  // Two jobs: the pools snapshot and the NAV snapshot. No registry is configured here, so the second
+  // fails, alone, and says so.
+  assert.equal(pending.length, 2);
+  const errors = t.mock.method(console, "error", () => {});
+  const [pools, nav] = await Promise.allSettled(pending);
+  assert.equal(pools.status, "fulfilled");
+  assert.equal(nav.status, "rejected");
+  assert.match(String(errors.mock.calls[0].arguments[0]), /NAV snapshot failed/);
+  assert.deepEqual(sql.prepare("SELECT key FROM engine_state").all().map(row => row.key), [STATE_POOLS_SNAPSHOT], "only the pools snapshot; no NAV cycle ran");
 });
 

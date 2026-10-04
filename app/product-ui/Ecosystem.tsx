@@ -8,6 +8,8 @@ import { DocumentMenu } from "./DocumentMenu";
 import { Icon } from "./Icons";
 import VerifyYourself from "./VerifyYourself";
 import BasketCheckPanel from "./BasketCheck";
+import UsageFigures from "./UsageFigures";
+import DexCompare from "./DexCompare";
 
 const SITE = "https://ganymede-xlayer.gana003.workers.dev";
 const REPOSITORY = "https://github.com/mycyi1994-hash/project-ganymede-submission";
@@ -180,15 +182,16 @@ export function DevelopersPage() {
   return <ProductShell><Link className="gmd-breadcrumb" prefetch={false} href="/"><Icon name="back" size={16} />Markets</Link>
     <div className="gmd-document-layout"><DocumentMenu current="developers" />
       <article className="gmd-document"><header><h1>Build with a NAV anyone can verify.</h1><p>Every USTX NAV is priced with OKX OnchainOS and recorded on X Layer with a fingerprint of its composition. Read it from our API, read it straight from the chain, or embed a badge that checks it in your visitor’s browser.</p></header>
-        <section id="api"><h2>Public NAV API</h2><p>The latest USTX record, read from the registry on X Layer when you call it. No key, no cookies, CORS open to every origin, cacheable for 30 seconds.</p>
+        <section id="api"><h2>Public NAV API</h2><p>The latest USTX record, read from the registry on X Layer within the last 90 seconds (<code>readAt</code> says when). No key, no cookies, CORS open to every origin, cacheable for 30 seconds.</p>
           <Code label="Request">{`curl ${SITE}/api/v1/ustx`}</Code>
           <Code label="Response (abridged)">{apiExample}</Code>
-          <p>Also available: <code>GET /api/v1/ustx/activity</code> returns the latest market activity (orders at the fund, pool trades, the keeper’s arbitrage and loans) read from the contracts’ events on X Layer Testnet, with the blocks it covers, the last 24 hours’ figures, and every arbitrage and order of $1,000 or more for marking a chart; <code>GET /api/v1/ustx/pools</code> returns the USTX/dUSD pool&rsquo;s reserves, LP token supply, value at the NAV, fee APR and last 24 hours of volume and fees, read from X Layer Testnet at most 30 seconds before (<code>readAt</code>); <code>GET /api/xstocks</code> returns the full market snapshot with the composition documents behind recent records; and <code>GET /api/demo/fund</code> returns fund totals and 24-hour flows.</p>
+          <p>Also available: <code>GET /api/v1/ustx/activity</code> returns the latest market activity (orders at the fund, pool trades, the keeper’s arbitrage and loans) read from the contracts’ events on X Layer Testnet, with the blocks it covers, the last 24 hours’ figures, and every arbitrage and order of $1,000 or more for marking a chart; <code>GET /api/v1/ustx/pools</code> returns the USTX/dUSD pool&rsquo;s reserves, LP token supply, value at the NAV, fee APR and last 24 hours of volume and fees, read from X Layer Testnet at most 30 seconds before (<code>readAt</code>); <code>GET /api/xstocks</code> returns the full market snapshot with the composition documents behind recent records; <code>GET /api/demo/fund</code> returns fund totals and 24-hour flows; <code>GET /api/v1/ustx/usage</code> returns usage since launch with the team&rsquo;s and test wallets apart; and <code>GET /api/v1/ustx/dex-quotes</code> returns the OKX DEX aggregator&rsquo;s hourly quotes for building the basket by hand on X Layer mainnet. The whole API is described in <a href="/api/v1/openapi.json">OpenAPI 3.1</a>, and <a href="/llms.txt">/llms.txt</a> is a guide for AI agents.</p>
           <a className="gmd-inline-link" href="/api/v1/ustx" target="_blank" rel="noreferrer">Open the live response <Icon name="external" size={14} /></a>
         </section>
         <section id="mcp"><h2>Ask from an AI agent (MCP)</h2><p>AI agents can read USTX through the Model Context Protocol at <code>{SITE}/mcp</code> (Streamable HTTP, JSON responses, no key or session). Its six tools only read: <code>get_ustx_nav</code> (the latest record and whether orders accept it), <code>verify_ustx_nav</code> (the record checked against its document), <code>get_ustx_holdings</code> (what one share holds), <code>quote_ustx_order</code> (the fund at the NAV against both pools, and the best), <code>get_ustx_pools</code> (both pools and their results for providers) and <code>get_ustx_market_activity</code>. None signs or sends anything: an order still needs the visitor&rsquo;s own wallet on the USTX page, and demo dollars and USTX have no value.</p>
           <Code label="Add it to your AI client">{mcpClientExample}</Code>
           <Code label="Or call a tool directly">{mcpExample}</Code>
+          <a className="gmd-inline-link" href={`${REPOSITORY}/blob/main/examples/agent-quote.mjs`} target="_blank" rel="noreferrer">A runnable agent example: connect, read the NAV and quote an order <Icon name="external" size={14} /></a>
         </section>
         <section id="chain"><h2>Read the record from X Layer yourself</h2><p>You do not have to trust our API. The registry is a public contract on X Layer Testnet (chain {PROOF_DEPLOYMENT.chainId}); its <code>latestNav</code> getter returns the NAV per share, the shares outstanding, the composition fingerprint and the effective time.</p>
           <Code label="TypeScript with viem">{viemExample}</Code>
@@ -233,7 +236,7 @@ export function DevelopersPage() {
         </section>
         <section id="okx"><h2>Built on the OKX stack</h2>
           <ul className="gmd-stack-list">
-            <li><b>OKX OnchainOS Market API</b><span>Prices all six xStocks on X Layer every five minutes. The NAV is never published without them.</span></li>
+            <li><b>OKX OnchainOS Market API</b><span>Prices all nine xStocks on X Layer every five minutes. The NAV is never published without them.</span></li>
             <li><b>X Layer Testnet</b><span>Holds the NAV registry (every NAV, its composition fingerprint and the shares outstanding), the USTX token, which issues shares only at the recorded NAV, a feed that serves that NAV to other contracts in the Chainlink interface, a USTX/dUSD pool whose gap to the NAV any wallet can close in one transaction, and a market that lends demo dollars against USTX at that NAV.</span></li>
             <li><b>X Layer mainnet</b><span>Where the xStocks live. Portfolio reads any wallet’s xStock balances directly from mainnet.</span></li>
             <li><b>OKX Wallet</b><span>Buys and sells USTX on X Layer Testnet from the USTX page, at the fund or in the pool, borrows against it, and shows its balances on Portfolio.</span></li>
@@ -251,6 +254,19 @@ const steps = [
   ["Sell it, and let investors check", "Investors buy and redeem from their own wallets at the recorded NAV and verify every price in their own browser. Partners embed the badge or read the API."],
 ] as const;
 
+const revenue = [
+  ["Issuer fee", "A yearly fee on the basket's assets for pricing, recording, verification and the investor app, charged by the licensed issuer and shared with Ganymede. At 0.15% a year, a $10 million basket would bring $15,000 a year against about $17 of gas."],
+  ["Distribution share", "A share of the issuer fee on assets that come through a partner wallet or exchange showing the basket and its badge."],
+  ["Verified NAV feed", "Other protocols, such as lending markets that take a basket as collateral, subscribe to its NAV in the Chainlink interface, as GanymedeNavFeed serves USTX on testnet today."],
+] as const;
+
+const roadmap = [
+  ["Now: X Layer Testnet", "USTX priced by OKX OnchainOS and recorded every five minutes, wallet orders, two pools, lending, a public API and an MCP server, all with demo dollars."],
+  ["Next: an audit, and NAV records on mainnet", "An external audit of the contracts, then USTX's NAV recorded on X Layer mainnet as a price feed only: no shares are issued and no money moves."],
+  ["Then: a licensed issuer", "A regulated partner issues the share token, holds the xStocks in custody through the in-kind vault (GanymedeBasketVault, tested on a fork), and admits investors under its licence. Ganymede supplies pricing, records, verification and the app."],
+  ["After: distribution", "The basket in OKX Wallet and partner apps with its badge, and its NAV feed in lending markets on X Layer."],
+] as const;
+
 const plans = [
   { name: "Sandbox", price: "Free", note: "Available now on X Layer Testnet", items: ["A basket from one configuration file", "Records in your own registry on X Layer Testnet", "Browser verification and badge"] },
   { name: "Issuer", price: "Contact us", note: "X Layer mainnet", items: ["Your own basket and branding", "Mainnet NAV records", "Full evidence archive"] },
@@ -261,7 +277,7 @@ export function IssuersPage() {
   return <ProductShell><Link className="gmd-breadcrumb" prefetch={false} href="/"><Icon name="back" size={16} />Markets</Link>
     <div className="gmd-document-layout"><DocumentMenu current="issuers" />
       <article className="gmd-document"><header><h1>Launch a basket investors can verify.</h1><p>Ganymede turns tokenized stocks on X Layer into a fund product with a NAV anyone can check: priced by OKX OnchainOS, recorded on X Layer every five minutes and verified in the investor’s own browser.</p></header>
-        <section id="why"><h2>Why it matters</h2><p>Tokenized stocks such as xStocks already trade on X Layer, but a basket built from them usually asks investors to trust the issuer’s price. Ganymede publishes the evidence with every price, so a wallet, an exchange or an investor can confirm the NAV without asking anyone. That makes a basket easier to list, easier to distribute and harder to misprice.</p></section>
+        <section id="why"><h2>Why it matters</h2><p>Tokenized stocks such as xStocks already trade on X Layer, but a basket built from them usually asks investors to trust the issuer’s price. Ganymede publishes the evidence with every price, so a wallet, an exchange or an investor can confirm the NAV without asking anyone. That makes a basket easier to list, easier to distribute and harder to misprice.</p><DexCompare /></section>
         <section id="how"><h2>How it works</h2><ol className="gmd-steps">{steps.map(([title, copy], index) => <li key={title}><span>{index + 1}</span><div><b>{title}</b><p>{copy}</p></div></li>)}</ol></section>
         <section id="get"><h2>What you get</h2><ul className="gmd-stack-list">
           <li><b>An investor app</b><span>Markets, a product page with fund figures, invest and redeem from a wallet, and a portfolio that looks through to every token.</span></li>
@@ -271,6 +287,9 @@ export function IssuersPage() {
           <li><b>Operations</b><span>Scheduled pricing, publication with idempotent retries, and rate-limit handling for the price provider.</span></li>
         </ul><p className="gmd-caption">USTX has all of this today. A basket set up from a configuration file has its own registry, browser check and badge today; the rest follows in a pilot.</p><Link prefetch={false} className="gmd-inline-link" href="/products/ustx">See it working with USTX <Icon name="arrow" size={16} /></Link></section>
         <section id="plans"><h2>Plans</h2><div className="gmd-plans">{plans.map(plan => <article key={plan.name}><span>{plan.note}</span><h3>{plan.name}</h3><strong>{plan.price}</strong><ul>{plan.items.map(item => <li key={item}><Icon name="check" size={15} />{item}</li>)}</ul></article>)}</div><p className="gmd-caption">Real-money services are offered only with licensed partners in the markets they serve.</p></section>
+        <section id="revenue"><h2>How Ganymede earns</h2><p>Nothing is charged on testnet. Once a licensed issuer runs a basket on mainnet, Ganymede earns from it in three ways:</p><ul className="gmd-stack-list">{revenue.map(([title, copy]) => <li key={title}><b>{title}</b><span>{copy}</span></li>)}</ul><p className="gmd-caption">The fee is an illustration, not a quote; the gas figure is from the cost measurement below.</p></section>
+        <section id="roadmap"><h2>The road to mainnet</h2><ol className="gmd-steps gmd-roadmap">{roadmap.map(([title, copy], index) => <li key={title}><span>{index + 1}</span><div><b>{title}</b><p>{copy}</p></div></li>)}</ol><p className="gmd-caption">Real money comes only with a licensed issuer; until then dUSD and USTX have no value.</p></section>
+        <section id="usage"><h2>Usage so far</h2><UsageFigures /></section>
         <section id="pilot"><h2>A pilot</h2><p>A pilot for a basket issuer: we set up your basket from a configuration file, record its NAV and composition on X Layer Testnet, and give you its verification page and badge. A five-minute schedule and a public API for it, as USTX has, come next. You provide the constituents and the fixing, and every record, and any delay, shows on the verification page. No pilot has run yet. An issuer can also record its own basket with a configuration file, its own wallet and registry, and its documents served here or from its own host, as the <Link prefetch={false} href="/developers#baskets">MAG3 demo basket</Link> does.</p></section>
         <section id="cost"><h2>What it costs to run</h2><p>Measured on 25 September 2026: one NAV record on X Layer uses about 68,200 gas. At X Layer mainnet’s gas price then (0.02 gwei) and OKB at $120.49, that is about $0.00016 a record, so a basket recorded every five minutes costs about $1.40 a month in gas. Each record also makes one OnchainOS price request and a few database writes, and one hosting plan serves every basket. The costs that grow with each issuer are onboarding, monitoring and support.</p></section>
         <footer><p>Launching a basket, listing USTX or showing its NAV in your app? Get in touch on GitHub.</p><div className="gmd-terms-links"><a className="gmd-button" href={`${REPOSITORY}/issues`} target="_blank" rel="noreferrer">Contact us on GitHub <Icon name="external" size={16} /></a><Link prefetch={false} className="gmd-inline-link" href="/developers">Developer docs <Icon name="arrow" size={16} /></Link></div></footer>

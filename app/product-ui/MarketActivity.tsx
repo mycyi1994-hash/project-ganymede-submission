@@ -133,7 +133,7 @@ function describe(row: MarketActivity): { title: string; detail: string; amount:
 
 /** The rows, each linked to its transaction on the OKX explorer. */
 function ActivityList({ rows, clock, mine, label = "Latest market activity" }: { rows: MarketActivity[]; clock: number; mine: string | null; label?: string }) {
-  const who = (account: string) => account === mine ? "You" : account === FUND_DEPLOYMENT.keeper ? "Arbitrage keeper" : short(account);
+  const who = (account: string) => account === mine ? "You" : account === FUND_DEPLOYMENT.keeper ? "Automated arbitrage" : short(account);
   return <ul className="gmd-activity-list" aria-label={label}>{rows.map(row => {
     const text = describe(row);
     return <li key={`${row.hash}:${row.logIndex}`}><a href={fundExplorer.tx(row.hash)} target="_blank" rel="noreferrer">

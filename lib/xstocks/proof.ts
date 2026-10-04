@@ -10,6 +10,11 @@ export const PROOF_DEPLOYMENT = {
   registry: "0xf320d2a7f280b7ab61e24374986869d7be34289c",
 };
 export type Check = { state: "pass" | "fail" | "pending"; detail: string };
+export type CompositionVerification = {
+  hash: Check; nav: Check; composition: Composition | null;
+  /** Actual intermediate values, for showing the browser's work alongside the chain record. */
+  computedHash: string; computedNavMicros: string | null;
+};
 const WAD = 10n ** 18n;
 const integer = (value: unknown): value is string => typeof value === "string" && /^(0|[1-9]\d{0,77})$/.test(value);
 const date = (value: unknown): value is string => typeof value === "string" && Number.isFinite(Date.parse(value));
@@ -60,7 +65,7 @@ export function parseReport(canonical: string, profile: ReportProfile): Composit
   return doc as Composition;
 }
 
-export async function verifyComposition(canonical: string, record: OnchainNav): Promise<{ hash: Check; nav: Check; composition: Composition | null }> {
+export async function verifyComposition(canonical: string, record: OnchainNav): Promise<CompositionVerification> {
   return verifyReport(canonical, record, ustxProfile(canonical), "chain");
 }
 
@@ -73,19 +78,21 @@ export function fundProfile(fundId: string): ReportProfile {
 
 export const parseFundComposition = (canonical: string, fundId: string): Composition => parseReport(canonical, fundProfile(fundId));
 
-export function verifyFundComposition(canonical: string, record: OnchainNav, fundId: string): Promise<{ hash: Check; nav: Check; composition: Composition | null }> {
+export function verifyFundComposition(canonical: string, record: OnchainNav, fundId: string): Promise<CompositionVerification> {
   return verifyReport(canonical, record, fundProfile(fundId), "chain");
 }
 
 /** Shared arithmetic and byte checks. Offline records are explicitly not chain evidence. */
-export async function verifyReport(canonical: string, record: OnchainNav, profile: ReportProfile, source: "chain" | "example" = "example"): Promise<{ hash: Check; nav: Check; composition: Composition | null }> {
+export async function verifyReport(canonical: string, record: OnchainNav, profile: ReportProfile, source: "chain" | "example" = "example"): Promise<CompositionVerification> {
   const computedHash = await sha256Hex(canonical);
   const hash: Check = computedHash.toLowerCase() === record.holdingsHash.toLowerCase()
     ? { state: "pass", detail: source === "chain" ? "SHA-256 of the exact document bytes matches the hash read directly from the registry." : "The exact document bytes match the bundled example fingerprint; no chain read was performed." }
     : { state: "fail", detail: "The document bytes do not match the reference fingerprint." };
   let composition: Composition | null = null;
+  let computedNavMicros: string | null = null;
   try {
     composition = parseReport(canonical, profile);
+    computedNavMicros = composition.holdings.reduce((sum, row) => sum + BigInt(row.unitsWad) * BigInt(row.priceMicros) / WAD, 0n).toString();
     let total = 0n;
     for (const holding of composition.holdings) {
       const value = BigInt(holding.unitsWad) * BigInt(holding.priceMicros) / WAD;
@@ -100,8 +107,8 @@ export async function verifyReport(canonical: string, record: OnchainNav, profil
     // The registry only requires each record's time to be later than the last, so a record could claim
     // a future time that the fund and lending market would then treat as fresh; its block time bounds it.
     if (source === "chain" && record.publishedAt && Date.parse(record.effectiveAt) > Date.parse(record.publishedAt) + PRICE_CLOCK_TOLERANCE_MS) throw new Error("The record claims a time later than the block it was written in.");
-    return { hash, nav: { state: "pass", detail: `All ${composition.holdings.length} units × price calculations, truncated to micro-dollars per holding, sum exactly to the document and ${source === "chain" ? "on-chain" : "example"} NAV. The effective timestamp also matches, and no price is older than it.` }, composition };
+    return { hash, nav: { state: "pass", detail: `All ${composition.holdings.length} units × price calculations, truncated to micro-dollars per holding, sum exactly to the document and ${source === "chain" ? "on-chain" : "example"} NAV. The effective timestamp also matches, and no price is older than it.` }, composition, computedHash, computedNavMicros };
   } catch (error) {
-    return { hash, nav: { state: "fail", detail: error instanceof Error ? error.message : "The NAV could not be recalculated." }, composition };
+    return { hash, nav: { state: "fail", detail: error instanceof Error ? error.message : "The NAV could not be recalculated." }, composition, computedHash, computedNavMicros };
   }
 }

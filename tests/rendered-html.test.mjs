@@ -71,7 +71,7 @@ test("product pages offer clearly labelled demo investing next to the verificati
   assert.match(product, /aria-label="Pay with"/);
   assert.match(product, /Demo balance/);
   assert.match(product, /USTX on X Layer Testnet/, "the share token in the fund facts");
-  assert.match(product, /Price oracle/);
+  assert.match(product, /Price source/);
   assert.match(product, /OKX OnchainOS/);
   assert.doesNotMatch(product, /Testnet demo · demo dollars|Proof of NAV|model share/, "one testnet notice, customer wording");
   assert.match(product, /id="investment"/);
@@ -105,7 +105,7 @@ test("Pools offers the live pool's liquidity from a wallet, with its figures rea
   // The pinned Uniswap v4 pool is listed beside the live pool; its figures also wait for the chain.
   assert.match(html, /Uniswap v4 · held at the NAV/);
   // The two pools side by side for their providers, from the served totals once the page has them.
-  assert.match(html, /Liquidity providers against arbitrage/);
+  assert.match(html, /Compare liquidity returns/);
   assert.match(html, /0\.30–1\.00%/);
   assert.match(html, /<title>Pools · Ganymede<\/title>/);
   assert.equal(html.match(/You are on X Layer Testnet/g).length, 1, "one testnet notice");
@@ -136,22 +136,28 @@ test("transparency is a customer proof page that starts unverified and states it
   const response = await render("/products/ustx/transparency");
   const html = visible(await response.text());
   assert.equal(response.status, 200);
-  assert.match(html, /Checking the latest NAV/);
-  assert.match(html, /Priced by OKX OnchainOS/);
-  assert.match(html, /Recorded on X Layer/);
+  assert.match(html, /Checking the USTX price/);
+  assert.match(html, /OKX market prices/);
+  assert.match(html, /xStock pool prices/);
+  assert.match(html, /Your browser’s result/);
+  assert.match(html, /A calculation check, not a third price source/);
   assert.match(html, /Recent records/);
-  assert.match(html, /What verification covers/);
-  assert.match(html, /What it does not cover/);
-  assert.match(html, /href="\/developers#verify"/);
-  // Who can do what to each contract, read by the browser.
-  assert.match(html, /Who controls the contracts/);
-  // Developer material lives on /developers, not on the customer page.
-  assert.doesNotMatch(html, /Try to break it|npm run verify:evidence|Original composition document|NAV verified on X Layer/);
+  assert.match(html, /Compare prices/);
+  assert.match(html, /See the calculation/);
+  assert.match(html, /Published record/);
+  assert.match(html, /range is ±1% of the OKX basket value/);
+  assert.match(html, /do not confirm asset backing/);
+  assert.doesNotMatch(html, /Price checks complete|Record matches|Calculation matches/, "no success before browser checks complete");
+  assert.doesNotMatch(html, /Try to break it|npm run|Who controls the contracts|SHA-256|Public RPC|JavaScript|fingerprint|The technical checks/);
+  const prices = [...html.matchAll(/class="gmd-price-source[^"]*"[^>]*>([\s\S]*?)<\/article>/g)];
+  assert.equal(prices.length, 3);
+  assert.ok(prices.every(([, card]) => !/\$\d/.test(card)), "no fabricated price before data arrives");
 });
 
 test("the developer page keeps the checks, the experiment on a local copy and the evidence file", async () => {
   const html = visible(await (await render("/developers")).text());
   assert.match(html, /Verify it yourself/);
+  assert.match(html, /Who controls the contracts/);
   assert.match(html, /Reading the published record/);
   assert.match(html, /Original composition document/);
   assert.match(html, /latest 12 publications/);
@@ -170,6 +176,9 @@ test("public pages are in US dollars and say nothing of paper portfolios", async
   for (const path of ["/", "/pools", "/products/ustx", "/products/ustx/transparency", "/portfolio", "/developers", "/issuers", "/methodology", "/limitations"]) {
     const html = visible(await (await render(path)).text());
     assert.doesNotMatch(html, /\bKRW\b|₩|paper portfolio|paper strateg|Strategy Lab|GMDCORE|share ledger|earlier work/i, path);
+    if (!["/developers", "/issuers"].includes(path)) {
+      assert.doesNotMatch(html, /SHA-256|canonical JSON|npm run|Public RPC|product key|database budget|arbitrage keeper|unitsWad|priceMicros|Try to break it|Who controls the contracts/i, path);
+    }
   }
 });
 
@@ -181,7 +190,7 @@ test("Portfolio reads real xStocks read-only and offers the basket calculator", 
   const html = visible(await (await render("/portfolio")).text());
   assert.match(html, /Connect OKX Wallet/);
   assert.match(html, /Or view any public address/);
-  assert.match(html, /nothing is signed or sent/);
+  assert.match(html, /does not request a payment or signature/);
   assert.match(html, /Your wallet on X Layer/);
   assert.doesNotMatch(html, /Size a USTX-weighted basket/);
   assert.doesNotMatch(html, /GMDCORE|testnet share records|Invest in USTX/);
@@ -201,6 +210,11 @@ test("the product page shows fund figures and Markets shows the OKX and X Layer 
   assert.match(product, /Reading market activity from X Layer Testnet/);
   const markets = visible(await (await render("/")).text());
   assert.match(markets, /OKX OnchainOS/);
+  for (const html of [product, markets]) {
+    assert.match(html, /gmd-price-confidence is-compact/);
+    assert.match(html, /Two market sources/);
+    assert.doesNotMatch(html, /Price checks complete/, "price comparison starts unchecked");
+  }
   // Markets shows the latest activity in brief and links to the full list on the USTX page.
   assert.match(markets, /<section class="gmd-market-pulse" aria-labelledby="pulse-title">/);
   assert.match(markets, /href="\/products\/ustx#activity"/);
@@ -210,13 +224,11 @@ test("the product page shows fund figures and Markets shows the OKX and X Layer 
 
 test("issuer, developer and embed pages render for partners", async () => {
   const issuers = visible(await (await render("/issuers")).text());
-  assert.match(issuers, /Launch a basket investors can verify/);
-  assert.match(issuers, /Plans/);
+  assert.match(issuers, /Give your basket a clear price/);
   assert.match(issuers, /Contact us/);
-  assert.doesNotMatch(issuers, /Roadmap|Planned/);
-  assert.match(issuers, /How Ganymede earns/);
-  assert.match(issuers, /The road to mainnet/);
-  assert.match(issuers, /Usage so far/);
+  assert.match(issuers, /Start on Testnet/);
+  assert.match(issuers, /No paid issuer service or real-money fund is currently offered/);
+  assert.doesNotMatch(issuers, /Roadmap|The road to mainnet|How Ganymede earns|database writes|configuration file|SHA-256/);
   const developers = visible(await (await render("/developers")).text());
   assert.match(developers, /\/api\/v1\/ustx/);
   assert.match(developers, /latestNav/);

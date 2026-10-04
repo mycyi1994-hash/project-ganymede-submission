@@ -11,9 +11,9 @@ export async function GET(request: Request) {
     const identity = await demoIdentity(request, true);
     if (!identity) return noStoreJson({ error: "Demo accounts are not available here." }, { status: 401 });
     const demo = ledger();
-    const [account, orders] = await Promise.all([demo.account(identity.subject), demo.orders(identity.subject)]);
+    const [portfolio, orders] = await Promise.all([demo.portfolio(identity.subject), demo.orders(identity.subject)]);
     const limits = { startCashMicros: DEMO_START_CASH_MICROS.toString(), minOrderMicros: DEMO_MIN_ORDER_MICROS.toString() };
-    return noStoreJson({ account, orders, limits }, { headers: identity.cookie ? { "Set-Cookie": identity.cookie } : undefined });
+    return noStoreJson({ ...portfolio, orders, limits }, { headers: identity.cookie ? { "Set-Cookie": identity.cookie } : undefined });
   } catch (error) {
     return demoFailure(error);
   }

@@ -17,7 +17,7 @@ export async function POST(request: Request) {
     const demo = ledger();
     const id = await orderId(identity.subject, input.clientOrderId);
     const result = await demo.place(identity.subject, { id, side: input.side, usdMicros: input.usdMicros, sharesMicros: input.sharesMicros }, nav, new Date());
-    return noStoreJson({ ...result, orders: await demo.orders(identity.subject) }, { status: result.replayed ? 200 : 201 });
+    return noStoreJson({ ...result, ...await demo.portfolio(identity.subject), orders: await demo.orders(identity.subject) }, { status: result.replayed ? 200 : 201 });
   } catch (error) {
     return demoFailure(error);
   }

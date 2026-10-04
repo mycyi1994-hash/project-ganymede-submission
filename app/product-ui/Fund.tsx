@@ -125,7 +125,7 @@ export function PremiumGauge({ market }: { market: PoolMarket }) {
       <i style={{ left: at(shown) }} />
     </div>
     <div className="gmd-premium-scale" aria-hidden="true"><span>1% below</span><span style={{ left: at(-FEE_PPM) }}>−0.3%</span><span style={{ left: "50%" }}>NAV</span><span style={{ left: at(FEE_PPM) }}>+0.3%</span><span>1% above</span></div>
-    <p className="gmd-caption">{inside ? "Inside the shaded band the pool’s 0.3% fee costs more than the gap, so no arbitrage pays." : "Outside the pool’s 0.3% fee: the arbitrage keeper checks every five minutes and closes gaps like this through the fund in one transaction."}</p>
+    <p className="gmd-caption">{inside ? "The price difference is smaller than the pool’s 0.3% trading fee." : "The price difference exceeds the pool’s 0.3% trading fee. Compare the pool quote with the fund price before placing an order."}</p>
   </div>;
 }
 
@@ -158,7 +158,7 @@ export function FundOverview() {
       <div><dt>Market price</dt><dd>{pool.market && pool.market.priceMicros > 0n ? <a className="gmd-inline-tx" href={fundExplorer.address(FUND_DEPLOYMENT.pool)} target="_blank" rel="noreferrer">{formatUsdMicros(pool.market.priceMicros, 2)}{pool.market.premiumPpm !== null ? ` · ${describePremium(pool.market.premiumPpm)}` : ""} · USTX/dUSD pool<Icon name="external" size={12} /><span className="gmd-sr-only"> (opens in a new tab)</span></a> : pool.failed ? "Unavailable right now" : "—"}</dd></div>
       <div><dt>Base currency</dt><dd>USD</dd></div>
       <div><dt>Rebalancing</dt><dd>Quarterly, back to equal weight</dd></div>
-      <div><dt>Price oracle</dt><dd>OKX OnchainOS, every 5 minutes</dd></div>
+      <div><dt>Price source</dt><dd>OKX OnchainOS, every 5 minutes</dd></div>
       <div><dt>Share token</dt><dd><a className="gmd-inline-tx" href={`${FUND_DEPLOYMENT.explorerUrl}/token/${FUND_DEPLOYMENT.fund}`} target="_blank" rel="noreferrer">USTX on X Layer Testnet<Icon name="external" size={12} /><span className="gmd-sr-only"> (opens in a new tab)</span></a></dd></div>
       <div><dt>Last NAV record</dt><dd>{record ? <a className="gmd-inline-tx" href={tx ? `${PROOF_DEPLOYMENT.explorerUrl}/tx/${tx}` : `${PROOF_DEPLOYMENT.explorerUrl}/address/${PROOF_DEPLOYMENT.registry}`} target="_blank" rel="noreferrer">{shortTime(record.effectiveAt)} · OKX Explorer<Icon name="external" size={12} /><span className="gmd-sr-only"> (opens in a new tab)</span></a> : "—"}</dd></div>
     </dl>

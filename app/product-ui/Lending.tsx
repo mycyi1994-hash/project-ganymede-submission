@@ -284,7 +284,7 @@ export function LendingSection() {
         <div><dt>Liquidation</dt><dd>When the loan passes 65%</dd></div>
         <div><dt>Liquidator bonus</dt><dd>8%, paid in USTX</dd></div>
         <div><dt>Smallest loan</dt><dd>$10</dd></div>
-        <div><dt>Market contract</dt><dd><a className="gmd-inline-tx" href={fundExplorer.address(FUND_DEPLOYMENT.lending)} target="_blank" rel="noreferrer">X Layer Testnet<Icon name="external" size={12} /><span className="gmd-sr-only"> (opens in a new tab)</span></a></dd></div>
+        <div><dt>View lending market</dt><dd><a className="gmd-inline-tx" href={fundExplorer.address(FUND_DEPLOYMENT.lending)} target="_blank" rel="noreferrer">X Layer Testnet<Icon name="external" size={12} /><span className="gmd-sr-only"> (opens in a new tab)</span></a></dd></div>
       </dl>
       <div className="gmd-lending-panel"><h3>Your position</h3>{wallet}</div>
     </div>

@@ -106,7 +106,7 @@ From 30 September, with the organizers' confirmation that finalists may present 
 | OKX DEX comparison | Once an hour the OKX OnchainOS DEX aggregator quotes buying the nine xStocks with $1,000 of USDT on X Layer mainnet; the issuer page shows the swaps, what they lose to price and fees, and the largest price impact, against one order for a fund share (`/api/v1/ustx/dex-quotes`) |
 | Nine xStocks | On 4 October 2026 Alphabet (GOOGLx), Oracle (ORCLx) and Palantir (PLTRx) joined the first six. Each is the same xStocks token contract as the others, with a Uniswap V3 pool on X Layer about as deep as AAPLx's (the thinner ones, such as AMDx and NFLXx, were left out). The basket re-fixed to equal ninths at the prevailing NAV, so the NAV continued, and a name being added joins only at the first record with an OnchainOS price for it, so it can never stop the NAV |
 | Six funds | Markets lists six funds over 18 xStocks: USTX (nine tech leaders) and five more, Magnificent 7 (M7X), AI & Semiconductors (AIX), Crypto Economy (CRYX), US Core Index (CORX: S&P 500 and Nasdaq-100) and Retail Favorites (RTLX). Every token is the same xStocks contract as AAPLx. Each fund is priced by OnchainOS in the same five-minute run, recorded in the NAV registry under its own product key (keccak256 of its id), checked against the X Layer pools when every holding has a deep one, and verified in the browser on its own page (`/funds/<id>`), where the demo balance buys and redeems it. Only USTX has a share token, pools and lending: dUSD has a single minter, the USTX fund, so a second share token could not pay redemptions without replacing it (`/api/v1/funds`) |
-| Usage, honestly counted | `/api/v1/ustx/usage` and the issuer page count every fund, pool and lending event since launch with the team's 35 known wallets (administrator, relayer, keeper, faucet, load-test and end-to-end wallets) apart, and the questions asked of Ask USTX |
+| Usage, honestly counted | `/api/v1/ustx/usage` and the issuer page count every fund, pool and lending event since launch with the team's 105 known wallets (administrator, relayer, keeper, faucet, 100 load-test wallets and an end-to-end wallet) apart, and the questions asked of Ask USTX |
 | For developers and agents | An OpenAPI 3.1 description of the public API (`/api/v1/openapi.json`), `/llms.txt` for AI agents, and [examples/agent-quote.mjs](examples/agent-quote.mjs), a dependency-free MCP client that reads the NAV and quotes an order |
 
 ## Project history
@@ -188,11 +188,11 @@ npx wrangler d1 execute site-creator-d1 --local --config dist/server/wrangler.js
 npx wrangler d1 execute site-creator-d1 --local --config dist/server/wrangler.json --file drizzle/0001_demo_ledger.sql
 ```
 
-See `.env.example` for setting names and [the engine reference](docs/ENGINE_REFERENCE.md) for deployment details. Never copy production secrets into a review checkout. Relayer checks: run `npm ci`, `npm run typecheck` and `npm test` in `relayer/`.
+See [the engine reference](docs/ENGINE_REFERENCE.md) for setting names and deployment details. Never copy production secrets into a review checkout. Relayer checks: run `npm ci`, `npm run typecheck` and `npm test` in `relayer/`.
 
 ## Source and release
 
-This public review snapshot corresponds to production source commit `93213843b7e04420594a94c38260705d5c589716`. Application code matches the recorded source; documentation may be newer. The original development history remains private, and public-hosting identifiers are adjusted. See [snapshot provenance](docs/BUILD_EVIDENCE.md). Cloudflare deployment messages identify the production source commit. [Release rules and identity model](docs/release-identity.md).
+This public review snapshot corresponds to production source commit `b45516dcae1a9305e99a8a5f0f4470b42956a61e`. Application code matches the recorded source; documentation may be newer. The original development history remains private, and public-hosting identifiers are adjusted. See [snapshot provenance](docs/BUILD_EVIDENCE.md). Cloudflare deployment messages identify the production source commit. [Release rules and identity model](docs/release-identity.md).
 
 - [Dev Day submission notes](docs/OKX_DEV_DAY.md) and [build-period work](docs/BUILD_PERIOD.md)
 - [Asset credits](public/ASSET-CREDITS.md)

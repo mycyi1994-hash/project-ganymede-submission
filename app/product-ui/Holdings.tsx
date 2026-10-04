@@ -30,8 +30,8 @@ export default function Holdings({ composition, compact = false, loading = false
         <Icon name="chevron" size={16} />
       </button></li>;
     })}</ul>
-    {!compact && <p className="gmd-caption">Equal weight at each quarterly rebalance; weights move with prices. The line under each weight marks the {figures[0] ? `${figures[0].targetPercent.toFixed(2)}%` : "equal-weight"} target{since ? `, and each change is since the units were fixed on ${since}` : ""}. {composition ? `Prices from OKX OnchainOS as of ${shortTime(composition.asOf)}.` : "Values appear with the next recorded NAV."}</p>}
-    {compact && <p className="gmd-caption">{since ? `Changes since the units were fixed on ${since}. ` : ""}The line under each weight marks the equal-weight target. Select an asset for its details.</p>}
+    {!compact && <p className="gmd-caption">Equal weight at each quarterly rebalance; weights move with prices. The line under each weight marks the {figures[0] ? `${figures[0].targetPercent.toFixed(2)}%` : "equal-weight"} target{since ? `, and each change is since the rebalance on ${since}` : ""}. {composition ? `Prices from OKX OnchainOS as of ${shortTime(composition.asOf)}.` : "Values appear with the next recorded NAV."}</p>}
+    {compact && <p className="gmd-caption">{since ? `Changes since the rebalance on ${since}. ` : ""}The line under each weight marks the equal-weight target. Select an asset for its details.</p>}
     {drawer}
   </section>;
 }

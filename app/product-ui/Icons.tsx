@@ -25,7 +25,10 @@ export function Icon({ name, size = 20 }: { name: "arrow" | "back" | "external" 
 // dataviz palette validator on white: adjacent colour-blind separation ΔE 8.4, normal vision 15.8.
 // Nine is past the eight-hue palette, so PLTRx's plum was chosen to pass every check beside its
 // neighbours, and AMZNx sits under 3:1 against white: every chart that uses them names each asset in text.
-export const assetColors: Record<string, string> = { AAPLx: "#296dc0", MSFTx: "#d66235", NVDAx: "#25a071", AMZNx: "#da971f", METAx: "#d47498", TSLAx: "#097508", GOOGLx: "#4a3aa7", ORCLx: "#e34948", PLTRx: "#8f4f8f" };
+export const assetColors: Record<string, string> = { AAPLx: "#296dc0", MSFTx: "#d66235", NVDAx: "#25a071", AMZNx: "#da971f", METAx: "#d47498", TSLAx: "#097508", GOOGLx: "#4a3aa7", ORCLx: "#e34948", PLTRx: "#8f4f8f",
+  // Additional baskets reuse these hues, with the same asset colour in every fund.
+  AMDx: "#da971f", INTCx: "#296dc0", COINx: "#296dc0", MSTRx: "#d66235", CRCLx: "#25a071", HOODx: "#4a3aa7", GMEx: "#e34948", SPYx: "#296dc0", QQQx: "#25a071",
+};
 export function assetStyle(symbol: string): CSSProperties { return { "--asset-color": assetColors[symbol] ?? "#526570" } as CSSProperties; }
 export const assetNames: Record<string, string> = { AAPLx: "Apple", MSFTx: "Microsoft", NVDAx: "NVIDIA", AMZNx: "Amazon", METAx: "Meta", TSLAx: "Tesla", GOOGLx: "Alphabet", ORCLx: "Oracle", PLTRx: "Palantir" };
 export const assetSymbols = Object.keys(assetNames);

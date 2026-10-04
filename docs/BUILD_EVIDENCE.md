@@ -1,6 +1,6 @@
 # Build provenance
 
-Production source revision: `93213843b7e04420594a94c38260705d5c589716`.
+Production source revision: `b45516dcae1a9305e99a8a5f0f4470b42956a61e`.
 
 This is a source snapshot, not a claim that the entire project was newly built for this event. The original repository remains private. The entries below were exported from its Git history; reviewers can inspect current implementations and tests, and request original history access from the team if needed. No old secrets, local environment files or full private Git history are published.
 
@@ -540,3 +540,14 @@ Validation of the snapshot source:
 - The same tests pass in this public checkout after `npm ci` (250), and so do the relayer typecheck and 30 tests.
 
 These are point-in-time observations, not continuous availability or a security audit.
+
+
+## Customer pricing and in-place fund selection — 4 October 2026
+
+Production source: `b45516dcae1a9305e99a8a5f0f4470b42956a61e`. App Worker version: `f790388d-62a5-47c5-99fa-2f8caa5f33d8`; prior version: `4166b71d-5294-42d9-abe4-0ffc8695962a`. Settlement relayer remains `cb38524c-cb75-4350-a9ee-a363f49a5c93`. Exported revision: `bc0c388be08eabfeab46b66a6ad0cc5f3ad16150` (application code matches production; release documentation is newer).
+
+Fund names update the Markets preview in place, and separate arrows open fund details. Customer price comparison separates OKX prices, pool prices and browser arithmetic. Multi-fund portfolio totals, reset consistency, fund-specific verification and recoverable order retries are included. Publication timestamps are matched to the registry's seconds precision without accepting a different second, NAV or document hash.
+
+Validation of production source: 260 application tests, typecheck and build; lint with 0 errors and 10 existing warnings. Controlled browser checks cover race/failure handling, keyboard operation, WCAG A/AA and 390px layouts. After deployment, seven public routes and four redirects passed; all five additional funds verified against their live X Layer records, and the three-value price comparison completed. A new USTX NAV at 10:20:36 UTC was confirmed after deployment without warnings or blockers. These are point-in-time observations, not continuous availability or a security audit.
+
+Public-snapshot validation: clean `npm ci` and `npm test` passed all 260 application tests; clean relayer `npm ci`, typecheck and all 30 tests passed.

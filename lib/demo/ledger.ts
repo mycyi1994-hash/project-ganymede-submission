@@ -7,6 +7,8 @@
  * Amounts are integer micros. Shares use six decimals, like the NAV.
  */
 import type { OnchainNav } from "../xstocks/onchain";
+import type { FundPosition } from "../funds/demo";
+import { ensureFundDemoTables } from "../funds/schema";
 
 export const DEMO_START_CASH_MICROS = 10_000_000_000n;
 export const DEMO_MIN_ORDER_MICROS = 10_000_000n;
@@ -75,6 +77,25 @@ export class DemoLedger {
   async account(subject: string): Promise<DemoAccount> {
     const row = await this.db.prepare("SELECT cash_micros, shares_micros, cost_micros, orders_count FROM demo_accounts WHERE subject = ?").bind(subject).first<AccountRow>();
     return row ? toAccount(row) : newAccount();
+  }
+
+  /** One SELECT keeps shared cash and all positions in the same database snapshot. Reads only. */
+  async portfolio(subject: string): Promise<{ account: DemoAccount; positions: FundPosition[] }> {
+    try {
+      const { results } = await this.db.prepare(`SELECT a.cash_micros, a.shares_micros, a.cost_micros, a.orders_count,
+        p.fund_id, p.shares_micros AS fund_shares, p.cost_micros AS fund_cost
+        FROM demo_accounts a LEFT JOIN demo_fund_positions p ON p.subject = a.subject AND p.shares_micros > 0
+        WHERE a.subject = ? ORDER BY p.fund_id`).bind(subject)
+        .all<AccountRow & { fund_id: string | null; fund_shares: number; fund_cost: number }>();
+      return {
+        account: results[0] ? toAccount(results[0]) : newAccount(),
+        positions: results.filter(row => row.fund_id !== null).map(row => ({ fundId: row.fund_id!, sharesMicros: String(row.fund_shares), costMicros: String(row.fund_cost) })),
+      };
+    } catch (error) {
+      // A new deployment can be read before its first fund cron creates the extra tables.
+      if (!/no such table.*demo_fund_positions/i.test(error instanceof Error ? error.message : "")) throw error;
+      return { account: await this.account(subject), positions: [] };
+    }
   }
 
   async orders(subject: string, limit = DEMO_ORDER_HISTORY): Promise<DemoOrder[]> {
@@ -162,10 +183,13 @@ export class DemoLedger {
     };
   }
 
-  /** Starts the account again with $10,000 demo dollars and no history. */
+  /** Cash, USTX and every other fund reset atomically; a redemption cannot run between them. */
   async reset(subject: string, now: Date): Promise<DemoAccount> {
     const at = now.toISOString();
+    await ensureFundDemoTables(this.db);
     await this.db.batch([
+      this.db.prepare("DELETE FROM demo_fund_orders WHERE subject = ?").bind(subject),
+      this.db.prepare("DELETE FROM demo_fund_positions WHERE subject = ?").bind(subject),
       this.db.prepare("DELETE FROM demo_orders WHERE subject = ?").bind(subject),
       this.db.prepare("UPDATE demo_accounts SET cash_micros = ?, shares_micros = 0, cost_micros = 0, orders_count = 0, last_order_id = NULL, updated_at = ? WHERE subject = ?").bind(bindable(DEMO_START_CASH_MICROS), at, subject),
     ]);

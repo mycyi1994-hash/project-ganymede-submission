@@ -1,6 +1,6 @@
 import { engineEnv, isSameSiteRequest, noStoreJson, readJson } from "@/lib/engine/api-helpers";
 import { demoFailure, demoIdentity, orderId, parseOrder } from "@/lib/demo/api";
-import { DemoOrderError, executableNav } from "@/lib/demo/ledger";
+import { DemoLedger, DemoOrderError, executableNav } from "@/lib/demo/ledger";
 import { otherFund } from "@/lib/funds/catalog";
 import { fundLatestRecord } from "@/lib/funds/api";
 import { ensureFundDemoTables, FundDemoLedger, type FundDb } from "@/lib/funds/demo";
@@ -18,15 +18,17 @@ export async function POST(request: Request) {
     const fund = otherFund(typeof (body as { fundId?: unknown })?.fundId === "string" ? (body as { fundId: string }).fundId : "");
     if (!fund) throw new DemoOrderError("Choose one of the funds.", 400, "unknown_fund");
     const input = parseOrder(body);
-    const nav = executableNav(await fundLatestRecord(fund), Date.now());
     const db = engineEnv().DB as unknown as FundDb;
     await ensureFundDemoTables(db);
     const demo = new FundDemoLedger(db);
     // The id covers the fund too, so the same client id in two funds never collides.
     const id = await orderId(identity.subject, `${fund.id}-${input.clientOrderId}`);
-    const result = await demo.place(identity.subject, fund.id, { id, side: input.side, usdMicros: input.usdMicros, sharesMicros: input.sharesMicros }, nav, new Date());
-    const [cash, positions] = await Promise.all([demo.cash(identity.subject), demo.positions(identity.subject)]);
-    return noStoreJson({ ...result, cashMicros: cash.toString(), positions }, { status: result.replayed ? 200 : 201 });
+    // Recover a committed order even when the NAV/RPC is no longer available on retry.
+    const existing = await demo.order(identity.subject, id);
+    const result = existing ? { order: existing, replayed: true }
+      : await demo.place(identity.subject, fund.id, { id, side: input.side, usdMicros: input.usdMicros, sharesMicros: input.sharesMicros }, executableNav(await fundLatestRecord(fund), Date.now()), new Date());
+    const { account, positions } = await new DemoLedger(engineEnv().DB).portfolio(identity.subject);
+    return noStoreJson({ ...result, cashMicros: account.cashMicros, positions }, { status: result.replayed ? 200 : 201 });
   } catch (error) {
     return demoFailure(error);
   }

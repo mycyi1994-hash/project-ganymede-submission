@@ -13,7 +13,7 @@ const W = 760, H = 205, LEFT = 8, RIGHT = 668, TOP = 22, BOTTOM = 172;
 const left = (x: number) => `${x / W * 100}%`;
 const top = (y: number) => `${y / H * 100}%`;
 
-export default function MarketChart({ points: all, loading }: { points: HistoryPoint[]; loading: boolean }) {
+export default function MarketChart({ points: all, loading, showActivity = true, historyLabel = "Since launch" }: { points: HistoryPoint[]; loading: boolean; showActivity?: boolean; historyLabel?: string }) {
   const gradient = useId().replaceAll(":", "");
   const events = useChartEvents();
   const [range, setRange] = useState<Range>("all");
@@ -40,12 +40,12 @@ export default function MarketChart({ points: all, loading }: { points: HistoryP
   const tone = change === null || Math.round(change * 100) === 0 ? "" : change > 0 ? "gmd-positive" : "gmd-negative";
   const label = RANGES.find(item => item.id === range)!.label;
   // Arbitrage and large orders inside the range, on the line at the record nearest their time.
-  const marks = points.length < 2 ? [] : events.filter(event => { const time = Date.parse(event.at); return time >= timeMin && time <= timeMax; })
+  const marks = !showActivity || points.length < 2 ? [] : events.filter(event => { const time = Date.parse(event.at); return time >= timeMin && time <= timeMax; })
     .map(event => ({ ...event, x: xAt(Date.parse(event.at)), y: y(vals[nearest(Date.parse(event.at))]) }));
   const mark = marks.find(item => item.key === marked) ?? null;
   const kinds = new Set(marks.map(item => item.kind));
   const tip = mark ? { x: mark.x, y: mark.y } : active && index !== null && index < points.length ? { x: x(index), y: y(vals[index]) } : null;
-  return <div className="gmd-chart-block"><div className="gmd-chart-heading"><span aria-live="polite">{active ? `${shortTime(active.at)} · ${formatUsdMicros(active.micros, 4)}` : change === null ? "NAV per share" : <>{range === "all" ? "Since launch" : label} <b className={tone}>{signedPercent(change)}</b></>}</span><div className="gmd-segmented" role="group" aria-label="Chart range">{RANGES.map(item => <button key={item.id} type="button" aria-pressed={range === item.id} onClick={() => { setRange(item.id); setIndex(null); setMarked(null); }}>{item.label}</button>)}</div></div>
+  return <div className="gmd-chart-block"><div className="gmd-chart-heading"><span aria-live="polite">{active ? `${shortTime(active.at)} · ${formatUsdMicros(active.micros, 4)}` : change === null ? "NAV per share" : <>{range === "all" ? historyLabel : label} <b className={tone}>{signedPercent(change)}</b></>}</span><div className="gmd-segmented" role="group" aria-label="Chart range">{RANGES.map(item => <button key={item.id} type="button" aria-pressed={range === item.id} onClick={() => { setRange(item.id); setIndex(null); setMarked(null); }}>{item.label}</button>)}</div></div>
     {points.length < 2 ? <div className={`gmd-chart-empty${loading ? " is-loading" : ""}`} aria-busy={loading}><div className="gmd-chart-empty-grid" aria-hidden="true" />{loading ? <><i className="gmd-skeleton is-chart" aria-hidden="true" /><span className="gmd-sr-only">Loading NAV history</span></> : <p>Not enough history for this range yet.</p>}</div> : <>
       <div className="gmd-chart-plot" onPointerLeave={() => { setIndex(null); setMarked(null); }}>
         <svg className="gmd-chart" viewBox={`0 0 ${W} ${H}`} role="img" onPointerMove={event => { const box = event.currentTarget.getBoundingClientRect(); const ratio = Math.max(0, Math.min(1, ((event.clientX - box.left) / box.width * W - LEFT) / (RIGHT - LEFT))); setIndex(nearest(timeMin + ratio * (timeMax - timeMin))); }} aria-label={`NAV per share from ${shortTime(points[0].at)} to ${shortTime(points[points.length - 1].at)}, between $${min.toFixed(4)} and $${max.toFixed(4)}.`}>

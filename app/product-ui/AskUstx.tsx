@@ -18,8 +18,8 @@ const SUGGESTIONS = [
 ];
 
 const TOOL_LABELS: Record<string, string> = {
-  get_ustx_nav: "NAV registry",
-  verify_ustx_nav: "record check",
+  get_ustx_nav: "published NAV",
+  verify_ustx_nav: "price verification",
   get_ustx_holdings: "holdings",
   quote_ustx_order: "fund and pool quotes",
   get_ustx_pools: "pools",
@@ -62,8 +62,9 @@ export function AskUstx() {
         body: JSON.stringify({ messages: next.slice(-12).map(({ role, content }) => ({ role, content })) }),
       });
       if (!response.ok || !response.body) {
-        const body = await response.json().catch(() => ({})) as { error?: string };
-        throw new Error(body.error || "The assistant is unavailable right now.");
+        const body = await response.json().catch(() => ({})) as { error?: string; code?: string };
+        const customerMessage = response.status === 429 || body.code === "too_long";
+        throw new Error(customerMessage && body.error ? body.error : "Ask USTX is unavailable right now. Please try again.");
       }
       // One event per line: a tool being read, a piece of the answer, the end or an error.
       const reader = response.body.pipeThrough(new TextDecoderStream()).getReader();
@@ -81,7 +82,7 @@ export function AskUstx() {
           const event = JSON.parse(line) as { type: string; name?: string; text?: string; answer?: string; toolsUsed?: string[]; message?: string };
           if (event.type === "tool" && event.name) {
             if (!read.includes(event.name)) read.push(event.name);
-            setReading(TOOL_LABELS[event.name] ?? event.name);
+            setReading(TOOL_LABELS[event.name] ?? "market data");
           } else if (event.type === "delta" && event.text) {
             answer += event.text;
             setReading(null);
@@ -96,7 +97,7 @@ export function AskUstx() {
       }
       if (!finished) throw new Error("The answer was cut off. Try again.");
     } catch (failure) {
-      setError(failure instanceof Error ? failure.message : "The assistant is unavailable right now.");
+      setError(failure instanceof Error && !(failure instanceof TypeError) ? failure.message : "Ask USTX could not connect. Please try again.");
       if (!answer) { setTurns(turns); setDraft(text); }
     } finally {
       setReading(null);
@@ -107,7 +108,7 @@ export function AskUstx() {
   if (!open) return <button type="button" className="gmd-ask-launch" onClick={() => setOpen(true)} aria-haspopup="dialog"><Icon name="spark" size={18} />Ask USTX</button>;
 
   return <section className="gmd-ask" role="dialog" aria-label="Ask USTX">
-    <header><div><strong><Icon name="spark" size={17} />Ask USTX</strong><span>Answers read live from X Layer Testnet</span></div>
+    <header><div><strong><Icon name="spark" size={17} />Ask USTX</strong><span>Prices, holdings and your next step</span></div>
       <div>{turns.length > 0 && <button type="button" className="gmd-ask-reset" onClick={() => { setTurns([]); setError(null); input.current?.focus(); }}>New chat</button>}<button type="button" aria-label="Close Ask USTX" onClick={() => setOpen(false)}><Icon name="close" size={18} /></button></div>
     </header>
     <div className="gmd-ask-log" ref={log} aria-live="polite">
@@ -115,7 +116,7 @@ export function AskUstx() {
         <ul>{SUGGESTIONS.map(suggestion => <li key={suggestion}><button type="button" onClick={() => void ask(suggestion)}>{suggestion}</button></li>)}</ul></div>}
       {turns.map((turn, index) => <div key={index} className={`gmd-ask-turn is-${turn.role}`}>
         <p>{turn.content}</p>
-        {turn.role === "assistant" && turn.tools && turn.tools.length > 0 && <small><Icon name="check" size={13} />Read from {turn.tools.map(tool => TOOL_LABELS[tool] ?? tool).join(", ")}</small>}
+        {turn.role === "assistant" && turn.tools && turn.tools.length > 0 && <small><Icon name="check" size={13} />Read from {turn.tools.map(tool => TOOL_LABELS[tool] ?? "market data").join(", ")}</small>}
       </div>)}
       {busy && turns[turns.length - 1]?.role !== "assistant" && <div className="gmd-ask-turn is-assistant is-busy"><p>{reading ? `Reading the ${reading}…` : "Reading X Layer…"}</p></div>}
       {error && <p className="gmd-ask-error" role="alert">{error}</p>}

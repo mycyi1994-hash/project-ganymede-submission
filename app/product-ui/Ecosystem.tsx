@@ -8,8 +8,6 @@ import { DocumentMenu } from "./DocumentMenu";
 import { Icon } from "./Icons";
 import VerifyYourself from "./VerifyYourself";
 import BasketCheckPanel from "./BasketCheck";
-import UsageFigures from "./UsageFigures";
-import DexCompare from "./DexCompare";
 
 const SITE = "https://ganymede-xlayer.gana003.workers.dev";
 const REPOSITORY = "https://github.com/mycyi1994-hash/project-ganymede-submission";
@@ -247,51 +245,21 @@ export function DevelopersPage() {
       </article></div></ProductShell>;
 }
 
-const steps = [
-  ["Define the basket", "Choose the tokenized stocks on X Layer, their weights and the rebalancing schedule. Units per share are fixed at launch."],
-  ["Price it with OKX OnchainOS", "Ganymede prices every constituent every five minutes and refuses to publish when a price is missing or stale."],
-  ["Record it on X Layer", "Each NAV, the shares outstanding and a SHA-256 fingerprint of the full composition are written to the registry."],
-  ["Sell it, and let investors check", "Investors buy and redeem from their own wallets at the recorded NAV and verify every price in their own browser. Partners embed the badge or read the API."],
-] as const;
-
-const revenue = [
-  ["Issuer fee", "A yearly fee on the basket's assets for pricing, recording, verification and the investor app, charged by the licensed issuer and shared with Ganymede. At 0.15% a year, a $10 million basket would bring $15,000 a year against about $17 of gas."],
-  ["Distribution share", "A share of the issuer fee on assets that come through a partner wallet or exchange showing the basket and its badge."],
-  ["Verified NAV feed", "Other protocols, such as lending markets that take a basket as collateral, subscribe to its NAV in the Chainlink interface, as GanymedeNavFeed serves USTX on testnet today."],
-] as const;
-
-const roadmap = [
-  ["Now: X Layer Testnet", "USTX priced by OKX OnchainOS and recorded every five minutes, wallet orders, two pools, lending, a public API and an MCP server, all with demo dollars."],
-  ["Next: an audit, and NAV records on mainnet", "An external audit of the contracts, then USTX's NAV recorded on X Layer mainnet as a price feed only: no shares are issued and no money moves."],
-  ["Then: a licensed issuer", "A regulated partner issues the share token, holds the xStocks in custody through the in-kind vault (GanymedeBasketVault, tested on a fork), and admits investors under its licence. Ganymede supplies pricing, records, verification and the app."],
-  ["After: distribution", "The basket in OKX Wallet and partner apps with its badge, and its NAV feed in lending markets on X Layer."],
-] as const;
-
-const plans = [
-  { name: "Sandbox", price: "Free", note: "Available now on X Layer Testnet", items: ["A basket from one configuration file", "Records in your own registry on X Layer Testnet", "Browser verification and badge"] },
-  { name: "Issuer", price: "Contact us", note: "X Layer mainnet", items: ["Your own basket and branding", "Mainnet NAV records", "Full evidence archive"] },
-  { name: "Distribution", price: "Contact us", note: "With licensed partners", items: ["Listing in the Ganymede app", "Partner wallets and sites", "Investor reporting"] },
+const issuerServices = [
+  ["Your basket", "Choose the constituents, target weights and rebalancing schedule."],
+  ["Clear pricing", "Give customers a published NAV and a clear view of the holdings behind it."],
+  ["Customer verification", "Let customers compare prices and check the basket calculation on their own device."],
+  ["Partner access", "Bring published prices and verification into your own app or website."],
 ] as const;
 
 export function IssuersPage() {
   return <ProductShell><Link className="gmd-breadcrumb" prefetch={false} href="/"><Icon name="back" size={16} />Markets</Link>
     <div className="gmd-document-layout"><DocumentMenu current="issuers" />
-      <article className="gmd-document"><header><h1>Launch a basket investors can verify.</h1><p>Ganymede turns tokenized stocks on X Layer into a fund product with a NAV anyone can check: priced by OKX OnchainOS, recorded on X Layer every five minutes and verified in the investor’s own browser.</p></header>
-        <section id="why"><h2>Why it matters</h2><p>Tokenized stocks such as xStocks already trade on X Layer, but a basket built from them usually asks investors to trust the issuer’s price. Ganymede publishes the evidence with every price, so a wallet, an exchange or an investor can confirm the NAV without asking anyone. That makes a basket easier to list, easier to distribute and harder to misprice.</p><DexCompare /></section>
-        <section id="how"><h2>How it works</h2><ol className="gmd-steps">{steps.map(([title, copy], index) => <li key={title}><span>{index + 1}</span><div><b>{title}</b><p>{copy}</p></div></li>)}</ol></section>
-        <section id="get"><h2>What you get</h2><ul className="gmd-stack-list">
-          <li><b>An investor app</b><span>Markets, a product page with fund figures, invest and redeem from a wallet, and a portfolio that looks through to every token.</span></li>
-          <li><b>A share token</b><span>A token on X Layer that issues and redeems shares only at the NAV in the registry, and counts its holders on chain.</span></li>
-          <li><b>Verification built in</b><span>A transparency page with a tamper experiment, evidence files and an open-source verifier.</span></li>
-          <li><b>Distribution tools</b><span>A public NAV API and a badge any partner can embed, both backed by the record on X Layer.</span></li>
-          <li><b>Operations</b><span>Scheduled pricing, publication with idempotent retries, and rate-limit handling for the price provider.</span></li>
-        </ul><p className="gmd-caption">USTX has all of this today. A basket set up from a configuration file has its own registry, browser check and badge today; the rest follows in a pilot.</p><Link prefetch={false} className="gmd-inline-link" href="/products/ustx">See it working with USTX <Icon name="arrow" size={16} /></Link></section>
-        <section id="plans"><h2>Plans</h2><div className="gmd-plans">{plans.map(plan => <article key={plan.name}><span>{plan.note}</span><h3>{plan.name}</h3><strong>{plan.price}</strong><ul>{plan.items.map(item => <li key={item}><Icon name="check" size={15} />{item}</li>)}</ul></article>)}</div><p className="gmd-caption">Real-money services are offered only with licensed partners in the markets they serve.</p></section>
-        <section id="revenue"><h2>How Ganymede earns</h2><p>Nothing is charged on testnet. Once a licensed issuer runs a basket on mainnet, Ganymede earns from it in three ways:</p><ul className="gmd-stack-list">{revenue.map(([title, copy]) => <li key={title}><b>{title}</b><span>{copy}</span></li>)}</ul><p className="gmd-caption">The fee is an illustration, not a quote; the gas figure is from the cost measurement below.</p></section>
-        <section id="roadmap"><h2>The road to mainnet</h2><ol className="gmd-steps gmd-roadmap">{roadmap.map(([title, copy], index) => <li key={title}><span>{index + 1}</span><div><b>{title}</b><p>{copy}</p></div></li>)}</ol><p className="gmd-caption">Real money comes only with a licensed issuer; until then dUSD and USTX have no value.</p></section>
-        <section id="usage"><h2>Usage so far</h2><UsageFigures /></section>
-        <section id="pilot"><h2>A pilot</h2><p>A pilot for a basket issuer: we set up your basket from a configuration file, record its NAV and composition on X Layer Testnet, and give you its verification page and badge. A five-minute schedule and a public API for it, as USTX has, come next. You provide the constituents and the fixing, and every record, and any delay, shows on the verification page. No pilot has run yet. An issuer can also record its own basket with a configuration file, its own wallet and registry, and its documents served here or from its own host, as the <Link prefetch={false} href="/developers#baskets">MAG3 demo basket</Link> does.</p></section>
-        <section id="cost"><h2>What it costs to run</h2><p>Measured on 25 September 2026: one NAV record on X Layer uses about 68,200 gas. At X Layer mainnet’s gas price then (0.02 gwei) and OKB at $120.49, that is about $0.00016 a record, so a basket recorded every five minutes costs about $1.40 a month in gas. Each record also makes one OnchainOS price request and a few database writes, and one hosting plan serves every basket. The costs that grow with each issuer are onboarding, monitoring and support.</p></section>
-        <footer><p>Launching a basket, listing USTX or showing its NAV in your app? Get in touch on GitHub.</p><div className="gmd-terms-links"><a className="gmd-button" href={`${REPOSITORY}/issues`} target="_blank" rel="noreferrer">Contact us on GitHub <Icon name="external" size={16} /></a><Link prefetch={false} className="gmd-inline-link" href="/developers">Developer docs <Icon name="arrow" size={16} /></Link></div></footer>
+      <article className="gmd-document"><header><h1>Give your basket a clear price.</h1><p>Explore pricing and verification for a stock basket on X Layer. Start with a testnet evaluation before discussing a wider launch.</p></header>
+        <section><h2>Built around your customers</h2><ul className="gmd-stack-list">{issuerServices.map(([title, copy]) => <li key={title}><b>{title}</b><span>{copy}</span></li>)}</ul></section>
+        <section><h2>See the investor experience</h2><p>USTX brings prices, holdings, orders and a portfolio together. Its Transparency page compares two market sources and checks the published price in the customer’s browser.</p><Link prefetch={false} className="gmd-button" href="/products/ustx">Explore USTX <Icon name="arrow" size={16} /></Link></section>
+        <section><h2>Start on Testnet</h2><p>Basket pricing, published records and a verification badge can be evaluated on X Layer Testnet. A custom basket does not automatically include USTX’s trading, lending or scheduled updates; scope these services as part of an evaluation. No paid issuer service or real-money fund is currently offered.</p></section>
+        <section><h2>Discuss your requirements</h2><p>Share your proposed holdings, target market, investor experience and reporting needs. Pricing and launch requirements would be agreed individually. A real-money launch requires a licensed issuer, custody arrangements and appropriate reviews.</p></section>
+        <footer><p>Demo dollars and fund shares on Testnet have no real value.</p><div className="gmd-terms-links"><a className="gmd-button" href={`${REPOSITORY}/issues`} target="_blank" rel="noreferrer">Contact us on GitHub <Icon name="external" size={16} /></a><Link prefetch={false} className="gmd-inline-link" href="/developers">Integration documentation <Icon name="arrow" size={16} /></Link></div></footer>
       </article></div></ProductShell>;
 }

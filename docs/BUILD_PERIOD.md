@@ -55,6 +55,9 @@ Ganymede was selected as one of 30 finalists from 150 teams. The organizers conf
 | 2026-10-04 02:42 | `22c56b6` | USTX tracks nine xStocks: Alphabet, Oracle and Palantir join, re-fixed at the prevailing NAV, and a name being added joins only at its first priced record |
 | 2026-10-04 04:03 | `42155c8` | Six funds over 18 xStocks: Magnificent 7, AI & Semiconductors, Crypto Economy, US Core Index and Retail Favorites, each recorded under its own product key and verified on its own page, bought with the demo balance |
 
+| 2026-10-04 05:40 | `21f476e` | Usage figures count all 100 load-test wallets as the team’s, apart from other visitors |
+| 2026-10-04 09:25 | `b45516d` | Customer-facing price comparison and browser arithmetic, in-place fund selection on Markets, multi-fund portfolio/reset consistency, verified fund prices and recoverable order retries |
+
 ## Every commit in the build period (UTC)
 
 | Time | Commit | Change | Files | Lines |

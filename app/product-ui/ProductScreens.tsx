@@ -1,6 +1,7 @@
 "use client";
 
-import { FundList } from "./Funds";
+import { FundList, FundMarketPreview } from "./Funds";
+import { USTX_FUND, otherFund } from "@/lib/funds/catalog";
 import Link from "next/link";
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { formatUsdMicros } from "@/lib/nav-display";
@@ -17,20 +18,21 @@ import { ActivityProvider, MarketActivitySection, MarketPulse } from "./MarketAc
 import Holdings from "./Holdings";
 import { useRecordCheck } from "./useRecordCheck";
 import { OkxSource } from "./OkxSource";
+import PriceConfidence from "./PriceConfidence";
 
 const VERIFY = "/products/ustx/transparency";
 
 export function DataState() {
   const { error, data, loading, reload } = useMarket();
   if (!error && !data?.onchainError) return null;
-  return <div className="gmd-data-notice" role="status"><Icon name="info" /><span>{error ? data ? "Refresh unavailable. Showing the last loaded record." : "Market data could not be loaded." : "The chain read is unavailable. Any displayed value is the last available record."}</span><button disabled={loading} onClick={reload}>{loading ? "Refreshing…" : "Try again"}</button></div>;
+  return <div className="gmd-data-notice" role="status"><Icon name="info" /><span>{error ? data ? "Refresh unavailable. Showing the last loaded record." : "Market data could not be loaded." : "Price confirmation is unavailable. Showing the last available price."}</span><button disabled={loading} onClick={reload}>{loading ? "Refreshing…" : "Try again"}</button></div>;
 }
 
 /** Runs the same direct chain check as the verification page and links to its evidence. */
 export function RecordCheckStatus() {
   const { data, error } = useMarket();
   const { state } = useRecordCheck(data, error);
-  const label = { matched: "Verified in your browser", failed: "Record needs attention", unavailable: "Not verified", waiting: "Checking the record…", loading: "Checking the record…" }[state];
+  const label = { matched: "NAV checked", failed: "Record needs attention", unavailable: "Not verified", waiting: "Checking the record…", loading: "Checking the record…" }[state];
   return <Link prefetch={false} href={VERIFY} className={`gmd-check-chip is-${state}`} aria-live="polite">{state === "matched" ? <Icon name="check" size={16} /> : <i aria-hidden="true" />}<span>{label}</span><Icon name="arrow" size={14} /></Link>;
 }
 
@@ -59,7 +61,8 @@ function useNextRecord(effectiveAt: string | null) {
 
 function NavValue() {
   const { data, now, error, loading } = useMarket();
-  const record = data?.onchain?.effectiveAt ? data.onchain : null;
+  const { checks } = useRecordCheck(data, error);
+  const record = checks?.record?.effectiveAt ? checks.record : null;
   const status = publicationStatus(record, data?.latest ?? null, now, Boolean(error || data?.onchainError));
   const next = useNextRecord(record && status.tone === "ready" ? record.effectiveAt : null);
   // A new record flashes the value: up in green, down in red. The first one read does not.
@@ -70,7 +73,7 @@ function NavValue() {
     if (seen) { const change = BigInt(record.navPerShareMicros) - BigInt(seen.nav); setFlash({ at: record.effectiveAt, tone: change > 0n ? "up" : change < 0n ? "down" : "same" }); }
   }
   // Customers see when the price was recorded; an older record reads "last recorded", not an error.
-  const state = !data && loading ? "Loading…" : !record ? "Awaiting the first record" : status.tone === "ready" ? "Recorded on X Layer" : "Last recorded on X Layer";
+  const state = !data && loading ? "Loading…" : !record ? "Confirming the price…" : status.tone === "ready" ? "Recorded on X Layer" : "Last recorded on X Layer";
   return <div className="gmd-nav-summary"><div><span className="gmd-label">NAV per share <span>/ USD</span></span>{!data && loading ? <strong className="gmd-value"><i className="gmd-skeleton is-hero" aria-hidden="true" /><span className="gmd-sr-only">Loading</span></strong> : <strong key={flash?.at ?? "value"} className={`gmd-value${flash ? ` is-${flash.tone}` : ""}`}>{record ? formatUsdMicros(record.navPerShareMicros, 4) : "—"}</strong>}</div><div className="gmd-nav-meta"><OkxSource>Priced by OKX OnchainOS</OkxSource><span className={`gmd-status ${status.tone === "ready" ? "is-neutral" : "is-waiting"}`}><i />{state}</span><time dateTime={record?.effectiveAt ?? undefined}>{record ? shortTime(record.effectiveAt) : ""}</time>{next && <span className="gmd-live"><i aria-hidden="true" />{next}</span>}</div></div>;
 }
 
@@ -80,14 +83,27 @@ function ProductIdentity({ compact = false }: { compact?: boolean }) {
 
 export function MarketScreen({ preview = false }: { preview?: boolean }) {
   const { data, loading } = useMarket();
+  const [selectedId, setSelectedId] = useState(USTX_FUND.id);
+  const selectedFund = otherFund(selectedId);
+  const feature = useRef<HTMLElement>(null);
+  const selectFund = (id: string) => {
+    if (id !== USTX_FUND.id && !otherFund(id)) return;
+    setSelectedId(id);
+    // Move focus with the preview so keyboard and screen-reader users land on the updated card.
+    requestAnimationFrame(() => {
+      feature.current?.focus({ preventScroll: true });
+      feature.current?.scrollIntoView({ behavior: window.matchMedia("(prefers-reduced-motion: reduce)").matches ? "instant" : "smooth", block: "start" });
+    });
+  };
   const composition = data ? compositionForRecord(data) : null;
   const points = data ? publicationHistory(data) : [];
   const detail = preview ? designLink("product") : "/products/ustx";
-  const screen = <><div className="gmd-page-heading"><div><h1>Markets</h1><p>Tokenized US stock baskets on X Layer, priced by OKX OnchainOS and verified in your browser.</p></div>{preview ? <span className="gmd-badge">Example account view</span> : <RecordCheckStatus />}</div><DataState />
-    <section className="gmd-market-feature" aria-label="US Tech Basket"><div className="gmd-market-primary"><div className="gmd-feature-title"><ProductIdentity compact /><Link prefetch={false} className="gmd-button" href={preview ? detail : `${detail}#investment`}>Invest <Icon name="arrow" size={18} /></Link></div><NavValue />{!preview && <FundStats />}<MarketChart points={points} loading={loading} /><div className="gmd-feature-bottom"><span>Equal weight <i /> Rebalanced quarterly <i /> Min. $10</span><span className="gmd-badge">Demo fund</span></div></div><div className="gmd-market-composition"><Holdings composition={composition} compact loading={loading} /></div></section>
-    {!preview && <FundList />}
-    {!preview && <MarketPulse />}
-    <div className="gmd-market-foot"><div className="gmd-stock-row" aria-hidden="true">{assetSymbols.map(symbol => <AssetMark key={symbol} symbol={symbol} />)}</div><p>Market data by OKX OnchainOS · xStocks on X Layer · NAV records on X Layer Testnet</p><Link prefetch={false} href="/limitations">Risks <Icon name="external" size={14} /></Link></div>
+  const screen = <><div className="gmd-page-heading"><div><h1>Markets</h1><p>Explore US stock baskets. Compare funds, follow prices and invest in one place.</p></div>{preview ? <span className="gmd-badge">Example account view</span> : !selectedFund && <RecordCheckStatus />}</div>{!selectedFund && <DataState />}
+    <section ref={feature} id="market-fund-preview" tabIndex={-1} className="gmd-market-feature" aria-label={selectedFund?.name ?? USTX_FUND.name}>{selectedFund ? <FundMarketPreview key={selectedFund.id} definition={selectedFund} /> : <><div className="gmd-market-primary"><div className="gmd-feature-title"><ProductIdentity compact /><Link prefetch={false} className="gmd-button" href={preview ? detail : `${detail}#investment`}>Invest <Icon name="arrow" size={18} /></Link></div><NavValue />{!preview && <FundStats />}<MarketChart points={points} loading={loading} /><div className="gmd-feature-bottom"><span>Equal weight <i /> Rebalanced quarterly <i /> Min. $10</span><span className="gmd-badge">Demo fund</span></div></div><div className="gmd-market-composition"><Holdings composition={composition} compact loading={loading} /></div></>}</section>
+    {!preview && !selectedFund && <PriceConfidence compact />}
+    {!preview && <FundList selectedId={selectedId} onSelect={selectFund} controls="market-fund-preview" />}
+    {!preview && !selectedFund && <MarketPulse />}
+    <div className="gmd-market-foot"><div className="gmd-stock-row" aria-hidden="true">{assetSymbols.map(symbol => <AssetMark key={symbol} symbol={symbol} />)}</div><p>Six funds. US stocks and ETFs. One portfolio.</p><Link prefetch={false} href="/limitations">Risks <Icon name="external" size={14} /></Link></div>
   </>;
   return preview ? screen : <ActivityProvider>{screen}</ActivityProvider>;
 }
@@ -97,8 +113,8 @@ export function ProductScreen({ preview = false, orderPanel, holding = false }: 
   const composition = data ? compositionForRecord(data) : null;
   const points = data ? publicationHistory(data) : [];
   const screen = <><Link prefetch={false} className="gmd-breadcrumb" href={holding ? designLink("portfolio") : preview ? designLink("markets") : "/"}><Icon name="back" size={16} />{holding ? "Your portfolio" : "All markets"}</Link><div className="gmd-product-heading"><ProductIdentity />{preview ? <span className="gmd-badge">Example account view</span> : <RecordCheckStatus />}</div><div className={`gmd-mobile-entry${holding ? " is-holding" : ""}`}>{preview ? <a className="gmd-button" href="#investment">View investment panel<Icon name="arrow" size={16} /></a> : <a className="gmd-button" href="#investment">Invest<Icon name="arrow" size={16} /></a>}</div><DataState />
-    <div className={`gmd-detail-layout${holding ? " is-holding" : ""}`}><div className="gmd-detail-content"><section className="gmd-price-surface" aria-label="Basket value"><NavValue /><MarketChart points={points} loading={loading} /></section><nav className="gmd-product-sections" aria-label="Product sections">{!preview && <a href="#overview">Overview</a>}{!preview && <a href="#activity">Activity</a>}{!preview && <a href="#borrow">Borrow</a>}<a href="#holdings">Holdings</a><a href="#terms">About</a>{!preview && <Link prefetch={false} href="/pools">Pools <Icon name="arrow" size={14} /></Link>}<Link prefetch={false} href={VERIFY}>Transparency <Icon name="external" size={14} /></Link></nav>{!preview && <FundOverview />}{!preview && <MarketActivitySection />}{!preview && <LendingSection />}<div id="holdings" className="gmd-composition-surface">{preview ? <Holdings composition={composition} loading={loading} /> : <FundHoldings />}</div>
-      <section id="terms" className="gmd-terms"><h2>About USTX</h2><p>One USTX share gives you equal-weight exposure to nine US technology leaders through their xStocks on X Layer. Each share is valued as fixed amounts of each token, reset to equal weight every quarter. Its value is set every five minutes from OKX OnchainOS prices and recorded on X Layer.</p><dl><div><dt>Weighting</dt><dd>Equal weight at each fixing. Between fixings the weights drift with prices, like any buy-and-hold basket.</dd></div><div><dt>Rebalancing</dt><dd>Quarterly, back to equal weight at the prevailing NAV.</dd></div><div><dt>Orders</dt><dd>Minimum $10. At the fund there is no fee and orders fill at the latest NAV recorded on X Layer; a wallet order uses the pool instead when it pays more after the pool’s 0.3% fee. From your wallet, the USTX contract on X Layer Testnet issues your shares to you; with a demo balance, they are held for this browser. Both use demo dollars with no value, so no real money moves.</dd></div><div><dt>Assets</dt><dd>On testnet the fund holds no xStocks: the demo dollars you invest are burned, and a redemption mints new ones at the NAV, so the NAV is a model price.</dd></div><div><dt>Versus nine xStocks</dt><dd>Buying the nine separately takes a token approval and nine swaps, leaves nine positions to follow and needs up to nine more swaps each quarter to return to equal weight. One USTX order takes an approval and the investment, and the basket rebalances itself. Network fees on X Layer are a fraction of a cent either way.</dd></div><div><dt>Pricing</dt><dd>OKX OnchainOS DEX prices for the xStocks on X Layer, every five minutes. They can differ from the underlying stock price and may be delayed.</dd></div><div><dt>Record</dt><dd>Each NAV, the shares outstanding (in wallets and demo balances) and a fingerprint of the full composition are recorded on X Layer Testnet.</dd></div></dl><div className="gmd-terms-links"><Link prefetch={false} href="/methodology">Methodology <Icon name="external" size={14} /></Link><Link prefetch={false} href="/limitations">Risks <Icon name="external" size={14} /></Link></div></section>
+    <div className={`gmd-detail-layout${holding ? " is-holding" : ""}`}><div className="gmd-detail-content"><section className="gmd-price-surface" aria-label="Basket value"><NavValue /><MarketChart points={points} loading={loading} /></section><nav className="gmd-product-sections" aria-label="Product sections">{!preview && <a href="#overview">Overview</a>}{!preview && <a href="#activity">Activity</a>}{!preview && <a href="#borrow">Borrow</a>}<a href="#holdings">Holdings</a><a href="#terms">About</a>{!preview && <Link prefetch={false} href="/pools">Pools <Icon name="arrow" size={14} /></Link>}<Link prefetch={false} href={VERIFY}>Transparency <Icon name="external" size={14} /></Link></nav>{!preview && <FundOverview />}{!preview && <PriceConfidence compact />}{!preview && <MarketActivitySection />}{!preview && <LendingSection />}<div id="holdings" className="gmd-composition-surface">{preview ? <Holdings composition={composition} loading={loading} /> : <FundHoldings />}</div>
+      <section id="terms" className="gmd-terms"><h2>About USTX</h2><p>Follow nine US technology leaders with one basket. USTX tracks their xStock prices, starts each quarter at equal weights and updates its net asset value (NAV) every five minutes.</p><dl><div><dt>Weighting</dt><dd>Equal weight at each fixing. Between fixings the weights drift with prices, like any buy-and-hold basket.</dd></div><div><dt>Rebalancing</dt><dd>Quarterly, back to equal weight at the prevailing NAV.</dd></div><div><dt>Orders</dt><dd>Start with $10 using your wallet or demo balance. Fund orders have no fee and use the latest NAV. Wallet orders compare available routes for the best quote after fees. Both use demo dollars, so no real money moves.</dd></div><div><dt>Assets</dt><dd>USTX tracks a basket of xStocks for demo investing. It does not hold the underlying assets or grant ownership of real stocks.</dd></div><div><dt>Versus nine xStocks</dt><dd>One basket to follow and rebalance, with each constituent and its weight visible in your portfolio.</dd></div><div><dt>Pricing</dt><dd>OKX OnchainOS DEX prices for the xStocks on X Layer, every five minutes. They can differ from the underlying stock price and may be delayed.</dd></div><div><dt>Record</dt><dd>View the price history and check the latest price against its published X Layer record.</dd></div></dl><div className="gmd-terms-links"><Link prefetch={false} href="/methodology">Methodology <Icon name="external" size={14} /></Link><Link prefetch={false} href="/limitations">Risks <Icon name="external" size={14} /></Link></div></section>
     </div><div className="gmd-detail-aside" id="investment">{orderPanel ?? <InvestPanel />}</div></div>
   </>;
   return preview ? screen : <ActivityProvider>{screen}</ActivityProvider>;

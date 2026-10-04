@@ -4,8 +4,9 @@ import { useEffect, useState } from "react";
 import { PROOF_DEPLOYMENT, verifyComposition, type Check } from "@/lib/xstocks/proof";
 import { readLatestNav, type OnchainNav } from "@/lib/xstocks/onchain";
 import type { MarketSnapshot } from "@/lib/product-market";
+import type { Composition } from "@/lib/xstocks/basket";
 
-export type RecordCheck = { source: MarketSnapshot; chain: Check; hash: Check; nav: Check; record: OnchainNav | null; canonical: string | null; error: string | null };
+export type RecordCheck = { source: MarketSnapshot; chain: Check; hash: Check; nav: Check; record: OnchainNav | null; canonical: string | null; error: string | null; composition: Composition | null; computedHash: string | null; computedNavMicros: string | null };
 export type RecordCheckState = "unavailable" | "failed" | "matched" | "waiting" | "loading";
 
 /**
@@ -21,6 +22,9 @@ export function useRecordCheck(data: MarketSnapshot | null, error: string) {
     async function verify(source: MarketSnapshot) {
       let record: OnchainNav | null = null;
       let canonical: string | null = null;
+      let composition: Composition | null = null;
+      let computedHash: string | null = null;
+      let computedNavMicros: string | null = null;
       let chain: Check = { state: "pending", detail: "Waiting for a direct chain read." };
       let hash: Check = { state: "pending", detail: "Waiting for a matching document." };
       let nav: Check = { state: "pending", detail: "Waiting for the published composition." };
@@ -31,10 +35,14 @@ export function useRecordCheck(data: MarketSnapshot | null, error: string) {
         if (record.effectiveAt) {
           chain = { state: "pass", detail: "Read directly from the pinned registry on X Layer Testnet (1952)." };
           const entry = [source.latest?.publication, ...source.history].find(p => p?.holdingsHash.toLowerCase() === record!.holdingsHash.toLowerCase());
-          if (entry) { canonical = entry.canonical; const verified = await verifyComposition(canonical, record); hash = verified.hash; nav = verified.nav; }
+          if (entry) {
+            canonical = entry.canonical;
+            const verified = await verifyComposition(canonical, record);
+            ({ hash, nav, composition, computedHash, computedNavMicros } = verified);
+          }
         }
       } catch (reason) { failure = reason instanceof Error ? reason.message : "Direct verification is unavailable."; chain = { state: "pending", detail: failure }; }
-      if (!cancelled) setResult({ source, chain, hash, nav, record, canonical, error: failure });
+      if (!cancelled) setResult({ source, chain, hash, nav, record, canonical, error: failure, composition, computedHash, computedNavMicros });
     }
     void verify(data);
     return () => { cancelled = true; };

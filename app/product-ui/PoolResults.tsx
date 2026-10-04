@@ -65,13 +65,13 @@ function PoolColumn({ title, kind, result, note }: { title: string; kind: string
   </article>;
 }
 
-/** Liquidity providers against arbitrage: the constant-product pool and the v4 pool held at the NAV, over the same NAV records. */
+/** Compare liquidity returns: the constant-product pool and the v4 pool held at the NAV, over the same NAV records. */
 export function PoolResults() {
   const { value, loaded } = useServedResults();
   if (loaded && !value) return null;
   return <section id="lp-results" className="gmd-fund gmd-lp-results" aria-labelledby="lp-results-title">
     <header className="gmd-section-heading">
-      <div><h2 id="lp-results-title">Liquidity providers against arbitrage</h2><p>Both USTX/dUSD pools over the same NAV records: what their trades made or lost for the people who fund them.</p></div>
+      <div><h2 id="lp-results-title">Compare liquidity returns</h2><p>See how trading has affected providers in each USTX/dUSD pool over the same period.</p></div>
       <span className="gmd-badge">Measured on X Layer Testnet</span>
     </header>
     {value ? <>
@@ -81,7 +81,7 @@ export function PoolResults() {
           note={value.v4?.repegs !== undefined ? `Moved to the NAV before trading, ${value.v4.repegs.toLocaleString("en-US")} times` : "Moved to the NAV before trading"} />
       </div>
       <p className="gmd-caption">
-        {value.window.navRecords.toLocaleString("en-US")} NAV records from {when(value.window.from)} to {when(value.window.to)} UTC, read from the pools’ and the registry’s events.
+        {value.window.navRecords.toLocaleString("en-US")} NAV records from {when(value.window.from)} to {when(value.window.to)} UTC, included in this comparison.
         Each trade counts what the pool took in less what it paid out, USTX at the NAV of the moment: the fee, less what the trader gained from a stale price.
         After a record the constant-product pool still quotes the old NAV until arbitrage moves it; the v4 pool moves first. Demo dollars, no value.
       </p>

@@ -21,6 +21,8 @@ test("browser recalculation exactly matches issuer integer truncation", async ()
   const result = await verifyComposition(canonical, record);
   assert.equal(result.hash.state, "pass");
   assert.equal(result.nav.state, "pass");
+  assert.equal(result.computedHash, record.holdingsHash);
+  assert.equal(result.computedNavMicros, record.navPerShareMicros);
 });
 
 test("a document byte change fails the hash even if the arithmetic still matches", async () => {
@@ -28,6 +30,8 @@ test("a document byte change fails the hash even if the arithmetic still matches
   const result = await verifyComposition(canonical + " ", record);
   assert.equal(result.hash.state, "fail");
   assert.equal(result.nav.state, "pass");
+  assert.notEqual(result.computedHash, record.holdingsHash, "the visual comparison must expose the computed hash, not echo the chain");
+  assert.equal(result.computedNavMicros, record.navPerShareMicros);
 });
 
 test("matching hash and claimed NAV cannot conceal incorrect holding arithmetic", async () => {
@@ -39,6 +43,17 @@ test("matching hash and claimed NAV cannot conceal incorrect holding arithmetic"
   assert.equal(result.hash.state, "pass");
   assert.equal(result.nav.state, "fail");
   assert.match(result.nav.detail, /units × price/);
+  assert.ok(BigInt(result.computedNavMicros) > BigInt(record.navPerShareMicros), "show the sum actually calculated from the edited units");
+});
+
+test("the visual verifier has no invented NAV when the document cannot be parsed", async () => {
+  const { record } = await fixture();
+  const result = await verifyComposition("not a holdings document", record);
+  assert.equal(result.computedHash, await sha256Hex("not a holdings document"));
+  assert.equal(result.computedNavMicros, null);
+  assert.equal(result.composition, null);
+  assert.equal(result.hash.state, "fail");
+  assert.equal(result.nav.state, "fail");
 });
 
 test("missing, duplicate, negative and wrong-product data cannot pass", async () => {

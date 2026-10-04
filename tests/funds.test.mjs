@@ -8,7 +8,8 @@ import { FUNDS, USTX_FUND, XSTOCK_UNIVERSE, fundConstituents, otherFund } from "
 import { FundDemoLedger, ensureFundDemoTables } from "../lib/funds/demo.ts";
 import { addSeriesPoint, fundPoolCheck, fundStateKey, runFundsCycle } from "../lib/funds/cycle.ts";
 import { EngineRepository } from "../lib/engine/repository.ts";
-import { DEMO_START_CASH_MICROS } from "../lib/demo/ledger.ts";
+import { DEMO_START_CASH_MICROS, DemoLedger } from "../lib/demo/ledger.ts";
+import { valueDemoPortfolio } from "../lib/demo/portfolio.ts";
 import { verifyFundComposition, parseFundComposition } from "../lib/xstocks/proof.ts";
 import { FUND_POOLS } from "../lib/xstocks/pool-prices.ts";
 import { STATE_LATEST } from "../lib/xstocks/cycle.ts";
@@ -26,6 +27,8 @@ function database() {
   sql.exec(schema);
   const db = {
     readOnly: false,
+    beforeBatch: null,
+    afterBatch: null,
     prepare(query) {
       if (this.readOnly && !/^\s*SELECT/i.test(query)) throw Error("Unexpected write on a read-only request");
       const prepared = sql.prepare(query);
@@ -39,8 +42,12 @@ function database() {
       };
     },
     async batch(statements) {
+      if (this.beforeBatch) { const hook = this.beforeBatch; this.beforeBatch = null; await hook(); }
       sql.exec("BEGIN");
-      try { const results = statements.map((statement) => statement.runNow()); sql.exec("COMMIT"); return results; } catch (error) { sql.exec("ROLLBACK"); throw error; }
+      let results;
+      try { results = statements.map((statement) => statement.runNow()); sql.exec("COMMIT"); } catch (error) { sql.exec("ROLLBACK"); throw error; }
+      if (this.afterBatch) { const hook = this.afterBatch; this.afterBatch = null; await hook(); }
+      return results;
     },
   };
   return { db, sql };
@@ -211,8 +218,107 @@ test("the fund API reads only, and a demo order fills at the fund's record on X 
     // The USTX account shows the same cash.
     const ustx = await (await demoAccountGET(request("/api/demo/account", {}, cookie))).json();
     assert.equal(ustx.account.cashMicros, (DEMO_START_CASH_MICROS - 2_000_000_000n).toString());
+    assert.deepEqual(ustx.positions, account.positions, "cash and every holding are returned in the unified account view");
+    // Recover the original fill even if the RPC is unavailable after the first response was lost.
+    t.mock.method(globalThis, "fetch", async () => { throw Error("RPC unavailable on retry"); });
+    const retry = await order("us-core", { side: "subscribe", usdMicros: "1000000000" });
+    assert.equal(retry.status, 200);
+    const replay = await retry.json();
+    assert.equal(replay.replayed, true);
+    assert.deepEqual(replay.order, filled.order);
+    assert.equal(replay.cashMicros, ustx.account.cashMicros);
     // Starting again clears the fund holdings too.
     assert.equal((await resetPOST(request("/api/demo/reset", { method: "POST" }, cookie))).status, 200);
     assert.deepEqual((await (await fundAccountGET(request("/api/funds/account", {}, cookie))).json()).positions, []);
   } finally { delete env.DB; delete env.NAV_REGISTRY_ADDRESS; sql.close(); }
+});
+
+
+test("the portfolio includes every fund, one cash balance and a consistent cost basis", async () => {
+  const { db, sql } = database();
+  try {
+    await ensureFundDemoTables(db);
+    const funds = new FundDemoLedger(db), ustx = new DemoLedger(db);
+    const at = new Date(nav.effectiveAt);
+    await funds.place("alice", "ai-chips", { id: "aix", side: "subscribe", usdMicros: 1_000_000_000n }, nav, at);
+    const aixOnly = await ustx.portfolio("alice");
+    assert.equal(aixOnly.account.cashMicros, "9000000000");
+    assert.equal(valueDemoPortfolio(aixOnly.account, aixOnly.positions, new Map([["ai-chips", "100000000"]])).totalMicros, 10_000_000_000n);
+    await ustx.place("alice", { id: "ustx", side: "subscribe", usdMicros: 2_000_000_000n }, nav, at);
+    await funds.place("alice", "us-core", { id: "core", side: "subscribe", usdMicros: 500_000_000n }, nav, at);
+    db.readOnly = true;
+    const view = await ustx.portfolio("alice");
+    const navs = new Map([["us-tech-x", "100000000"], ["ai-chips", "110000000"], ["us-core", "90000000"]]);
+    assert.deepEqual(valueDemoPortfolio(view.account, view.positions, navs), {
+      cashMicros: 6_500_000_000n, investedMicros: 3_500_000_000n, totalMicros: 10_050_000_000n, gainMicros: 50_000_000n,
+    });
+    navs.delete("ai-chips");
+    const pending = valueDemoPortfolio(view.account, view.positions, navs);
+    assert.equal(pending.totalMicros, null, "a missing price must not erase the position's value");
+    assert.equal(pending.gainMicros, null);
+    assert.equal(pending.investedMicros, 3_500_000_000n);
+    const fresh = await ustx.portfolio("bob");
+    assert.deepEqual(fresh.positions, []);
+    assert.equal(valueDemoPortfolio(fresh.account, fresh.positions, new Map()).totalMicros, DEMO_START_CASH_MICROS);
+  } finally { sql.close(); }
+});
+
+test("reset clears shared cash, USTX and other funds before any redemption can run", async () => {
+  const { db, sql } = database();
+  try {
+    await ensureFundDemoTables(db);
+    const funds = new FundDemoLedger(db), ustx = new DemoLedger(db);
+    const at = new Date(nav.effectiveAt);
+    await funds.place("alice", "ai-chips", { id: "aix", side: "subscribe", usdMicros: 1_000_000_000n }, nav, at);
+    await ustx.place("alice", { id: "ustx", side: "subscribe", usdMicros: 500_000_000n }, nav, at);
+    await funds.place("bob", "us-core", { id: "bob-core", side: "subscribe", usdMicros: 500_000_000n }, nav, at);
+    let attempted = false;
+    db.afterBatch = async () => {
+      attempted = true;
+      await assert.rejects(funds.place("alice", "ai-chips", { id: "redeem", side: "redeem", sharesMicros: 10_000_000n }, nav, at), error => error.code === "insufficient_shares");
+    };
+    const reset = await ustx.reset("alice", at);
+    assert.equal(attempted, true);
+    assert.equal(reset.cashMicros, "10000000000");
+    assert.equal(reset.sharesMicros, "0");
+    assert.equal(reset.costMicros, "0");
+    assert.equal(reset.ordersCount, 0);
+    assert.deepEqual(await funds.positions("alice"), []);
+    assert.deepEqual(await funds.orders("alice"), []);
+    assert.deepEqual(await ustx.orders("alice"), []);
+    assert.equal((await funds.positions("bob")).length, 1, "another visitor's holdings survive");
+    assert.equal(sql.prepare("SELECT orders FROM demo_daily").get().orders, 3, "reset does not bypass the daily order cap");
+  } finally { sql.close(); }
+});
+
+test("a redemption started before reset cannot credit cash after its holdings were cleared", async () => {
+  const { db, sql } = database();
+  try {
+    await ensureFundDemoTables(db);
+    const funds = new FundDemoLedger(db), ustx = new DemoLedger(db);
+    const at = new Date(nav.effectiveAt);
+    await funds.place("alice", "ai-chips", { id: "aix", side: "subscribe", usdMicros: 1_000_000_000n }, nav, at);
+    db.beforeBatch = () => ustx.reset("alice", at);
+    await assert.rejects(funds.place("alice", "ai-chips", { id: "redeem", side: "redeem", sharesMicros: 10_000_000n }, nav, at), error => error.code === "account_changed");
+    assert.equal(await funds.cash("alice"), DEMO_START_CASH_MICROS);
+    assert.deepEqual(await funds.positions("alice"), []);
+    assert.deepEqual(await funds.orders("alice"), []);
+  } finally { sql.close(); }
+});
+
+test("a failed reset rolls back cash, shares and every order history together", async () => {
+  const { db, sql } = database();
+  try {
+    await ensureFundDemoTables(db);
+    const funds = new FundDemoLedger(db), ustx = new DemoLedger(db);
+    const at = new Date(nav.effectiveAt);
+    await funds.place("alice", "ai-chips", { id: "aix", side: "subscribe", usdMicros: 1_000_000_000n }, nav, at);
+    await ustx.place("alice", { id: "ustx", side: "subscribe", usdMicros: 500_000_000n }, nav, at);
+    const before = await ustx.portfolio("alice");
+    sql.exec("CREATE TRIGGER fail_reset BEFORE DELETE ON demo_fund_positions BEGIN SELECT RAISE(ABORT, 'reset failed'); END");
+    await assert.rejects(ustx.reset("alice", at), /reset failed/);
+    assert.deepEqual(await ustx.portfolio("alice"), before);
+    assert.equal((await funds.orders("alice")).length, 1);
+    assert.equal((await ustx.orders("alice")).length, 1);
+  } finally { sql.close(); }
 });

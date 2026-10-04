@@ -1,6 +1,6 @@
 import { engineEnv, isSameSiteRequest, noStoreJson } from "@/lib/engine/api-helpers";
 import { demoFailure, demoIdentity } from "@/lib/demo/api";
-import { DEMO_MIN_ORDER_MICROS } from "@/lib/demo/ledger";
+import { DEMO_MIN_ORDER_MICROS, DemoLedger } from "@/lib/demo/ledger";
 import { FundDemoLedger, type FundDb } from "@/lib/funds/demo";
 
 export const dynamic = "force-dynamic";
@@ -13,8 +13,8 @@ export async function GET(request: Request) {
     if (!identity) return noStoreJson({ error: "Demo accounts are not available here." }, { status: 401 });
     const demo = new FundDemoLedger(engineEnv().DB as unknown as FundDb);
     const fundId = new URL(request.url).searchParams.get("fund") ?? undefined;
-    const [cash, positions, orders] = await Promise.all([demo.cash(identity.subject), demo.positions(identity.subject), demo.orders(identity.subject, fundId)]);
-    return noStoreJson({ cashMicros: cash.toString(), positions, orders, minOrderMicros: DEMO_MIN_ORDER_MICROS.toString() }, { headers: identity.cookie ? { "Set-Cookie": identity.cookie } : undefined });
+    const [{ account, positions }, orders] = await Promise.all([new DemoLedger(engineEnv().DB).portfolio(identity.subject), demo.orders(identity.subject, fundId)]);
+    return noStoreJson({ cashMicros: account.cashMicros, positions, orders, minOrderMicros: DEMO_MIN_ORDER_MICROS.toString() }, { headers: identity.cookie ? { "Set-Cookie": identity.cookie } : undefined });
   } catch (error) {
     return demoFailure(error);
   }

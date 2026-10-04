@@ -31,9 +31,10 @@ export function useConstituents() {
   return { composition, figures, fixedAt: composition?.basketFixedAt ?? null, shares };
 }
 
-/** A weight against the equal-weight target, on a 0–25% scale. */
+/** A weight against its target; expand the usual 0–25% scale for concentrated funds. */
 export function WeightMeter({ weight, target }: { weight: number; target: number }) {
-  return <span className="gmd-weight-meter" aria-hidden="true"><i style={{ width: `${Math.min(100, weight / WEIGHT_SCALE * 100)}%` }} /><em style={{ left: `${target / WEIGHT_SCALE * 100}%` }} /></span>;
+  const scale = Math.max(WEIGHT_SCALE, target * 2);
+  return <span className="gmd-weight-meter" aria-hidden="true"><i style={{ width: `${Math.min(100, weight / scale * 100)}%` }} /><em style={{ left: `${target / scale * 100}%` }} /></span>;
 }
 
 /**

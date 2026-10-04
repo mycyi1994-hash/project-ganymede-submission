@@ -1,11 +1,16 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useState, type ReactNode } from "react";
+import { useState, type ReactNode } from "react";
 import { formatUsdMicros, formatUsdRounded } from "@/lib/nav-display";
 import { shortTime } from "@/lib/product-market";
 import { parseUsd } from "@/lib/xstocks/wallet";
 import { DEMO_ORDER_EVENT, formatShares, parseShares } from "@/lib/demo/format";
+import type { FundPosition } from "@/lib/funds/demo";
+import type { FundSummary } from "@/lib/funds/api";
+import { valueDemoPortfolio } from "@/lib/demo/portfolio";
+import { useFundResource } from "./useFundResource";
+import { FundHoldings } from "./Funds";
 import { Icon, Skeleton } from "./Icons";
 import { useMarket } from "./MarketProvider";
 import { BasketList, BasketTable, useRecordComposition } from "./Basket";
@@ -18,6 +23,7 @@ import { WalletInvest, useInjectedWallet } from "./WalletInvest";
 type Account = { cashMicros: string; sharesMicros: string; costMicros: string; ordersCount: number; exists: boolean };
 type Order = { id: string; side: "subscribe" | "redeem"; usdMicros: string; sharesMicros: string; navMicros: string; navEffectiveAt: string; navHoldingsHash: string; createdAt: string };
 type Side = "buy" | "sell";
+type DemoAccountView = { account: Account; orders: Order[]; positions: FundPosition[] };
 
 const VERIFY = "/products/ustx/transparency";
 const SHARE = 1_000_000n;
@@ -27,25 +33,22 @@ async function send(path: string, body?: unknown) {
   const response = await fetch(path, { method: "POST", credentials: "same-origin", headers: body ? { "Content-Type": "application/json" } : undefined, body: body ? JSON.stringify(body) : undefined });
   const payload = await response.json().catch(() => ({}));
   if (!response.ok) throw new Error(typeof payload.error === "string" ? payload.error : "The demo service did not respond. Try again.");
-  return payload as { account: Account; orders: Order[]; order?: Order };
+  return payload as DemoAccountView & { order?: Order };
 }
 
 export function useDemoAccount() {
-  const [account, setAccount] = useState<Account | null>(null);
-  const [orders, setOrders] = useState<Order[]>([]);
-  const [error, setError] = useState<string | null>(null);
-  useEffect(() => {
-    let cancelled = false;
-    fetch("/api/demo/account", { credentials: "same-origin", cache: "no-store" })
-      .then(async response => { const body = await response.json(); if (!response.ok) throw new Error(body.error ?? "The demo account could not be loaded."); return body; })
-      .then(body => { if (!cancelled) { setAccount(body.account); setOrders(body.orders); } })
-      .catch(reason => { if (!cancelled) setError(reason instanceof Error ? reason.message : "The demo account could not be loaded."); });
-    return () => { cancelled = true; };
-  }, []);
-  const apply = (body: { account: Account; orders: Order[] }) => { setAccount(body.account); setOrders(body.orders); setError(null); };
+  const { data, error, replace } = useFundResource<DemoAccountView>("/api/demo/account");
+  const apply = (body: DemoAccountView) => {
+    replace(body);
+    window.dispatchEvent(new Event(DEMO_ORDER_EVENT));
+  };
   return {
-    account, orders, error,
-    async place(order: { side: "subscribe" | "redeem"; usdMicros?: string; sharesMicros?: string; clientOrderId: string }) { const body = await send("/api/demo/orders", order); apply(body); window.dispatchEvent(new Event(DEMO_ORDER_EVENT)); return body.order!; },
+    account: data?.account ?? null, orders: data?.orders ?? [], positions: data?.positions ?? [], error,
+    async place(order: { side: "subscribe" | "redeem"; usdMicros?: string; sharesMicros?: string; clientOrderId: string }) {
+      const body = await send("/api/demo/orders", order);
+      apply(body);
+      return body.order!;
+    },
     async reset() { apply(await send("/api/demo/reset")); },
   };
 }
@@ -153,7 +156,7 @@ function DemoInvest({ tabs }: { tabs: ReactNode }) {
           <div><dt>Fee</dt><dd>None</dd></div>
         </dl>
         <button type="button" className="gmd-button" disabled={Boolean(problem) || !nav} onClick={() => setReview(crypto.randomUUID())}>Review {side === "buy" ? "investment" : "redemption"} <Icon name="arrow" size={17} /></button>
-        <p className="gmd-caption">Demo dollars only. No real money moves and no shares are issued on chain.</p>
+        <p className="gmd-caption">Demo dollars only. No real money moves. Your holdings stay in this demo account.</p>
       </>}
   </>;
 }
@@ -175,6 +178,7 @@ export function DemoPortfolio() {
   const nav = useRecordedNav();
   const { composition } = useRecordComposition();
   const [resetting, setResetting] = useState(false);
+  const { data: fundData } = useFundResource<{ funds: FundSummary[] }>("/api/v1/funds");
   const account = demo.account;
   const shares = account ? BigInt(account.sharesMicros) : 0n;
   const cost = account ? BigInt(account.costMicros) : 0n;
@@ -186,20 +190,26 @@ export function DemoPortfolio() {
   const tone = gain === null || gain === 0n ? "" : gain > 0n ? "gmd-positive" : "gmd-negative";
   const signed = (micros: bigint) => micros === 0n ? formatUsdMicros(0n, 2) : `${micros < 0n ? "−" : "+"}${formatUsdMicros(micros < 0n ? -micros : micros, 2)}`;
   const signedPercent = (value: number) => value === 0 ? "0.00%" : `${value > 0 ? "+" : "−"}${Math.abs(value).toFixed(2)}%`;
+  const navs = new Map((fundData?.funds ?? []).map(fund => [fund.id, fund.nav?.perShareMicros ?? null]));
+  navs.set("us-tech-x", nav?.navMicros.toString() ?? null);
+  const portfolio = account ? valueDemoPortfolio(account, demo.positions, navs) : null;
+  const totalGain = portfolio?.gainMicros === null || !portfolio ? null : portfolio.gainMicros / 10_000n * 10_000n;
+  const totalPercent = totalGain !== null && portfolio && portfolio.investedMicros > 0n ? Number(totalGain * 1_000_000n / portfolio.investedMicros) / 10_000 : null;
+  const totalTone = totalGain === null || totalGain === 0n ? "" : totalGain > 0n ? "gmd-positive" : "gmd-negative";
   async function reset() {
     if (!window.confirm("Start again with $10,000 demo dollars? Your demo holdings and history will be cleared.")) return;
     setResetting(true);
     try { await demo.reset(); } finally { setResetting(false); }
   }
   return <section className="gmd-demo-portfolio" aria-labelledby="demo-title">
-    <header className="gmd-section-heading"><div><h2 id="demo-title">Your investments</h2><p>Held with your demo balance in this browser.</p></div><Link prefetch={false} className="gmd-button" href="/products/ustx#investment">Invest <Icon name="arrow" size={16} /></Link></header>
+    <header className="gmd-section-heading"><div><h2 id="demo-title">Your investments</h2><p>Your demo funds, available cash and returns.</p></div><Link prefetch={false} className="gmd-button" href="/products/ustx#investment">Invest <Icon name="arrow" size={16} /></Link></header>
     {demo.error ? <p className="gmd-inline-error" role="alert">{demo.error}</p> : !account ? <div className="gmd-portfolio-summary is-loading" role="status"><span className="gmd-sr-only">Opening your demo account…</span><div aria-hidden="true"><Skeleton width={90} /><Skeleton className="is-hero" /><Skeleton width="72%" /></div><div className="gmd-loading-facts" aria-hidden="true">{[0, 1, 2].map(item => <span key={item}><Skeleton width={96} /><Skeleton width={120} /></span>)}</div></div> : <>
       <div className="gmd-portfolio-summary">
-        <div><span className="gmd-label">Total value</span><strong className="gmd-value">{value === null ? "—" : formatUsdRounded(cash + value)}</strong><p>{nav ? `USTX at ${formatUsdMicros(nav.navMicros, 4)} per share, priced by OKX OnchainOS and recorded on X Layer at ${shortTime(nav.at)}` : "Waiting for the latest recorded NAV…"}</p></div>
+        <div><span className="gmd-label">Total value</span><strong className="gmd-value">{portfolio?.totalMicros == null ? "—" : formatUsdRounded(portfolio.totalMicros)}</strong><p>{portfolio?.totalMicros == null ? "Updating prices for your holdings." : "Available cash and the current value of all your demo funds."}</p></div>
         <dl>
           <div><dt>Cash balance</dt><dd>{formatUsdMicros(cash, 2)}</dd></div>
-          <div><dt>Invested</dt><dd>{formatUsdMicros(cost, 2)}</dd></div>
-          <div><dt>Unrealized return</dt><dd className={tone}>{gain === null ? "—" : signed(gain)}{percent !== null && <small>{signedPercent(percent)}</small>}</dd></div>
+          <div><dt>Invested</dt><dd>{formatUsdMicros(portfolio?.investedMicros ?? 0n, 2)}</dd></div>
+          <div><dt>Unrealized return</dt><dd className={totalTone}>{totalGain === null ? "—" : signed(totalGain)}{totalPercent !== null && <small>{signedPercent(totalPercent)}</small>}</dd></div>
         </dl>
       </div>
       <div className="gmd-position-table">
@@ -212,6 +222,7 @@ export function DemoPortfolio() {
           <div className="gmd-position-actions"><Link className="gmd-small-button" prefetch={false} href="/products/ustx#investment">Buy</Link><Link className="gmd-small-button" prefetch={false} href="/products/ustx#investment">Redeem</Link></div>
         </div>}
       </div>
+      <FundHoldings positions={demo.positions} funds={fundData?.funds ?? null} />
       {shares > 0n && <section className="gmd-inside" aria-labelledby="inside-title">
         <header className="gmd-section-heading"><div><h3 id="inside-title">Inside your USTX</h3><p>Your {formatShares(shares)} shares, looked through to the nine xStocks.</p></div></header>
         {composition ? <BasketTable composition={composition} sharesMicros={shares} label="Your USTX looked through to each xStock" chart /> : <p className="gmd-caption">Waiting for the latest record to show what your shares hold…</p>}

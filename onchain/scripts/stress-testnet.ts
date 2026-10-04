@@ -1,7 +1,8 @@
 /**
  * A load test of USTX on X Layer Testnet with team test wallets: each wallet claims demo dollars and
  * runs every wallet flow the app offers (invest at the fund, buy and sell on the constant-product
- * pool and through the Uniswap v4 router, add and remove pool liquidity, post USTX as collateral,
+ * pool and through the Uniswap v4 router, add and remove pool liquidity, deposit into the v4 pool and
+ * cancel or later withdraw, post USTX as collateral,
  * borrow, repay and withdraw, lend and withdraw), then redeems all its USTX at the fund, so the
  * fund's investor count returns to where it was. It also checks that wrong orders revert with the
  * contracts' own errors, without sending them.
@@ -207,10 +208,10 @@ async function main() {
         const claim = await send("claim dUSD", C.dollar, "claim", [], 150_000n);
         if ((await read<bigint>(C.dollar, "balanceOf", [account.address], claim.blockNumber)) < 1_000n * ONE) throw new Error("claim left under $1,000");
       }
-      for (const spender of [C.fund.address, C.pool.address, C.router.address, C.lending.address]) {
+      for (const spender of [C.fund.address, C.pool.address, C.router.address, C.lending.address, C.hook.address]) {
         await send(`approve dUSD → ${spender.slice(0, 8)}`, C.dollar, "approve", [spender, maxUint256], 80_000n);
       }
-      for (const spender of [C.pool.address, C.router.address, C.lending.address]) {
+      for (const spender of [C.pool.address, C.router.address, C.lending.address, C.hook.address]) {
         await send(`approve USTX → ${spender.slice(0, 8)}`, C.fund, "approve", [spender, maxUint256], 80_000n);
       }
 
@@ -242,6 +243,13 @@ async function main() {
       const lpTokens = await read<bigint>(C.pool, "balanceOf", [account.address], at());
       await send("remove pool liquidity", C.pool, "removeLiquidity", [lpTokens, 0n, 0n, deadline()], 250_000n);
 
+      // Liquidity in the Uniswap v4 pool: a deposit waits for the next NAV record. Most wallets cancel
+      // it at once; every fourth keeps it, so a record turns it into LP tokens it withdraws at the end.
+      const v4Ustx = (await shares()) / 10n;
+      const keepV4 = index % 4 === 0;
+      await send("v4 deposit", C.hook, "deposit", assetIsCurrency0 ? [v4Ustx, maxUint256, deadline()] : [maxUint256, v4Ustx, deadline()], 900_000n);
+      if (!keepV4) await send("v4 cancel deposit", C.hook, "cancelDeposit", [], 600_000n);
+
       // A loan against USTX: post half of it, borrow a little, repay in full and take it back.
       const collateral = (await shares()) / 2n;
       await send("post USTX collateral", C.lending, "supplyCollateral", [collateral], 200_000n);
@@ -253,6 +261,14 @@ async function main() {
       if (index % 3 === 0) {
         await send("lend $20", C.lending, "supply", [20n * ONE], 200_000n);
         await send("withdraw lending", C.lending, "withdraw", [maxUint256], 200_000n);
+      }
+
+      // The kept v4 deposit: withdrawn as LP tokens if a record has converted it, otherwise cancelled.
+      if (keepV4) {
+        const claimable = await read<bigint>(C.hook, "claimableShares", [account.address], at());
+        const lp = (await read<bigint>(C.hook, "balanceOf", [account.address], at())) + claimable;
+        if (lp > 0n) await send("v4 withdraw liquidity", C.hook, "withdraw", [lp, 0n, 0n, deadline()], 900_000n);
+        else await send("v4 cancel deposit", C.hook, "cancelDeposit", [], 600_000n);
       }
 
       // Everything back at the fund: the investor count returns to where it was.

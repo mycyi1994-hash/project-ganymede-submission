@@ -221,7 +221,7 @@ function PoolOverview({ snapshot, failure, retry, growth }: { snapshot: Snapshot
       <div><dt>Fee</dt><dd>{FEE_PERCENT} of each trade, to providers</dd></div>
       <div><dt>LP token, {growth.value ? windowLabel(growth.value) : "7 days"}</dt><dd>{performance(growth.value)}</dd></div>
       <div><dt>Opened</dt><dd>{day(POOL_LAUNCHED_AT)}</dd></div>
-      <div><dt>Pool contract</dt><dd><a className="gmd-inline-tx" href={fundExplorer.address(FUND_DEPLOYMENT.pool)} target="_blank" rel="noreferrer">X Layer Testnet<Icon name="external" size={12} /><span className="gmd-sr-only"> (opens in a new tab)</span></a></dd></div>
+      <div><dt>View pool</dt><dd><a className="gmd-inline-tx" href={fundExplorer.address(FUND_DEPLOYMENT.pool)} target="_blank" rel="noreferrer">X Layer Testnet<Icon name="external" size={12} /><span className="gmd-sr-only"> (opens in a new tab)</span></a></dd></div>
     </dl>
   </section>;
 }
@@ -230,10 +230,10 @@ function PoolOverview({ snapshot, failure, retry, growth }: { snapshot: Snapshot
 function PoolGuide({ growth }: { growth: PoolYield | null }) {
   return <section id="how" className="gmd-terms" aria-labelledby="how-title">
     <h2 id="how-title">How providing liquidity works</h2>
-    <p>The pool holds USTX and demo dollars. Every trade pays {FEE_PERCENT} into it, and the fee stays in the pool for its providers. When the pool’s price drifts from the NAV by more than the fee, the arbitrage keeper trades it back through the fund.</p>
+    <p>The pool holds USTX and demo dollars. Every trade pays {FEE_PERCENT} into it, and the fee stays in the pool for its providers. Its trading price can differ from the fund’s NAV. Trades that close this gap can affect your returns.</p>
     <dl>
       <div><dt>Deposit</dt><dd>USTX and demo dollars at the pool’s ratio. Or demo dollars alone: part is invested at the fund at the NAV, with no fee, and the USTX goes in with the rest.</dd></div>
-      <div><dt>LP token</dt><dd>USTX-LP, issued by the pool contract to your wallet. It is your share of everything the pool holds.</dd></div>
+      <div><dt>LP token</dt><dd>USTX-LP represents your share of the pool and appears in your wallet.</dd></div>
       <div><dt>Withdraw</dt><dd>At any time, for your share of both tokens, rounded down. While the NAV record is under an hour old, you can also have the USTX redeemed at the fund at the NAV.</dd></div>
       <div><dt>Price risk</dt><dd>As the NAV moves, arbitrage trades with the pool, so a provider ends with more of whichever token fell. Against simply holding both, that costs a little, and only the fees can make up for it.</dd></div>
       <div><dt>Network</dt><dd>X Layer Testnet. Demo dollars and USTX have no value, and network fees are paid in test OKB.</dd></div>

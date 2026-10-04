@@ -1,7 +1,5 @@
 import { isSameSiteRequest, noStoreJson } from "@/lib/engine/api-helpers";
 import { demoFailure, demoIdentity, ledger } from "@/lib/demo/api";
-import { engineEnv } from "@/lib/engine/api-helpers";
-import { FundDemoLedger, type FundDb } from "@/lib/funds/demo";
 
 export const dynamic = "force-dynamic";
 
@@ -12,10 +10,8 @@ export async function POST(request: Request) {
     const identity = await demoIdentity(request, false);
     if (!identity) return noStoreJson({ error: "Open the demo account first. Cookies must be enabled.", code: "no_session" }, { status: 401 });
     const demo = ledger();
-    const account = await demo.reset(identity.subject, new Date());
-    // The same demo balance holds the other funds; starting again clears them too.
-    await new FundDemoLedger(engineEnv().DB as unknown as FundDb).reset(identity.subject);
-    return noStoreJson({ account, orders: [] });
+    await demo.reset(identity.subject, new Date());
+    return noStoreJson({ ...await demo.portfolio(identity.subject), orders: await demo.orders(identity.subject) });
   } catch (error) {
     return demoFailure(error);
   }

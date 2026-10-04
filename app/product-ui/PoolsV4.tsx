@@ -110,7 +110,7 @@ export function V4PoolOverview({ deployment, reader }: { deployment: V4Deploymen
       <div><dt>LP tokens issued</dt><dd>{pool ? `${formatSharesShort(pool.supply, 4)} USTX-V4LP` : "—"}</dd></div>
       <div><dt>Centred on</dt><dd>{pool && pool.peggedAt > 0 ? `The record of ${shortTime(new Date(pool.peggedAt * 1000).toISOString())}` : "—"}</dd></div>
       <div><dt>Deposits</dt><dd>Become LP tokens when the pool moves to the next NAV record</dd></div>
-      <div><dt>Pool contract</dt><dd><a className="gmd-inline-tx" href={fundExplorer.address(deployment.hook)} target="_blank" rel="noreferrer">X Layer Testnet<Icon name="external" size={12} /><span className="gmd-sr-only"> (opens in a new tab)</span></a></dd></div>
+      <div><dt>View pool</dt><dd><a className="gmd-inline-tx" href={fundExplorer.address(deployment.hook)} target="_blank" rel="noreferrer">X Layer Testnet<Icon name="external" size={12} /><span className="gmd-sr-only"> (opens in a new tab)</span></a></dd></div>
     </dl>
   </section>;
 }
@@ -330,7 +330,7 @@ export function V4LiquidityPanel({ deployment, provider, chain, owner, reader, o
 export function V4PoolGuide() {
   return <section id="how-v4" className="gmd-terms" aria-labelledby="how-v4-title">
     <h2 id="how-v4-title">How this pool works</h2>
-    <p>The pool’s contract holds all of its liquidity for its depositors and keeps it around the NAV recorded on X Layer. Each new record moves the liquidity to the new NAV before anyone trades on it, so providers do not sell to traders who already know the price has changed.</p>
+    <p>This pool adjusts its trading range to each new NAV before accepting trades. It aims to reduce losses from trading at an outdated price; returns still depend on trading activity and fees.</p>
     <dl>
       <div><dt>Deposit</dt><dd>USTX and demo dollars at the ratio of what the pool holds. Your deposit waits for the pool to move to the next NAV record (at the next trade or deposit, or when you choose Convert now) and becomes LP tokens at that NAV, valued with everything in the pool. Until then you can cancel it.</dd></div>
       <div><dt>Fee</dt><dd>0.30% just after a NAV record, rising to 1.00% as the record ages over an hour. Without a record under an hour old, the pool stops trading.</dd></div>

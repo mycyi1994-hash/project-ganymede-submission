@@ -2,7 +2,6 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { DemoPortfolio } from "./DemoInvest";
-import { FundHoldings } from "./Funds";
 import { WalletFundPosition } from "./WalletFund";
 import { parseComposition } from "@/lib/xstocks/proof";
 import { readBalances, tokenExplorerUrl, type WalletBalances } from "@/lib/xstocks/mainnet";
@@ -20,8 +19,8 @@ const percent = (bps: number) => `${(bps / 100).toFixed(2)}%`;
 function AddressBar() {
   const { address, source, busy, message, connect, watch, clearWatch } = useWalletAccount();
   const [input, setInput] = useState("");
-  if (address) return <section className="gmd-wallet-bar" aria-label="Address"><div className="gmd-wallet-address"><span>{source === "watch" ? "Viewing a public address" : "Connected wallet"}</span><code>{address}</code></div><button type="button" className="gmd-small-button" onClick={() => { clearWatch(); setInput(""); }}>Use another address</button><p className="gmd-caption">Read-only here: balances come straight from X Layer, and nothing is signed or sent. Orders are placed on the USTX page.</p></section>;
-  return <section className="gmd-wallet-bar" aria-label="Address"><button type="button" className="gmd-button" disabled={busy} onClick={() => void connect()}><Icon name="wallet" size={17} />{busy ? "Connecting…" : "Connect OKX Wallet"}</button><form className="gmd-wallet-form" onSubmit={event => { event.preventDefault(); watch(input); }}><label htmlFor="portfolio-address">Or view any public address</label><div><input id="portfolio-address" value={input} onChange={event => setInput(event.target.value)} placeholder="0x…" spellCheck={false} autoComplete="off" /><button type="submit" className="gmd-small-button">View</button></div></form><p role="status" className="gmd-wallet-message">{message}</p><p className="gmd-caption">Read-only. OKX Wallet, or any browser wallet, shares only a public address; nothing is signed or sent.</p></section>;
+  if (address) return <section className="gmd-wallet-bar" aria-label="Address"><div className="gmd-wallet-address"><span>{source === "watch" ? "Viewing a public address" : "Connected wallet"}</span><code>{address}</code></div><button type="button" className="gmd-small-button" onClick={() => { clearWatch(); setInput(""); }}>Use another address</button><p className="gmd-caption">Viewing balances does not move funds. Manage your USTX from its product page.</p></section>;
+  return <section className="gmd-wallet-bar" aria-label="Address"><button type="button" className="gmd-button" disabled={busy} onClick={() => void connect()}><Icon name="wallet" size={17} />{busy ? "Connecting…" : "Connect OKX Wallet"}</button><form className="gmd-wallet-form" onSubmit={event => { event.preventDefault(); watch(input); }}><label htmlFor="portfolio-address">Or view any public address</label><div><input id="portfolio-address" value={input} onChange={event => setInput(event.target.value)} placeholder="0x…" spellCheck={false} autoComplete="off" /><button type="submit" className="gmd-small-button">View</button></div></form><p role="status" className="gmd-wallet-message">{message}</p><p className="gmd-caption">Connecting lets you view your holdings. It does not request a payment or signature.</p></section>;
 }
 
 export default function WalletPortfolio() {
@@ -65,13 +64,12 @@ export default function WalletPortfolio() {
     window.setTimeout(() => URL.revokeObjectURL(url), 0);
   }
 
-  const priceNote = state === "matched" && record ? `OKX OnchainOS prices from the ${shortTime(record.effectiveAt)} record, verified in your browser` : state === "failed" || state === "unavailable" ? "The price record could not be verified, so nothing is valued." : "Waiting for the price record to be verified in this browser…";
+  const priceNote = state === "matched" && record ? `OKX OnchainOS prices from the ${shortTime(record.effectiveAt)} record, verified in your browser` : state === "failed" || state === "unavailable" ? "The price record could not be verified, so nothing is valued." : "Checking prices for your holdings…";
 
   return <>
     <div className="gmd-page-heading"><div><h1>Portfolio</h1><p>Your USTX and your xStocks on X Layer, valued at OKX OnchainOS prices.</p></div><RecordCheckStatus /></div>
     <DemoPortfolio />
-    <FundHoldings />
-    <header id="wallet" className="gmd-section-heading gmd-wallet-heading"><div><h2>Your wallet on X Layer</h2><p>Connect OKX Wallet or view any public address: USTX on X Layer Testnet, and real xStocks on X Layer mainnet valued at OKX OnchainOS prices.</p></div></header>
+    <header id="wallet" className="gmd-section-heading gmd-wallet-heading"><div><h2>Your wallet on X Layer</h2><p>View your USTX on Testnet and your xStocks on X Layer mainnet. Connect OKX Wallet or enter a public address.</p></div></header>
     <AddressBar />
     {address && <WalletFundPosition address={address} />}
     {address && <section className="gmd-wallet-holdings" aria-labelledby="holdings-title" aria-live="polite"><header className="gmd-section-heading"><h2 id="holdings-title">xStock holdings</h2><span>{current ? `Block ${current.blockNumber.toLocaleString("en-US")} · ${shortTime(current.blockTime)} · X Layer mainnet` : failure ? "Not read" : "Reading balances…"}</span></header>
@@ -80,7 +78,7 @@ export default function WalletPortfolio() {
         : !valuation ? <p className="gmd-caption">{priceNote}</p>
         : <><div className="gmd-data-table-scroll"><table className="gmd-table"><thead><tr><th>Asset</th><th>Balance</th><th>OKX price</th><th>Value</th><th>Weight</th><th>USTX weight</th></tr></thead><tbody>{valuation.rows.map(row => <tr key={row.symbol}><th scope="row"><a href={tokenExplorerUrl(row.address)} target="_blank" rel="noreferrer">{row.symbol} <Icon name="external" size={12} /></a></th><td>{formatUnits(row.units)}</td><td>{formatUsdMicros(row.priceMicros, 2)}</td><td>{formatUsdMicros(row.valueMicros, 2)}</td><td>{BigInt(valuation.totalMicros) === 0n ? "—" : percent(row.weightBps)}</td><td>{percent(row.modelWeightBps)}</td></tr>)}</tbody></table></div>
           <div className="gmd-wallet-summary"><div><span>Value of the nine xStocks</span><strong>{formatUsdMicros(valuation.totalMicros, 2)}</strong><small>{priceNote}</small></div><button type="button" className="gmd-small-button" onClick={downloadStatement}><Icon name="download" size={16} />Download statement</button></div>
-          {BigInt(valuation.totalMicros) === 0n && <p className="gmd-caption">{valuation.rows.some(row => row.units !== "0") ? "This address holds only amounts too small to value to the cent." : "This address holds none of the six xStocks on X Layer."}</p>}</>}
+          {BigInt(valuation.totalMicros) === 0n && <p className="gmd-caption">{valuation.rows.some(row => row.units !== "0") ? "This address holds only amounts too small to value to the cent." : "This address holds none of the nine xStocks in USTX."}</p>}</>}
     </section>}
   </>;
 }

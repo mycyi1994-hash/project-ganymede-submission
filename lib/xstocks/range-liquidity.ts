@@ -27,7 +27,7 @@ export const RANGE_POOL_DEPLOYMENT: RangeDeployment | null = {
   assetIsCurrency0: true,
   poolId: "0x2ffd6b32d25902cf1bc6714ae74cb0afb2711e2cab38e265d58b2de78afee7a1",
   stateSlot: "0xc0ae777922c57e236a9da6e9779173cb9f76b12252cdb71b7aaef76b2aca6510",
-  arbitrage: "0xbe0624ee3d949352498a767f1edbe235de38ca4d",
+  arbitrage: "0xa4cc0d50eb9fa78b8615ec264b034006e051cbb4",
 };
 
 export const RANGE_SELECTORS = {
@@ -67,6 +67,7 @@ export const SHAPE_NAMES: Record<RangeShape, string> = { spot: "Spot", curve: "C
 const NAV_UNIT = 100_000_000n;
 const ONE = 1_000_000n;
 
+/** A bin, with its dollar prices; a position's bins come lowest price first. */
 export type RangeBin = { lower: number; upper: number; liquidity: bigint; fromUsd: number; toUsd: number };
 export type RangePosition = {
   id: bigint;
@@ -154,7 +155,7 @@ async function readPosition(rpc: Rpc, deployment: RangeDeployment, id: bigint, t
   const bins = lowers.map((lower, index) => {
     const a = tickToUsd(lower, deployment.assetIsCurrency0), b = tickToUsd(uppers[index], deployment.assetIsCurrency0);
     return { lower, upper: uppers[index], liquidity: liquidity[index], fromUsd: Math.min(a, b), toUsd: Math.max(a, b) };
-  });
+  }).sort((one, other) => one.fromUsd - other.fromUsd); // by dollar price, whichever token is currency0
   return { ...base, bins, amounts: byToken(deployment, a0, a1), fees: byToken(deployment, f0, f1) };
 }
 

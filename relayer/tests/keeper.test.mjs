@@ -239,7 +239,7 @@ test("a write that fails before it is mined leaves no nonce gap for the next one
   assert.equal(counts, 2);
 });
 
-test("the range pool's arbitrage is sent only when it pays a cent, insisting on half of it", async () => {
+test("the range pool's arbitrage is sent when it pays a cent, insisting on half of it, or to cross an empty stretch", async () => {
   const sent = [];
   const chain = (simulated) => ({
     simulate: async () => simulated,
@@ -250,4 +250,7 @@ test("the range pool's arbitrage is sent only when it pays a cent, insisting on 
   assert.equal((await runRangeArbitrage(chain({ profit: MIN_PROFIT_MICROS - 1n }))).action, "none");
   assert.deepEqual(await runRangeArbitrage(chain({ profit: 650_000n })), { action: "arbitrage", profit: "650000", hash: `0x${"7".repeat(64)}`, success: true });
   assert.deepEqual(sent, [325_000n]);
+  // Nothing between the price and the NAV: the pool is moved across for the gas alone.
+  assert.deepEqual(await runRangeArbitrage(chain({ profit: 0n })), { action: "recentre", profit: "0", hash: `0x${"7".repeat(64)}`, success: true });
+  assert.deepEqual(sent, [325_000n, 0n]);
 });

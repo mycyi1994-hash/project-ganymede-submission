@@ -4,7 +4,7 @@ import Link from "next/link";
 import { createContext, useContext, useEffect, useRef, useState, type ReactNode } from "react";
 import { DEMO_ORDER_EVENT, formatSharesShort } from "@/lib/demo/format";
 import { formatUsdMicros, formatUsdRounded } from "@/lib/nav-display";
-import { relativeTime, shortTime } from "@/lib/product-market";
+import { relativeTime } from "@/lib/product-market";
 import {
   ACTIVITY_FIRST_BLOCK, ACTIVITY_HIGHLIGHTS, ACTIVITY_LIMIT, isHighlight, mergeActivity, parseActivityDay, parseActivityIndex, parseHighlights, readActivityTail, withNewerRows,
   type ActivityDay, type ActivityKind, type MarketActivity,
@@ -155,16 +155,19 @@ function ActivityLoading({ rows, figures = true }: { rows: number; figures?: boo
   </div>;
 }
 
-/** The last 24 hours in four figures. */
+/** ", 24h", or ", since 11:59 UTC" while the index holds less than a day: the window each figure covers. */
+export const dayWindow = (day: { complete: boolean; since: string }) => day.complete ? ", 24h" : ` since ${new Date(day.since).toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit", timeZone: "UTC" })} UTC`;
+
+/** The last 24 hours in four figures, or as much of them as the index holds. */
 function DayFigures({ day }: { day: ActivityDay }) {
+  const window = dayWindow(day);
   return <>
-    <dl className="gmd-activity-day" aria-label="Market activity, last 24 hours">
-      <div><dt>Volume, 24h</dt><dd><strong>{formatUsdRounded(day.volumeMicros)}</strong><small>Orders at the fund and in the pool</small></dd></div>
-      <div><dt>Trades, 24h</dt><dd><strong>{day.trades.toLocaleString("en-US")}</strong><small>At the NAV, in the pool and arbitrage</small></dd></div>
-      <div><dt>Arbitrage, 24h</dt><dd><strong>{day.arbitrages.toLocaleString("en-US")}</strong><small>{day.earnedMicros > 0n ? `Earned ${earnedUsd(day.earnedMicros)} closing gaps to the NAV` : "Keeps the pool at the NAV"}</small></dd></div>
-      <div><dt>Loan actions, 24h</dt><dd><strong>{day.loans.toLocaleString("en-US")}</strong><small>Collateral, loans and lending</small></dd></div>
+    <dl className="gmd-activity-day" aria-label={`Market activity${window}`}>
+      <div><dt>Volume{window}</dt><dd><strong>{formatUsdRounded(day.volumeMicros)}</strong><small>Orders at the fund and in the pool</small></dd></div>
+      <div><dt>Trades{window}</dt><dd><strong>{day.trades.toLocaleString("en-US")}</strong><small>At the NAV, in the pool and arbitrage</small></dd></div>
+      <div><dt>Arbitrage{window}</dt><dd><strong>{day.arbitrages.toLocaleString("en-US")}</strong><small>{day.earnedMicros > 0n ? `Earned ${earnedUsd(day.earnedMicros)} closing gaps to the NAV` : "Keeps the pool at the NAV"}</small></dd></div>
+      <div><dt>Loan actions{window}</dt><dd><strong>{day.loans.toLocaleString("en-US")}</strong><small>Collateral, loans and lending</small></dd></div>
     </dl>
-    {!day.complete && <p className="gmd-caption">Counted since {shortTime(day.since)}. Earlier activity is still being read from X Layer Testnet.</p>}
   </>;
 }
 
@@ -183,7 +186,7 @@ export function MarketActivitySection() {
   const [expanded, setExpanded] = useState(false);
   const rows = loaded?.rows ?? [];
   return <section id="activity" className="gmd-fund gmd-market-activity" aria-labelledby="activity-title">
-    <header className="gmd-section-heading"><div><h2 id="activity-title">Market activity</h2><p>Orders at the fund and in the pool, arbitrage and loans, as recorded on X Layer Testnet.</p></div><span className="gmd-badge">Updated every minute</span></header>
+    <header className="gmd-section-heading"><div><h2 id="activity-title">Market activity</h2><p>Orders at the fund and in the pool, arbitrage and loans, as recorded on X Layer Testnet.</p></div></header>
     {loaded?.day && <DayFigures day={loaded.day} />}
     {!loaded ? failed ? <p className="gmd-inline-error" role="status">Market activity could not be read right now. <button type="button" className="gmd-text-button" onClick={retry}>Try again</button></p> : <ActivityLoading rows={SHOWN} />
       : rows.length === 0 ? <p className="gmd-empty-note">No trades yet. Orders, pool trades and loans appear here as they are recorded.</p>
@@ -226,7 +229,7 @@ export function PoolActivitySection({ pool = "live" }: { pool?: "live" | "v4" })
   return <section id="pool-activity" className="gmd-fund gmd-market-activity" aria-labelledby="pool-activity-title">
     <header className="gmd-section-heading"><div><h2 id="pool-activity-title">Pool activity</h2><p>{pool === "v4"
       ? "Trades through the router and deposits and withdrawals in the Uniswap v4 pool, as recorded on X Layer Testnet."
-      : "Trades, arbitrage and liquidity in the USTX/dUSD pool, as recorded on X Layer Testnet."}</p></div><span className="gmd-badge">Updated every minute</span></header>
+      : "Trades, arbitrage and liquidity in the USTX/dUSD pool, as recorded on X Layer Testnet."}</p></div></header>
     {!loaded ? failed ? <p className="gmd-inline-error" role="status">Pool activity could not be read right now. <button type="button" className="gmd-text-button" onClick={retry}>Try again</button></p> : <ActivityLoading rows={5} figures={false} />
       : rows.length === 0 ? <p className="gmd-empty-note">No pool trades among the latest market activity. Trades and deposits appear here as they are recorded.</p>
       : <ActivityList rows={expanded ? rows : rows.slice(0, SHOWN)} clock={clock} mine={mine} label="Latest pool activity" />}

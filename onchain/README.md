@@ -206,6 +206,13 @@ recorded both contracts in `deployments/xlayer-testnet.json`; the app pins the p
 `../lib/xstocks/range-liquidity.ts` (checked by `test/AppRangeClient.test.ts`) and the keeper runs the
 arbitrage through `RANGE_ARBITRAGE_ADDRESS`.
 
+Known limits, from the 4 October audit: `open()` takes no expected price, so a position opens around
+wherever the price is within 1% of the NAV (the app refuses to send one when the pool is more than
+0.95% away); bins can reach past the 5% band, where they never trade; a paused fund stops payouts of
+USTX, closing included. The first arbitrage contract reverted where no position lay between the
+price and the NAV; it was replaced (`npm run deploy:range-arbitrage`) by one that moves the price across
+such a stretch for nothing, which the keeper sends when the call returns a profit of 0.
+
 ## Uniswap v4 liquidity for USTX (fork of X Layer Testnet)
 
 `GanymedeRwaLiquidityHook` is a Uniswap v4 hook that runs a USTX/dUSD pool around the NAV and holds

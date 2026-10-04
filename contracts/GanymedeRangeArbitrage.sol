@@ -22,6 +22,7 @@ interface IRangeHook {
 }
 
 interface IRangeFund {
+    function dollar() external view returns (address);
     function approve(address spender, uint256 value) external returns (bool);
     function transfer(address to, uint256 value) external returns (bool);
     function balanceOf(address account) external view returns (uint256);
@@ -43,7 +44,10 @@ interface IRangeDollar {
 ///         The swap stops where the pool's price, net of its fee, meets the NAV, so the last unit
 ///         traded still pays. Every demo dollar left over, and any USTX the fund's $10 minimum
 ///         investment bought beyond what the pool took, goes to the caller; the transaction reverts
-///         unless the demo dollars come to at least `minProfit`.
+///         unless the demo dollars come to at least `minProfit`. Where no position holds liquidity
+///         between the price and the NAV, the swap moves the price across that empty stretch and
+///         trades nothing, for a profit of 0: so the pool never stays stuck away from the NAV, where
+///         positions cannot open.
 /// @dev Holds nothing between transactions and has no owner. The USTX token is the fund itself.
 contract GanymedeRangeArbitrage is IUnlockCallback {
     using StateLibrary for IPoolManager;
@@ -61,6 +65,7 @@ contract GanymedeRangeArbitrage is IUnlockCallback {
     event Arbitraged(address indexed trader, bool boughtInPool, uint256 sharesMoved, uint256 profit, uint256 navPerShareMicros);
 
     error NotPoolManager();
+    error InvalidAddress();
     error NothingToDo();
     error Unprofitable(uint256 profit);
     error TransferFailed();
@@ -71,7 +76,7 @@ contract GanymedeRangeArbitrage is IUnlockCallback {
         fund = IRangeFund(basketFund);
         dollar = IRangeDollar(IRangeHook(rangeHook).dollar());
         assetIsCurrency0 = IRangeHook(rangeHook).assetIsCurrency0();
-        if (IRangeHook(rangeHook).asset() != basketFund) revert TransferFailed();
+        if (IRangeHook(rangeHook).asset() != basketFund || IRangeFund(basketFund).dollar() != address(dollar)) revert InvalidAddress();
         if (!dollar.approve(basketFund, type(uint256).max)) revert TransferFailed();
     }
 
@@ -103,6 +108,8 @@ contract GanymedeRangeArbitrage is IUnlockCallback {
         if (buyInPool) {
             uint256 shares = uint256(uint128(assetDelta));
             uint256 owed = uint256(uint128(-dollarDelta));
+            // Nothing between the price and the NAV: the price moved across an empty stretch.
+            if (shares == 0 && owed == 0) return abi.encode(uint256(0), uint256(0));
             if (shares == 0) revert NothingToDo();
             poolManager.take(assetCurrency, address(this), shares);
             uint256 dollars = fund.redeem(shares, 0);
@@ -112,6 +119,7 @@ contract GanymedeRangeArbitrage is IUnlockCallback {
         }
         uint256 owedShares = uint256(uint128(-assetDelta));
         uint256 received = uint256(uint128(dollarDelta));
+        if (owedShares == 0 && received == 0) return abi.encode(uint256(0), uint256(0));
         if (owedShares == 0) revert NothingToDo();
         poolManager.take(dollarCurrency, address(this), received);
         (uint256 navMicros, ) = fund.currentNav();
@@ -124,9 +132,9 @@ contract GanymedeRangeArbitrage is IUnlockCallback {
         return abi.encode(received - invest, owedShares);
     }
 
-    /// @dev Which way the pool is off the NAV, and the price the swap stops at: the NAV less the fee
-    ///      when buying in the pool, plus the fee when selling into it. Reverts when the pool is
-    ///      within its fee of the NAV.
+    /// @dev Which way the pool is off the NAV, and the price the swap stops at: where the last unit
+    ///      breaks even after the fee, NAV·(1 − fee) buying in the pool and NAV / (1 − fee) selling
+    ///      into it. Reverts when the pool is within its fee of the NAV.
     function _direction() private view returns (bool buyInPool, uint160 limit) {
         (, , uint160 navSqrt) = hook.nav();
         uint24 fee = hook.currentFee();
@@ -135,7 +143,7 @@ contract GanymedeRangeArbitrage is IUnlockCallback {
         // dollars is below the NAV.
         bool assetCheap = assetIsCurrency0 ? poolSqrt < navSqrt : poolSqrt > navSqrt;
         uint256 lowSqrt = uint256(navSqrt) * _sqrt((PIPS - fee) * PIPS) / PIPS;
-        uint256 highSqrt = uint256(navSqrt) * _sqrt((PIPS + fee) * PIPS) / PIPS;
+        uint256 highSqrt = uint256(navSqrt) * _sqrt(PIPS * PIPS * PIPS / (PIPS - fee)) / PIPS;
         // In currency1-per-currency0 terms, buying the asset (currency0) raises the price toward the
         // NAV less the fee; when the asset is currency1 the directions swap.
         if (assetIsCurrency0) {

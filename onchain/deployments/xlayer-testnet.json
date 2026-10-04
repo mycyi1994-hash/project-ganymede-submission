@@ -137,9 +137,9 @@
       "seedTransaction": "0x3fed43cc368ff5cc1d03e1a6cddae74278075a9c5c4795fa17371418e13e7709"
     },
     "GanymedeRangeArbitrage": {
-      "address": "0xbe0624ee3d949352498a767f1edbe235de38ca4d",
-      "deployedAt": "2026-10-04T16:20:11.471Z",
-      "deploymentTransaction": "0x32c20f309b42529a59e47d6094b411eb22cf3db2034db9a02a607af796ea174e",
+      "address": "0xa4cc0d50eb9fa78b8615ec264b034006e051cbb4",
+      "deployedAt": "2026-10-04T16:47:19.151Z",
+      "deploymentTransaction": "0x2fddeb96e587dc9f5778d6b717e8eae1fe058f74f32cc5d3450faa29566da018",
       "constructorArgs": [
         "0x7964C50943C3eA9338D6653B91b872F147fE28C0",
         "0x77eaeba1366bde7818da12d3cbdbea0a2ee97596"

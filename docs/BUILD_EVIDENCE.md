@@ -1,6 +1,6 @@
 # Build provenance
 
-Production source revision: `9b03e69f4173e4d2b98aa3f28bb41f1c04a0134c`.
+Production source revision: `d64177beff13d1dd5d56b1cf7af5cc9288463029`.
 
 This is a source snapshot, not a claim that the entire project was newly built for this event. The original repository remains private. The entries below were exported from its Git history; reviewers can inspect current implementations and tests, and request original history access from the team if needed. No old secrets, local environment files or full private Git history are published.
 
@@ -593,3 +593,32 @@ Validation of production source:
 These are point-in-time observations, not continuous availability or a security audit.
 
 Public-snapshot validation: clean `npm ci` and `npm test` passed all 270 application tests; clean relayer `npm ci`, typecheck and all 31 tests passed. The first NAV after deployment was confirmed at 16:30:02 UTC.
+
+
+## Dev Day simplification and contract audit — 4 October 2026
+
+Production source: `d64177beff13d1dd5d56b1cf7af5cc9288463029`. App Worker version: `b80fc2dc-48ac-4a15-ab78-d382051e00e7`; prior version: `9d5bb6d3-586c-4c95-b7bb-a2a2150eaf27`. Arbitrage keeper version: `7c11331b-1c3a-4bdf-823d-306ebbf8f7b9`. Settlement relayer remains `cb38524c-cb75-4350-a9ee-a363f49a5c93`. Exported revision: `298fcc23bf0c08f705395c4d882421ed0460f3a8` (application code matches production; release documentation is newer).
+
+The screens were simplified for the live demo.
+- Repeated status chips, a footer logo strip, a duplicated price cross-check, secondary pictures and extra AI boxes were removed.
+- Ask USTX at the top follows the Markets category and product.
+- Activity figures name the window they cover.
+- Charts measure their width once data arrives, so they stay legible on a phone.
+
+A review of every contract found no fund-loss issue. It confirmed one liveness issue: the range pool's arbitrage reverted where no position lay between the price and the NAV, which could leave the pool stuck. `GanymedeRangeArbitrage` was replaced at `0xa4cc0d50eb9fa78b8615ec264b034006e051cbb4`. The new contract:
+- moves the price across such a stretch at no cost;
+- stops selling at NAV/(1 − fee);
+- checks the fund's dollar token.
+
+The keeper sends that re-centring call. The hook is unchanged. Remaining low-severity limits are listed in `onchain/README.md`.
+
+Validation of production source:
+- 270 application tests, typecheck and build; lint with 0 errors.
+- 109 contract tests.
+- 31 relayer and keeper tests.
+- On the published site, a test wallet opened a Bid-Ask position and withdrew everything with no page or console errors.
+- The main routes returned 200 and the legacy routes redirected.
+
+These are point-in-time observations, not continuous availability or a security audit.
+
+Public-snapshot validation: clean `npm ci` and `npm test` passed all 270 application tests; clean relayer `npm ci`, typecheck and all 31 tests passed. The first NAV after deployment was confirmed at 17:00:32 UTC.

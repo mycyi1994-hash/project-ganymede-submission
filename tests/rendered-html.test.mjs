@@ -35,7 +35,7 @@ test("public product routes share navigation and select the right destination be
   for (const [path, current, heading] of [
     ["/", "/", "US Tech Basket"],
     ["/pools", "/pools", "Provide liquidity to USTX"],
-    ["/products/ustx", "/", "About USTX"],
+    ["/products/ustx", "/", "Fund overview"],
     ["/products/ustx/transparency", "/products/ustx/transparency", "Transparency"],
     ["/portfolio", "/portfolio", "Your wallet on X Layer"],
   ]) {
@@ -67,7 +67,7 @@ test("product pages offer clearly labelled demo investing next to the verificati
   assert.match(product, /href="#borrow"/);
   assert.match(product, /href="\/pools"/, "the USTX page links to its liquidity pools");
   assert.match(product, /You are on X Layer Testnet/);
-  assert.match(product, /no real money moves/);
+  assert.match(product, /No real stocks or money/);
   assert.match(product, /aria-label="Pay with"/);
   assert.match(product, /Demo balance/);
   assert.match(product, /USTX on X Layer Testnet/, "the share token in the fund facts");
@@ -210,7 +210,9 @@ test("the product page shows fund figures and Markets shows the OKX and X Layer 
   assert.match(product, /Reading market activity from X Layer Testnet/);
   const markets = visible(await (await render("/")).text());
   assert.match(markets, /OKX OnchainOS/);
-  for (const html of [product, markets]) {
+  // The cross-check sits on Markets; the USTX page links to Transparency instead of repeating it.
+  assert.doesNotMatch(product, /gmd-price-confidence/);
+  for (const html of [markets]) {
     assert.match(html, /gmd-price-confidence is-compact/);
     assert.match(html, /Two market sources/);
     assert.doesNotMatch(html, /Price checks complete/, "price comparison starts unchecked");

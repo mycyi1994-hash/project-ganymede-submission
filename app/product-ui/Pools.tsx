@@ -20,7 +20,7 @@ import GasNotice from "./GasNotice";
 import { useMarket } from "./MarketProvider";
 import { PremiumGauge } from "./Fund";
 import { plain } from "./Lending";
-import { ActivityProvider, PoolActivitySection, useActivityDay } from "./MarketActivity";
+import { ActivityProvider, PoolActivitySection, dayWindow, useActivityDay } from "./MarketActivity";
 import { useWalletAccount } from "./WalletAccount";
 import { TxLink, sendFromWallet, useInjectedWallet, useWalletChain, type Provider } from "./WalletInvest";
 import { TxSteps, WalletGate, orderDeadline, runPlan, useUnmountSignal, type PlanProgress, type PlanStep, type StepState, type TxStep } from "./LiquidityParts";
@@ -29,7 +29,6 @@ import { allocateShares, binTicksFor, planRange, planStrategy, strategyById } fr
 import { RANGE_POOL_DEPLOYMENT, rangeCalls, rangeFill } from "@/lib/xstocks/range-liquidity";
 import { V4LiquidityPanel, V4PoolGuide, V4PoolOverview, useV4Pool, v4Position, type V4Reader } from "./PoolsV4";
 import { PoolResults } from "./PoolResults";
-import { DepositFlow, NavMoveChart, PoolAsk, PoolVisualsDialog } from "./PoolVisuals";
 import { DEFAULT_CHOICE, StrategyChart, StrategyPicker, ownRangeOf, strategyPercent, type StrategyChoice } from "./PoolStrategy";
 import { RangePositions, useRangePool, type RangeReader } from "./PoolsRange";
 import type { RangePosition } from "@/lib/xstocks/range-liquidity";
@@ -136,7 +135,7 @@ export function PoolsScreen() {
   // Choosing the v4 pool opens its own panel below, with the details.
   const select = (pool: "live" | "v4") => { setSelected(pool); if (pool === "v4") setMore(true); };
   return <ActivityProvider>
-    <div className="gmd-page-heading"><div><h1>Pools</h1><p>Provide liquidity to USTX and earn a fee on every trade: enter demo dollars and press one button.</p></div><span className="gmd-badge">X Layer Testnet</span></div>
+    <div className="gmd-page-heading"><div><h1>Pools</h1><p>Provide liquidity to USTX and earn a fee on every trade: pick a strategy, enter demo dollars and press one button.</p></div></div>
     {/* The panel comes first, as it shows on a phone; on a wide screen it sits beside the summary. */}
     <div className="gmd-detail-layout gmd-pools-layout">
       <div className="gmd-detail-aside" id="provide"><LiquidityPanel provider={provider} chain={chain} owner={owner} reader={reader} v4={V4_POOL_DEPLOYMENT ? v4 : null} range={RANGE_POOL_DEPLOYMENT ? range : null} onBusy={setBusy} amount={amount} onAmount={setAmount} strategy={strategy} onStrategy={setStrategy} /></div>
@@ -169,21 +168,7 @@ function PoolSummary({ snapshot, v4, range, owner, growth, amount, strategy, onS
   const account = snapshot && snapshot.owner === owner ? snapshot.account : null;
   const mine = account && pool ? liquidityPosition(account.lpMicros, pool, nav) : null;
   const dollars = parseUsd(amount);
-  const split = pool && dollars !== null && dollars > 0n ? splitDollarsOnly(dollars, nav, pool) : null;
-  const quote = pool && split ? quoteAddLiquidity(split.sharesMicros, split.dollarsMicros, pool) : null;
-  const shareAfter = pool && quote ? ((account?.lpMicros ?? 0n) + quote.liquidity) * ONE / (pool.supply + quote.liquidity) : null;
-  const [expanded, setExpanded] = useState(false);
   const deposit = dollars !== null && dollars > 0n ? Number(dollars) / 1e6 : 1_000;
-  const aprPercent = growth.value ? Number(growth.value.aprWad) / 1e16 : null;
-  const visuals = <div className="gmd-pools-visuals">
-    <DepositFlow split={split && quote ? split : null} lpMicros={quote?.liquidity ?? null} shareAfter={shareAfter} />
-    <NavMoveChart amount={deposit} aprPercent={aprPercent !== null ? Math.round(aprPercent * 100) / 100 : null} />
-  </div>;
-  const questions = [
-    { label: "What is a liquidity pool, simply?", question: "Explain in plain words what the USTX/dUSD liquidity pool on Pools is, who trades with it, and how a provider earns the fee. Use the pool's figures now." },
-    { label: `Is $${deposit.toLocaleString("en-US", { maximumFractionDigits: 2 })} a lot for this pool?`, question: `If I add ${formatUsdRounded(BigInt(Math.round(deposit * 1e6)))} of demo dollars to the USTX/dUSD pool on Pools, how big is that against the pool, what share do I get, and what could I earn in fees at the current APR?` },
-    { label: "What could go wrong?", question: "What are the risks of providing liquidity to the USTX/dUSD pool on Pools: impermanent loss, the pool's price moving away from the NAV, and anything else? Explain simply, with the pool's figures now." },
-  ];
   return <section className="gmd-pools-summary" aria-labelledby="pool-summary-title">
     <h2 id="pool-summary-title">USTX / dUSD pool</h2>
     <div className="gmd-pools-summary-stats">
@@ -194,17 +179,7 @@ function PoolSummary({ snapshot, v4, range, owner, growth, amount, strategy, onS
     {!owner && v4 && <StrategyPicker value={strategy} onChange={onStrategy} range={Boolean(range)} />}
     {pool ? <StrategyChart choice={strategy} amountMicros={BigInt(Math.round(deposit * 1e6))} pool={pool} v4={v4?.snapshot?.pool ?? null} deployment={V4_POOL_DEPLOYMENT} range={range?.snapshot?.pool ?? null} />
       : <div className="gmd-lq is-loading" aria-busy="true"><Skeleton width="100%" className="gmd-lq-skeleton" /></div>}
-    {visuals}
-    <div className="gmd-pools-summary-foot">
-      <PoolAsk questions={questions} />
-      <button type="button" className="gmd-button is-secondary gmd-pools-expand" disabled={!pool} onClick={() => setExpanded(true)}>See the charts full width <Icon name="arrow" size={16} /></button>
-    </div>
-    {expanded && pool && <PoolVisualsDialog onClose={() => setExpanded(false)}>
-      <StrategyChart choice={strategy} amountMicros={BigInt(Math.round(deposit * 1e6))} pool={pool} v4={v4?.snapshot?.pool ?? null} deployment={V4_POOL_DEPLOYMENT} range={range?.snapshot?.pool ?? null} tall />
-      {visuals}
-      <PoolAsk questions={questions} />
-    </PoolVisualsDialog>}
-    <p className="gmd-caption">Demo dollars and USTX have no value. Every figure here is read from the pool on X Layer; the pool’s price can move against the NAV.</p>
+    <p className="gmd-caption">Demo dollars and USTX have no value. Every figure here is read from the pools on X Layer.</p>
   </section>;
 }
 
@@ -264,11 +239,10 @@ function PoolOverview({ snapshot, failure, retry, growth }: { snapshot: Snapshot
     {failure && !pool && <p className="gmd-inline-error" role="status">The pool could not be read right now. <button type="button" className="gmd-text-button" onClick={retry}>Try again</button></p>}
     <div className="gmd-fund-grid" aria-busy={!pool && !failure}>
       <article><span>Total value locked</span><strong>{tvl !== null ? formatUsdRounded(tvl) : pool ? "—" : wait(96)}</strong><small>{pool ? `${formatSharesShort(pool.sharesMicros, 4)} USTX and ${formatUsdRounded(pool.dollarsMicros)} dUSD${nav !== null ? ", USTX at the NAV" : ""}` : wait("80%")}</small></article>
-      <article><span>Volume, 24h</span><strong>{activity ? formatUsdRounded(activity.poolVolumeMicros) : activityPending ? <Skeleton width={80} /> : "—"}</strong><small>{activity ? `${activity.poolTrades.toLocaleString("en-US")} ${activity.poolTrades === 1 ? "trade" : "trades"}, arbitrage included` : activityPending ? <Skeleton width="70%" /> : "Unavailable"}</small></article>
-      <article><span>Fees, 24h</span><strong>{activity ? formatUsdMicros(activity.poolFeesMicros, 2) : activityPending ? <Skeleton width={64} /> : "—"}</strong><small>{FEE_PERCENT} of each trade, kept in the pool for providers</small></article>
+      <article><span>Volume{activity ? dayWindow(activity) : ", 24h"}</span><strong>{activity ? formatUsdRounded(activity.poolVolumeMicros) : activityPending ? <Skeleton width={80} /> : "—"}</strong><small>{activity ? `${activity.poolTrades.toLocaleString("en-US")} ${activity.poolTrades === 1 ? "trade" : "trades"}, arbitrage included` : activityPending ? <Skeleton width="70%" /> : "Unavailable"}</small></article>
+      <article><span>Fees{activity ? dayWindow(activity) : ", 24h"}</span><strong>{activity ? formatUsdMicros(activity.poolFeesMicros, 2) : activityPending ? <Skeleton width={64} /> : "—"}</strong><small>{FEE_PERCENT} of each trade, kept in the pool for providers</small></article>
       <article><span>Fee APR</span><strong>{growth.value ? formatYield(growth.value.aprWad) : growth.loaded ? "—" : <Skeleton width={64} />}</strong><small>{growth.value ? yieldWindow(growth.value) : growth.failed ? "Unavailable right now" : growth.loaded ? "Not enough history yet" : <Skeleton width="75%" />}</small></article>
     </div>
-    {activity && !activity.complete && <p className="gmd-caption">24-hour figures counted since {new Date(activity.since).toLocaleString("en-GB", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit", timeZone: "UTC" })} UTC. Earlier activity is still being read from X Layer Testnet.</p>}
     {mix && <div className="gmd-pool-mix">
       <div className="gmd-pool-mix-head"><h3>What the pool holds</h3><span>Valued at the NAV</span></div>
       <div className="gmd-pool-mix-bar" role="img" aria-label={`USTX ${mix.percent.toFixed(1)}%, demo dollars ${(100 - mix.percent).toFixed(1)}% of the pool's value`}><i style={{ width: `${mix.percent}%` }} /><i /></div>

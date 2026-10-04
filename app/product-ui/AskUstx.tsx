@@ -137,10 +137,16 @@ export function AskProvider({ children }: { children: ReactNode }) {
   </AskContext.Provider>;
 }
 
-type Screen = "markets" | "product" | "pools" | "portfolio" | "verify" | "fund" | "other";
+type Screen = "markets" | "income" | "structured" | "product" | "pools" | "portfolio" | "verify" | "fund" | "other";
 
-function screenOf(path: string): Screen {
-  if (path === "/") return "markets";
+/** Markets announces its category so the guide above it can follow; see ProductScreens. */
+export const CATEGORY_EVENT = "gmd-category";
+const INCOME_IDS = ["spy-covered-call", "qqq-covered-call"];
+const NOTE_IDS = ["spy-qqq-autocall-1"];
+
+function screenOf(path: string, category: string | null): Screen {
+  if (path === "/") return category === "income" ? "income" : category === "structured" ? "structured" : "markets";
+  if (path.startsWith("/funds/")) { const id = path.slice("/funds/".length); if (INCOME_IDS.includes(id)) return "income"; if (NOTE_IDS.includes(id)) return "structured"; }
   if (path === "/pools") return "pools";
   if (path === "/portfolio") return "portfolio";
   if (path === "/products/ustx/transparency") return "verify";
@@ -158,6 +164,14 @@ const GUIDE: Record<Screen, { questions: string[]; action?: { label: string; hre
   product: {
     questions: ["Where would $500 buy the most USTX right now?", "Is the latest NAV verified?", "How much could I borrow against 10 USTX?"],
     action: { label: "Earn fees in a pool", href: "/pools" },
+  },
+  income: {
+    questions: ["How does a covered call fund earn income?", "Covered call or just holding the ETF: what is the trade-off?", "Why is the premium higher on the Nasdaq-100 than on the S&P 500?"],
+    action: { label: "Open the S&P 500 Covered Call", href: "/funds/spy-covered-call" },
+  },
+  structured: {
+    questions: ["When does the step-down note pay back early?", "What is a knock-in, and how close is it now?", "What could I lose with this note?"],
+    action: { label: "Open the note", href: "/funds/spy-qqq-autocall-1" },
   },
   pools: {
     questions: ["How does a pool earn fees for me?", "What happens to a $1,000 deposit if the NAV moves 10%?", "How have the two pools done for providers?"],
@@ -233,6 +247,8 @@ function insight(screen: Screen, facts: Facts | null, now: number): string {
       facts?.v4Value != null ? `The v4 pool holds ${dollars(facts.v4Value, 0)} and is held at the NAV.` : null,
       "Add liquidity from demo dollars alone, in one step.",
     ].filter(Boolean).join(" ");
+    case "income": return "Covered calls on SPYx and QQQx: hold the ETF, sell a call 2% above it each month and keep the premium. Each value is recorded on X Layer every five minutes.";
+    case "structured": return "A step-down note on the worse of SPYx and QQQx: 7% a year if both hold up, paid back early at six-monthly observations; capital at risk only after a 50% fall.";
     case "portfolio": return "Your demo balance starts with $10,000 of demo dollars in this browser. Connect OKX Wallet to see the USTX and dUSD in your wallet as well.";
     case "verify": return [nav, "Every check below runs again in your browser, against X Layer."].filter(Boolean).join(" ");
     case "fund": return [nav, "These funds are bought with your demo balance; each NAV is recorded on X Layer every five minutes."].filter(Boolean).join(" ");
@@ -244,7 +260,14 @@ function insight(screen: Screen, facts: Facts | null, now: number): string {
 export function AskGuide() {
   const context = useContext(AskContext);
   const path = usePathname() ?? "/";
-  const screen = screenOf(path);
+  const [category, setCategory] = useState<string | null>(null);
+  useEffect(() => {
+    const read = () => setCategory(new URLSearchParams(window.location.search).get("category"));
+    const first = window.setTimeout(read, 0);
+    window.addEventListener(CATEGORY_EVENT, read);
+    return () => { window.clearTimeout(first); window.removeEventListener(CATEGORY_EVENT, read); };
+  }, [path]);
+  const screen = screenOf(path, category);
   const facts = useFacts();
   const [now, setNow] = useState(0);
   const [draft, setDraft] = useState("");

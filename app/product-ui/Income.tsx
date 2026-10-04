@@ -14,8 +14,7 @@ import { verifyIncomeSnapshot, type IncomeDocument, type IncomeVerification } fr
 import { useFundResource } from "./useFundResource";
 import { FundList, FundOrder, KIND_LABELS, NavLine, useFundAccount } from "./Funds";
 import MarketChart from "./MarketChart";
-import { ChartHead, useWidth } from "./PoolVisuals";
-import { useAsk } from "./AskUstx";
+import { ChartHead, useWidth } from "./ChartParts";
 import { AssetMark, Icon } from "./Icons";
 import { OkxSource } from "./OkxSource";
 
@@ -206,20 +205,6 @@ function Tile({ label, value, note }: { label: string; value: string; note?: str
   return <div><span>{label}</span><strong>{value}</strong>{note && <small>{note}</small>}</div>;
 }
 
-/** Ask USTX for an income product. */
-function IncomeAsk({ definition }: { definition: FundDefinition }) {
-  const assistant = useAsk();
-  if (!assistant) return null;
-  const questions = definition.kind === "covered-call"
-    ? ["How does a covered call fund earn income?", `${definition.ticker} or just holding the ETF: what is the trade-off?`, "Why is the premium higher on the Nasdaq-100 than on the S&P 500?"]
-    : ["When does this note pay back early?", "What is a knock-in, and how close is it now?", "What could I lose with this note?"];
-  return <aside className="gmd-pool-ask" aria-label={`Ask USTX about ${definition.name}`}>
-    <span className="gmd-ask-guide-mark" aria-hidden="true"><Icon name="spark" size={16} /></span>
-    <div><b>New to {definition.kind === "covered-call" ? "covered calls" : "ELS"}?</b><p>Ask USTX explains how this product works, in plain words.</p>
-      <div className="gmd-ask-guide-actions">{questions.map(question => <button type="button" key={question} onClick={() => assistant.ask(`${question} (${definition.name}, ${definition.description})`)}>{question}</button>)}</div></div>
-  </aside>;
-}
-
 /** One income product's page. */
 export function IncomeScreen({ id }: { id: string }) {
   const definition = incomeFund(id);
@@ -275,7 +260,6 @@ export function IncomeScreen({ id }: { id: string }) {
         </section>}
         {terms.kind === "autocall" && <section className="gmd-income-section" aria-label="Payoff"><AutocallPayoff terms={terms} /></section>}
         {!latest && <p className="gmd-caption">The first record is written within five minutes of the product&rsquo;s launch{terms.kind === "autocall" ? ", and fixes the note’s starting levels" : ""}.</p>}
-        <IncomeAsk definition={definition} />
         <section className="gmd-terms"><h2>How {definition.ticker} works</h2><dl className="gmd-facts">
           {terms.kind === "covered-call" ? <CoveredCallFacts terms={terms} /> : <AutocallFacts terms={terms} />}
           <div><dt>Records</dt><dd>Value and its document published on X Layer Testnet every five minutes; your browser recomputes the value from the document</dd></div>
@@ -336,8 +320,12 @@ function IncomeMarketPreview({ definition }: { definition: FundDefinition }) {
       <div className="gmd-nav-summary"><div><span className="gmd-label">{terms.kind === "autocall" ? "Value per note" : "NAV per share"} <span>/ USD</span></span><strong className="gmd-value">{record ? formatUsdMicros(record.navPerShareMicros, terms.kind === "autocall" ? 2 : 4) : loading ? <><i className="gmd-skeleton is-hero" aria-hidden="true" /><span className="gmd-sr-only">Loading</span></> : "—"}</strong></div><div className="gmd-nav-meta"><OkxSource>Priced by OKX OnchainOS</OkxSource><span role="status" className={`gmd-status ${check.result === "matched" ? "is-positive" : "is-waiting"}`}><i />{error ? "Value unavailable" : STATUS[check.result]}</span>{record && <time dateTime={record.effectiveAt ?? undefined}>{shortTime(record.effectiveAt)}</time>}</div></div>
       {error && <div className="gmd-data-notice" role="status"><span>This product could not be loaded just now.</span><button type="button" onClick={() => void reload()}>Try again</button></div>}
       <dl className="gmd-fund-stats" aria-label={`${definition.ticker} figures`} aria-busy={loading}>
-        <div><dt>{terms.kind === "autocall" ? "Subscribed" : "Fund size"}</dt><dd>{size === null ? "—" : formatUsdMicros(size.toString(), 2)}</dd></div>
-        <div><dt>Investors</dt><dd>{fund ? fund.demo.investors.toLocaleString("en-US") : "—"}</dd></div>
+        {size !== null && size > 0n
+          ? <div><dt>{terms.kind === "autocall" ? "Subscribed" : "Fund size"}</dt><dd>{formatUsdMicros(size.toString(), 2)}</dd></div>
+          : <div><dt>Launched</dt><dd>{latest ? day(latest.kind === "autocall" ? latest.state.fixedAt : latest.startedAt) : "—"}</dd></div>}
+        {fund && fund.demo.investors > 0
+          ? <div><dt>Investors</dt><dd>{fund.demo.investors.toLocaleString("en-US")}</dd></div>
+          : <div><dt>Records on X Layer</dt><dd>{fund ? (fund.series ?? []).length.toLocaleString("en-US") : "—"}</dd></div>}
         {terms.kind === "covered-call" ? <div><dt>Premium this month</dt><dd>{yields ? `${pct(yields.month, 2)} · ${pct(yields.annualized)} a year` : "—"}</dd></div>
           : <div><dt>Coupon</dt><dd>{pct(terms.couponPerYear, 0)} a year · knock-in {pct(terms.knockIn, 0)}</dd></div>}
       </dl>
@@ -349,7 +337,7 @@ function IncomeMarketPreview({ definition }: { definition: FundDefinition }) {
     </div>
     <div className="gmd-market-composition"><section className="gmd-holdings is-compact" aria-label={`${definition.name} position`}>
       {call ? <>
-        <header className="gmd-section-heading"><div><h2>This month&rsquo;s call</h2><p>Sold {day(call.call.soldAt)} · expires {day(call.call.expiresAt)}</p></div><span className="gmd-count">{call.rolls} {call.rolls === 1 ? "roll" : "rolls"}</span></header>
+        <header className="gmd-section-heading"><div><h2>This month&rsquo;s call</h2><p>Sold {day(call.call.soldAt)} · expires {day(call.call.expiresAt)}</p></div></header>
         <div className="gmd-income-meter" role="img" aria-label={`Price ${money(call.underlying.price)}, strike ${money(call.call.strike)}`}><span style={{ width: `${Math.min(100, Math.max(4, (call.underlying.price / call.call.strike) * 100))}%` }} /><b>Strike {money(call.call.strike)}</b></div>
         <ul className="gmd-income-rows">
           <Row mark={call.underlying.symbol} label={`${call.underlying.symbol} price`} note="OKX OnchainOS" value={money(call.underlying.price)} />
@@ -408,7 +396,6 @@ export function IncomeMarket({ kind }: { kind: "covered-call" | "autocall" }) {
           {terms.barriers.map((barrier, index) => <tr key={index}><th scope="row">{index + 1}</th><td>{(index + 1) * terms.observationMonths} months</td><td>{pct(barrier, 0)}</td><td>{money(couponPayout(terms, index + 1))}</td></tr>)}
         </tbody></table></div></section>}
     <FundList selectedId={selectedId} onSelect={setSelectedId} controls="income-feature" kinds={[kind]} selectable />
-    <IncomeAsk definition={definition} />
     <p className="gmd-caption">Demo products on X Layer Testnet, bought with demo dollars. {kind === "covered-call" ? "Option premiums are modelled: there is no options market for xStocks on X Layer." : "The note pays from recorded prices and nothing hedges it."}</p>
   </>;
 }

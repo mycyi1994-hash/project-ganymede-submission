@@ -1692,7 +1692,7 @@ a.gmd-pool-pair:hover b { text-decoration: underline; text-underline-offset: 3px
 .gmd-liquidity-panel .gmd-button.is-secondary { margin-top: 8px; }
 .gmd-liquidity-simple-link { justify-self: start; margin-bottom: 4px; }
 @media (max-width:600px) {
-  .gmd-pools-summary-stats { grid-template-columns: 1fr; }
+  .gmd-pools-summary-stats { grid-template-columns: repeat(3, minmax(0,1fr)); gap: 6px; } .gmd-pools-summary-stats > div { padding: 10px 8px; } .gmd-pools-summary-stats strong { font-size: 16px; } .gmd-pools-summary-stats small { display: none; }
   .gmd-pools-more > :not(summary) { margin: 12px; }
 }
 

@@ -6,7 +6,7 @@ import { DEMO_ORDER_EVENT, formatSharesShort } from "@/lib/demo/format";
 import { formatUsdMicros, formatUsdRounded } from "@/lib/nav-display";
 import { compositionForRecord, publicationHistory, shortTime, signedPercent, sinceFirstRecord } from "@/lib/product-market";
 import { PROOF_DEPLOYMENT } from "@/lib/xstocks/proof";
-import { FUND_DEPLOYMENT, POOL_FEE_BPS, describePremium, fundExplorer, readPoolMarket, type PoolMarket } from "@/lib/xstocks/fund";
+import { FUND_DEPLOYMENT, POOL_FEE_BPS, describePremium, readPoolMarket, type PoolMarket } from "@/lib/xstocks/fund";
 import { useMarket } from "./MarketProvider";
 import { BasketTable, useRecordComposition } from "./Basket";
 import { Icon, Skeleton } from "./Icons";
@@ -140,26 +140,23 @@ export function FundOverview() {
   const unavailable = figures.failed && !fund;
   const net = fund ? BigInt(fund.last24h.investedMicros) - BigInt(fund.last24h.redeemedMicros) : null;
   return <section id="overview" className="gmd-fund" aria-labelledby="fund-title">
-    <header className="gmd-section-heading"><div><h2 id="fund-title">Fund overview</h2><p>Live figures, refreshed every minute.</p></div></header>
+    <header className="gmd-section-heading"><div><h2 id="fund-title">Fund overview</h2></div></header>
     {unavailable && <p className="gmd-inline-error" role="status">Fund figures are unavailable right now. The NAV and verification are not affected.</p>}
     <div className="gmd-fund-grid" aria-busy={figures.pending}>
-      <article><span>Fund size</span><strong>{figures.size === null ? figures.pending ? <Skeleton width={96} /> : "—" : formatUsdRounded(figures.size)}</strong><small>{figures.shares === null ? figures.pending ? <Skeleton width="80%" /> : "Unavailable" : figures.onChain && record ? `${formatSharesShort(figures.shares)} shares outstanding, recorded on X Layer at ${shortTime(record.effectiveAt)}` : `${formatSharesShort(figures.shares)} shares outstanding; recorded on X Layer with the next NAV`}{fund?.wallets && fund.demo && <><br />Now {formatSharesShort(fund.wallets.sharesMicros)} in wallets · {formatSharesShort(fund.demo.sharesMicros)} in demo balances</>}</small></article>
-      <article><span>Investors</span><strong>{fund ? fund.investors.toLocaleString("en-US") : figures.pending ? <Skeleton width={40} /> : "—"}</strong><small>{!fund ? figures.pending ? <Skeleton width="70%" /> : "Unavailable" : fund.wallets && fund.demo ? `${fund.wallets.investors.toLocaleString("en-US")} ${fund.wallets.investors === 1 ? "holder" : "holders"} on X Layer · ${fund.demo.investors.toLocaleString("en-US")} with demo balances` : "Accounts holding USTX"}</small></article>
-      <article><span>Net flows, 24h</span><strong className={net === null || net === 0n ? "" : net > 0n ? "gmd-positive" : "gmd-negative"}>{net === null ? figures.pending ? <Skeleton width={80} /> : "—" : `${net > 0n ? "+" : ""}${formatUsdRounded(net)}`}</strong><small>{fund ? `${formatUsdRounded(fund.last24h.investedMicros)} in · ${formatUsdRounded(fund.last24h.redeemedMicros)} out · ${fund.last24h.orders.toLocaleString("en-US")} ${fund.last24h.orders === 1 ? "order" : "orders"} with demo balances` : figures.pending ? <Skeleton width="85%" /> : "Unavailable"}</small></article>
+      <article><span>Fund size</span><strong>{figures.size === null ? figures.pending ? <Skeleton width={96} /> : "—" : formatUsdRounded(figures.size)}</strong><small>{figures.shares === null ? figures.pending ? <Skeleton width="80%" /> : "Unavailable" : `${formatSharesShort(figures.shares)} shares, recorded on X Layer`}</small></article>
+      <article><span>Investors</span><strong>{fund ? fund.investors.toLocaleString("en-US") : figures.pending ? <Skeleton width={40} /> : "—"}</strong><small>{!fund ? figures.pending ? <Skeleton width="70%" /> : "Unavailable" : fund.wallets ? `${fund.wallets.investors.toLocaleString("en-US")} on X Layer` : "Accounts holding USTX"}</small></article>
+      <article><span>Net flows, 24h</span><strong className={net === null || net === 0n ? "" : net > 0n ? "gmd-positive" : "gmd-negative"}>{net === null ? figures.pending ? <Skeleton width={80} /> : "—" : `${net > 0n ? "+" : ""}${formatUsdRounded(net)}`}</strong><small>{fund ? `${formatUsdRounded(fund.last24h.investedMicros)} in · ${formatUsdRounded(fund.last24h.redeemedMicros)} out` : figures.pending ? <Skeleton width="85%" /> : "Unavailable"}</small></article>
       <article><span>Since launch</span><strong className={tone(since?.percent)}>{since ? signedPercent(since.percent) : figures.marketPending ? <Skeleton width={72} /> : "—"}</strong><small>{since ? `From ${formatUsdRounded(since.first.micros)} on ${day(since.first.at)}` : figures.marketPending ? <Skeleton width="60%" /> : "Unavailable"}</small></article>
     </div>
-    {fund?.wallets && fund.demo && <p className="gmd-caption gmd-fund-split">Shares in wallets are USTX tokens on X Layer Testnet: they trade in the pool and serve as loan collateral. Shares in demo balances stay in this app. Both were issued at the recorded NAV, and the record counts both.</p>}
     {pool.market && pool.market.priceMicros > 0n && <PremiumGauge market={pool.market} />}
     <dl className="gmd-fund-facts">
       <div><dt>Launch date</dt><dd>{since ? day(since.first.at) : "—"}</dd></div>
       <div><dt>Minimum investment</dt><dd>$10</dd></div>
       <div><dt>Management fee</dt><dd>0.00%</dd></div>
-      <div><dt>Dealing</dt><dd>Instant, at the fund’s NAV or the pool’s price</dd></div>
-      <div><dt>Market price</dt><dd>{pool.market && pool.market.priceMicros > 0n ? <a className="gmd-inline-tx" href={fundExplorer.address(FUND_DEPLOYMENT.pool)} target="_blank" rel="noreferrer">{formatUsdMicros(pool.market.priceMicros, 2)}{pool.market.premiumPpm !== null ? ` · ${describePremium(pool.market.premiumPpm)}` : ""} · USTX/dUSD pool<Icon name="external" size={12} /><span className="gmd-sr-only"> (opens in a new tab)</span></a> : pool.failed ? "Unavailable right now" : "—"}</dd></div>
-      <div><dt>Base currency</dt><dd>USD</dd></div>
       <div><dt>Rebalancing</dt><dd>Quarterly, back to equal weight</dd></div>
       <div><dt>Price source</dt><dd>OKX OnchainOS, every 5 minutes</dd></div>
       <div><dt>Share token</dt><dd><a className="gmd-inline-tx" href={`${FUND_DEPLOYMENT.explorerUrl}/token/${FUND_DEPLOYMENT.fund}`} target="_blank" rel="noreferrer">USTX on X Layer Testnet<Icon name="external" size={12} /><span className="gmd-sr-only"> (opens in a new tab)</span></a></dd></div>
+      <div><dt>Holds</dt><dd>No real stocks or money: a demo basket priced from xStocks</dd></div>
       <div><dt>Last NAV record</dt><dd>{record ? <a className="gmd-inline-tx" href={tx ? `${PROOF_DEPLOYMENT.explorerUrl}/tx/${tx}` : `${PROOF_DEPLOYMENT.explorerUrl}/address/${PROOF_DEPLOYMENT.registry}`} target="_blank" rel="noreferrer">{shortTime(record.effectiveAt)} · OKX Explorer<Icon name="external" size={12} /><span className="gmd-sr-only"> (opens in a new tab)</span></a> : "—"}</dd></div>
     </dl>
   </section>;

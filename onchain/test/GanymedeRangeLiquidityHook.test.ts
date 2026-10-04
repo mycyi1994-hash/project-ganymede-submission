@@ -240,4 +240,25 @@ describe("GanymedeRangeLiquidityHook", () => {
     expect((await publicClient.waitForTransactionReceipt({ hash })).status).to.equal("success");
     expect(Number(await poolNav()) / 1e6).to.be.closeTo(98 * (1 + Number(await hook.read.currentFee()) / 1e6), 0.05);
   });
+
+  it("moves an empty stretch to the NAV for nothing, so positions can open again", async () => {
+    const { hook, arbitrage, lp, keeper, prepare, open, publish, poolNav, dollar } = await deploy();
+    await prepare(lp, 2_000n * USD);
+    // No position at all, and the NAV moves 2%: a position cannot open until the price follows.
+    await publish(102n * USD);
+    await expectRevert(hook.write.open([SPOT, 20, 5, 5, 1n * SHARE, 100n * USD, BigInt(await time.latest()) + 3n * HOUR], { account: lp.account }), "PriceAwayFromNav(int24,int24)");
+    const { result } = await arbitrage.simulate.arbitrage([0n], { account: keeper.account });
+    expect(result).to.equal(0n);
+    const before = await dollar.read.balanceOf([keeper.account.address]);
+    await arbitrage.write.arbitrage([0n], { account: keeper.account });
+    expect(await dollar.read.balanceOf([keeper.account.address])).to.equal(before);
+    expect(Number(await poolNav()) / 1e6).to.be.closeTo(102 * (1 - Number(await hook.read.currentFee()) / 1e6), 0.05);
+    await open(lp, SPOT, 20, 5, 5, 1n * SHARE, 100n * USD);
+    // Demo dollars below the price only, and the NAV rises 2%: nothing above the price to buy, so
+    // the arbitrage crosses the empty stretch; the NAV falls back and it sells into the dollars.
+    await publish(104n * USD);
+    expect(await arbitrage.simulate.arbitrage([0n], { account: keeper.account }).then(({ result }) => result >= 0n)).to.equal(true);
+    await arbitrage.write.arbitrage([0n], { account: keeper.account });
+    expect(Number(await poolNav()) / 1e6).to.be.closeTo(104 * (1 - Number(await hook.read.currentFee()) / 1e6), 0.06);
+  });
 });

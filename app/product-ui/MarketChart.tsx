@@ -4,17 +4,21 @@ import { useId, useState } from "react";
 import { formatUsdMicros } from "@/lib/nav-display";
 import { shortTime, signedPercent, type HistoryPoint } from "@/lib/product-market";
 import { useChartEvents } from "./MarketActivity";
+import { useWidth } from "./ChartParts";
 
 const RANGES = [{ id: "24h", label: "24H", ms: 86_400_000 }, { id: "7d", label: "7D", ms: 7 * 86_400_000 }, { id: "all", label: "All", ms: Infinity }] as const;
 type Range = typeof RANGES[number]["id"];
 
-// The plot in the SVG's own units; the tooltip and markers sit over it in percentages of the same box.
-const W = 760, H = 205, LEFT = 8, RIGHT = 668, TOP = 22, BOTTOM = 172;
-const left = (x: number) => `${x / W * 100}%`;
+// The plot is drawn at its real width, so its labels stay 12px on a phone; the tooltip and markers
+// sit over it in percentages of the same box.
+const H = 205, LEFT = 8, TOP = 22, BOTTOM = 172;
 const top = (y: number) => `${y / H * 100}%`;
 
 export default function MarketChart({ points: all, loading, showActivity = true, historyLabel = "Since launch" }: { points: HistoryPoint[]; loading: boolean; showActivity?: boolean; historyLabel?: string }) {
   const gradient = useId().replaceAll(":", "");
+  const [plotRef, W] = useWidth(760);
+  const RIGHT = W - 92;
+  const left = (x: number) => `${x / W * 100}%`;
   const events = useChartEvents();
   const [range, setRange] = useState<Range>("all");
   const [index, setIndex] = useState<number | null>(null);
@@ -47,12 +51,12 @@ export default function MarketChart({ points: all, loading, showActivity = true,
   const tip = mark ? { x: mark.x, y: mark.y } : active && index !== null && index < points.length ? { x: x(index), y: y(vals[index]) } : null;
   return <div className="gmd-chart-block"><div className="gmd-chart-heading"><span aria-live="polite">{active ? `${shortTime(active.at)} · ${formatUsdMicros(active.micros, 4)}` : change === null ? "NAV per share" : <>{range === "all" ? historyLabel : label} <b className={tone}>{signedPercent(change)}</b></>}</span><div className="gmd-segmented" role="group" aria-label="Chart range">{RANGES.map(item => <button key={item.id} type="button" aria-pressed={range === item.id} onClick={() => { setRange(item.id); setIndex(null); setMarked(null); }}>{item.label}</button>)}</div></div>
     {points.length < 2 ? <div className={`gmd-chart-empty${loading ? " is-loading" : ""}`} aria-busy={loading}><div className="gmd-chart-empty-grid" aria-hidden="true" />{loading ? <><i className="gmd-skeleton is-chart" aria-hidden="true" /><span className="gmd-sr-only">Loading NAV history</span></> : <p>Not enough history for this range yet.</p>}</div> : <>
-      <div className="gmd-chart-plot" onPointerLeave={() => { setIndex(null); setMarked(null); }}>
+      <div className="gmd-chart-plot" ref={plotRef} onPointerLeave={() => { setIndex(null); setMarked(null); }}>
         <svg className="gmd-chart" viewBox={`0 0 ${W} ${H}`} role="img" onPointerMove={event => { const box = event.currentTarget.getBoundingClientRect(); const ratio = Math.max(0, Math.min(1, ((event.clientX - box.left) / box.width * W - LEFT) / (RIGHT - LEFT))); setIndex(nearest(timeMin + ratio * (timeMax - timeMin))); }} aria-label={`NAV per share from ${shortTime(points[0].at)} to ${shortTime(points[points.length - 1].at)}, between $${min.toFixed(4)} and $${max.toFixed(4)}.`}>
           <defs><linearGradient id={gradient} x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stopColor="#0B625B" stopOpacity=".12" /><stop offset="100%" stopColor="#0B625B" stopOpacity="0" /></linearGradient></defs>
-          {[0, .5, 1].map(f => <g key={f}><line x1={LEFT} x2={RIGHT} y1={TOP + f * (BOTTOM - TOP)} y2={TOP + f * (BOTTOM - TOP)} stroke="#e4eaed" /><text x="688" y={TOP + 5 + f * (BOTTOM - TOP)} fontSize="12" fill="#526570">${(high - f * (high - low)).toFixed(3)}</text></g>)}
+          {[0, .5, 1].map(f => <g key={f}><line x1={LEFT} x2={RIGHT} y1={TOP + f * (BOTTOM - TOP)} y2={TOP + f * (BOTTOM - TOP)} stroke="#e4eaed" /><text x={RIGHT + 20} y={TOP + 5 + f * (BOTTOM - TOP)} fontSize="12" fill="#526570">${(high - f * (high - low)).toFixed(3)}</text></g>)}
           <path d={`${path} L${RIGHT},184 L${LEFT},184 Z`} fill={`url(#${gradient})`} /><path d={path} fill="none" stroke="#0B625B" strokeWidth="2" strokeLinejoin="round" strokeLinecap="round" />
-          {points.length <= 60 && points.map((p, i) => <circle key={p.at} cx={x(i)} cy={y(vals[i])} r="4" fill="#0B625B" stroke="#fff" strokeWidth="2" />)}
+          {points.length <= 12 && points.map((p, i) => <circle key={p.at} cx={x(i)} cy={y(vals[i])} r="4" fill="#0B625B" stroke="#fff" strokeWidth="2" />)}
           {tip && !mark && <g><line x1={tip.x} x2={tip.x} y1={TOP - 8} y2="184" stroke="#526570" strokeDasharray="3 3" /><circle cx={tip.x} cy={tip.y} r="5.5" fill="white" stroke="#0B625B" strokeWidth="2" /></g>}
         </svg>
         {marks.map(item => <span key={item.key} className={`gmd-chart-event is-${item.kind}${item.key === marked ? " is-active" : ""}`} style={{ left: left(item.x), top: top(item.y) }} aria-hidden="true" onPointerEnter={() => { setMarked(item.key); setIndex(nearest(Date.parse(item.at))); }} onPointerLeave={() => setMarked(null)}><i /></span>)}

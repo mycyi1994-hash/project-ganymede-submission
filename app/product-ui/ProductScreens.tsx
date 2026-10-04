@@ -9,7 +9,8 @@ import { formatUsdMicros } from "@/lib/nav-display";
 import { publicationStatus } from "@/lib/nav-status";
 import { compositionForRecord, formatCountdown, nextRecordAt, publicationHistory, shortTime } from "@/lib/product-market";
 import { useMarket } from "./MarketProvider";
-import { Icon, AssetMark, assetSymbols } from "./Icons";
+import { CATEGORY_EVENT } from "./AskUstx";
+import { Icon } from "./Icons";
 import { designLink } from "./ProductShell";
 import MarketChart from "./MarketChart";
 import { InvestPanel } from "./DemoInvest";
@@ -27,14 +28,6 @@ export function DataState() {
   const { error, data, loading, reload } = useMarket();
   if (!error && !data?.onchainError) return null;
   return <div className="gmd-data-notice" role="status"><Icon name="info" /><span>{error ? data ? "Refresh unavailable. Showing the last loaded record." : "Market data could not be loaded." : "Price confirmation is unavailable. Showing the last available price."}</span><button disabled={loading} onClick={reload}>{loading ? "Refreshing…" : "Try again"}</button></div>;
-}
-
-/** Runs the same direct chain check as the verification page and links to its evidence. */
-export function RecordCheckStatus() {
-  const { data, error } = useMarket();
-  const { state } = useRecordCheck(data, error);
-  const label = { matched: "NAV checked", failed: "Record needs attention", unavailable: "Not verified", waiting: "Checking the record…", loading: "Checking the record…" }[state];
-  return <Link prefetch={false} href={VERIFY} className={`gmd-check-chip is-${state}`} aria-live="polite">{state === "matched" ? <Icon name="check" size={16} /> : <i aria-hidden="true" />}<span>{label}</span><Icon name="arrow" size={14} /></Link>;
 }
 
 /** Seconds to the next five-minute NAV record; once it is due, the market is read until it arrives. */
@@ -116,8 +109,8 @@ export function MarketScreen({ preview = false }: { preview?: boolean }) {
   const points = data ? publicationHistory(data) : [];
   const detail = preview ? designLink("product") : "/products/ustx";
   const baskets = category === "all" || category === "basket";
-  const screen = <><div className="gmd-page-heading"><div><h1>Markets</h1><p>RWA baskets, covered-call income and structured notes on tokenized US stocks, priced by OKX and recorded on X Layer.</p></div>{preview ? <span className="gmd-badge">Example account view</span> : baskets && !selectedFund && <RecordCheckStatus />}</div>
-    {!preview && <nav className="gmd-categories" aria-label="Product categories">{CATEGORIES.map(item => <button type="button" key={item.id} aria-pressed={category === item.id} onClick={() => { setCategory(item.id); window.history.replaceState(null, "", item.id === "all" ? "/" : `/?category=${item.id}`); }}><b>{item.label}</b><small>{item.note}</small></button>)}</nav>}
+  const screen = <><div className="gmd-page-heading"><div><h1>Markets</h1><p>RWA baskets, covered-call income and structured notes on tokenized US stocks, priced by OKX and recorded on X Layer.</p></div>{preview && <span className="gmd-badge">Example account view</span>}</div>
+    {!preview && <nav className="gmd-categories" aria-label="Product categories">{CATEGORIES.map(item => <button type="button" key={item.id} aria-pressed={category === item.id} onClick={() => { setCategory(item.id); window.history.replaceState(null, "", item.id === "all" ? "/" : `/?category=${item.id}`); window.dispatchEvent(new Event(CATEGORY_EVENT)); }}><b>{item.label}</b><small>{item.note}</small></button>)}</nav>}
     {!preview && !baskets && <><div className="gmd-category-intro"><h2>{category === "income" ? "Covered-call income" : "Structured notes (ELS)"}</h2><p>{category === "income" ? "Hold the S&P 500 or the Nasdaq-100 and sell a call each month: income now, in exchange for the gains above the strike. Like XYLD and QYLD." : "A step-down autocallable note on the S&P 500 and the Nasdaq-100: 7% a year if both hold up, paid back early at six-monthly observations; capital at risk only after a 50% fall."}</p></div>
       <IncomeMarket key={category} kind={category === "income" ? "covered-call" : "autocall"} /></>}
     {baskets && <>{!selectedFund && <DataState />}
@@ -125,7 +118,6 @@ export function MarketScreen({ preview = false }: { preview?: boolean }) {
     {!preview && !selectedFund && <PriceConfidence compact />}
     {!preview && <FundList selectedId={selectedId} onSelect={selectFund} controls="market-fund-preview" kinds={category === "basket" ? ["basket"] : undefined} />}
     {!preview && !selectedFund && <MarketPulse />}</>}
-    <div className="gmd-market-foot"><div className="gmd-stock-row" aria-hidden="true">{assetSymbols.map(symbol => <AssetMark key={symbol} symbol={symbol} />)}</div><p>Nine products. US stocks and ETFs. One portfolio.</p><Link prefetch={false} href="/limitations">Risks <Icon name="external" size={14} /></Link></div>
   </>;
   return preview ? screen : <ActivityProvider>{screen}</ActivityProvider>;
 }
@@ -134,9 +126,8 @@ export function ProductScreen({ preview = false, orderPanel, holding = false }: 
   const { data, loading } = useMarket();
   const composition = data ? compositionForRecord(data) : null;
   const points = data ? publicationHistory(data) : [];
-  const screen = <><Link prefetch={false} className="gmd-breadcrumb" href={holding ? designLink("portfolio") : preview ? designLink("markets") : "/"}><Icon name="back" size={16} />{holding ? "Your portfolio" : "All markets"}</Link><div className="gmd-product-heading"><ProductIdentity />{preview ? <span className="gmd-badge">Example account view</span> : <RecordCheckStatus />}</div><div className={`gmd-mobile-entry${holding ? " is-holding" : ""}`}>{preview ? <a className="gmd-button" href="#investment">View investment panel<Icon name="arrow" size={16} /></a> : <a className="gmd-button" href="#investment">Invest<Icon name="arrow" size={16} /></a>}</div><DataState />
-    <div className={`gmd-detail-layout${holding ? " is-holding" : ""}`}><div className="gmd-detail-content"><section className="gmd-price-surface" aria-label="Basket value"><NavValue /><MarketChart points={points} loading={loading} /></section><nav className="gmd-product-sections" aria-label="Product sections">{!preview && <a href="#overview">Overview</a>}{!preview && <a href="#activity">Activity</a>}{!preview && <a href="#borrow">Borrow</a>}<a href="#holdings">Holdings</a><a href="#terms">About</a>{!preview && <Link prefetch={false} href="/pools">Pools <Icon name="arrow" size={14} /></Link>}<Link prefetch={false} href={VERIFY}>Transparency <Icon name="external" size={14} /></Link></nav>{!preview && <FundOverview />}{!preview && <PriceConfidence compact />}{!preview && <MarketActivitySection />}{!preview && <LendingSection />}<div id="holdings" className="gmd-composition-surface">{preview ? <Holdings composition={composition} loading={loading} /> : <FundHoldings />}</div>
-      <section id="terms" className="gmd-terms"><h2>About USTX</h2><p>Follow nine US technology leaders with one basket. USTX tracks their xStock prices, starts each quarter at equal weights and updates its net asset value (NAV) every five minutes.</p><dl><div><dt>Weighting</dt><dd>Equal weight at each fixing. Between fixings the weights drift with prices, like any buy-and-hold basket.</dd></div><div><dt>Rebalancing</dt><dd>Quarterly, back to equal weight at the prevailing NAV.</dd></div><div><dt>Orders</dt><dd>Start with $10 using your wallet or demo balance. Fund orders have no fee and use the latest NAV. Wallet orders compare available routes for the best quote after fees. Both use demo dollars, so no real money moves.</dd></div><div><dt>Assets</dt><dd>USTX tracks a basket of xStocks for demo investing. It does not hold the underlying assets or grant ownership of real stocks.</dd></div><div><dt>Versus nine xStocks</dt><dd>One basket to follow and rebalance, with each constituent and its weight visible in your portfolio.</dd></div><div><dt>Pricing</dt><dd>OKX OnchainOS DEX prices for the xStocks on X Layer, every five minutes. They can differ from the underlying stock price and may be delayed.</dd></div><div><dt>Record</dt><dd>View the price history and check the latest price against its published X Layer record.</dd></div></dl><div className="gmd-terms-links"><Link prefetch={false} href="/methodology">Methodology <Icon name="external" size={14} /></Link><Link prefetch={false} href="/limitations">Risks <Icon name="external" size={14} /></Link></div></section>
+  const screen = <><Link prefetch={false} className="gmd-breadcrumb" href={holding ? designLink("portfolio") : preview ? designLink("markets") : "/"}><Icon name="back" size={16} />{holding ? "Your portfolio" : "All markets"}</Link><div className="gmd-product-heading"><ProductIdentity />{preview && <span className="gmd-badge">Example account view</span>}</div><div className={`gmd-mobile-entry${holding ? " is-holding" : ""}`}>{preview ? <a className="gmd-button" href="#investment">View investment panel<Icon name="arrow" size={16} /></a> : <a className="gmd-button" href="#investment">Invest<Icon name="arrow" size={16} /></a>}</div><DataState />
+    <div className={`gmd-detail-layout${holding ? " is-holding" : ""}`}><div className="gmd-detail-content"><section className="gmd-price-surface" aria-label="Basket value"><NavValue /><MarketChart points={points} loading={loading} /></section><nav className="gmd-product-sections" aria-label="Product sections">{!preview && <a href="#overview">Overview</a>}{!preview && <a href="#activity">Activity</a>}{!preview && <a href="#borrow">Borrow</a>}<a href="#holdings">Holdings</a>{!preview && <Link prefetch={false} href="/pools">Pools <Icon name="arrow" size={14} /></Link>}<Link prefetch={false} href={VERIFY}>Transparency <Icon name="external" size={14} /></Link></nav>{!preview && <FundOverview />}{!preview && <MarketActivitySection />}{!preview && <LendingSection />}<div id="holdings" className="gmd-composition-surface">{preview ? <Holdings composition={composition} loading={loading} /> : <FundHoldings />}</div>
     </div><div className="gmd-detail-aside" id="investment">{orderPanel ?? <InvestPanel />}</div></div>
   </>;
   return preview ? screen : <ActivityProvider>{screen}</ActivityProvider>;

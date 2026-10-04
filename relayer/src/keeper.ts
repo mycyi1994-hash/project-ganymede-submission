@@ -54,12 +54,21 @@ export interface RangeChain {
   arbitrage(minProfit: bigint): Promise<Sent>;
 }
 
-export type RangeOutcome = { action: "none"; reason: string } | { action: "arbitrage"; profit: string; hash: Hex; success: boolean };
+export type RangeOutcome = { action: "none"; reason: string } | { action: "arbitrage" | "recentre"; profit: string; hash: Hex; success: boolean };
 
-/** Brings the range pool to the NAV when that earns at least a cent, insisting on half of it when it lands. */
+/**
+ * Brings the range pool to the NAV when that earns at least a cent, insisting on half of it when it
+ * lands. A profit of exactly 0 means no position lies between the price and the NAV: the trade then
+ * only moves the price across that empty stretch, which positions need before they can open, so it
+ * is sent for the gas alone.
+ */
 export async function runRangeArbitrage(chain: RangeChain): Promise<RangeOutcome> {
   const simulated = await chain.simulate();
   if ("revert" in simulated) return none(simulated.revert.startsWith("NothingToDo") ? "the range pool is within its fee of the NAV" : `the arbitrage would revert: ${simulated.revert}`);
+  if (simulated.profit === 0n) {
+    const sent = await chain.arbitrage(0n);
+    return { action: "recentre", profit: "0", hash: sent.hash, success: sent.success };
+  }
   if (simulated.profit < MIN_PROFIT_MICROS) return none(`the arbitrage would earn ${simulated.profit}, under the ${MIN_PROFIT_MICROS} worth a trade`);
   const sent = await chain.arbitrage(simulated.profit / 2n);
   return { action: "arbitrage", profit: simulated.profit.toString(), hash: sent.hash, success: sent.success };

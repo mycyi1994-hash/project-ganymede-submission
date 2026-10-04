@@ -11,7 +11,7 @@ import {
 } from "@/lib/xstocks/lp-strategy";
 import { Icon } from "./Icons";
 import { useAsk } from "./AskUstx";
-import { ChartHead, useWidth } from "./PoolVisuals";
+import { ChartHead, useWidth } from "./ChartParts";
 
 // Liquidity strategies on Pools, laid out as Meteora lays out its shapes: Spot, Curve and Spot +
 // Curve split a deposit between the two pooled pools; Bid-Ask and Custom open a position of one's

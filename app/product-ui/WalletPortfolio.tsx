@@ -11,7 +11,6 @@ import { shortTime } from "@/lib/product-market";
 import { useMarket } from "./MarketProvider";
 import { useWalletAccount } from "./WalletAccount";
 import { useRecordCheck } from "./useRecordCheck";
-import { RecordCheckStatus } from "./ProductScreens";
 import { Icon } from "./Icons";
 
 const percent = (bps: number) => `${(bps / 100).toFixed(2)}%`;
@@ -67,7 +66,7 @@ export default function WalletPortfolio() {
   const priceNote = state === "matched" && record ? `OKX OnchainOS prices from the ${shortTime(record.effectiveAt)} record, verified in your browser` : state === "failed" || state === "unavailable" ? "The price record could not be verified, so nothing is valued." : "Checking prices for your holdings…";
 
   return <>
-    <div className="gmd-page-heading"><div><h1>Portfolio</h1><p>Your USTX and your xStocks on X Layer, valued at OKX OnchainOS prices.</p></div><RecordCheckStatus /></div>
+    <div className="gmd-page-heading"><div><h1>Portfolio</h1><p>Your USTX and your xStocks on X Layer, valued at OKX OnchainOS prices.</p></div></div>
     <DemoPortfolio />
     <header id="wallet" className="gmd-section-heading gmd-wallet-heading"><div><h2>Your wallet on X Layer</h2><p>View your USTX on Testnet and your xStocks on X Layer mainnet. Connect OKX Wallet or enter a public address.</p></div></header>
     <AddressBar />

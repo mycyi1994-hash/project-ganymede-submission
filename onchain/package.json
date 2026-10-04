@@ -25,6 +25,7 @@
     "status:giwa": "hardhat run scripts/status.ts --network giwaSepolia",
     "verify:export": "hardhat run scripts/export-verification.ts --network xlayerTestnet",
     "verify:export:giwa": "hardhat run scripts/export-verification.ts --network giwaSepolia",
+    "stress:lending": "hardhat run scripts/stress-lending.ts --network xlayerTestnet",
     "stress:testnet": "hardhat run scripts/stress-testnet.ts --network xlayerTestnet"
   },
   "dependencies": {

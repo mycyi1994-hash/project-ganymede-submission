@@ -1308,7 +1308,7 @@ a.gmd-pool-pair:hover b { text-decoration: underline; text-underline-offset: 3px
 .gmd-fund-list li.is-loading span { display: block; height: 56px; margin: 8px 0; border-radius: 6px; background: var(--gmd-soft); }
 .gmd-fund-row { display: grid; grid-template-columns: minmax(150px,1.2fr) 160px minmax(0,1.3fr) 120px 110px 44px; gap: 16px; align-items: center; padding: 14px 4px; }
 .gmd-fund-list li.is-selected { background: #eff7f5; box-shadow: inset 3px 0 var(--gmd-accent); }
-.gmd-fund-list .gmd-fund-name { text-align: left; min-height: 48px; padding: 4px 8px; color: inherit; border-radius: 4px; }
+.gmd-fund-list .gmd-fund-name { display: block; width: 100%; min-width: 0; text-align: left; min-height: 48px; padding: 4px 8px; color: inherit; border-radius: 4px; }
 .gmd-fund-name:hover b, .gmd-fund-name[aria-pressed=true] b { color: var(--gmd-accent); }
 .gmd-fund-name:hover b { text-decoration: underline; text-underline-offset: 3px; }
 .gmd-fund-list .gmd-fund-open { display: flex; align-items: center; justify-content: center; width: 44px; height: 44px; color: var(--gmd-ink); border-radius: 6px; text-decoration: none; }

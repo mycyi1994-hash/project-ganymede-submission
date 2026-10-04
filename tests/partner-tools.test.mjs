@@ -4,7 +4,8 @@ import { DatabaseSync } from "node:sqlite";
 import { readFileSync } from "node:fs";
 import { FaucetError, dripGas } from "../lib/faucet.ts";
 import { FAUCET_TERMS, formatOkb } from "../lib/faucet-terms.ts";
-import { addUsage, summarizeUsage, updateUsage } from "../lib/xstocks/usage.ts";
+import { LISTED_LATE, addUsage, moveListedLate, summarizeUsage, updateUsage } from "../lib/xstocks/usage.ts";
+import { LOAD_TEST_WALLETS } from "../lib/xstocks/load-test-wallets.ts";
 import { USAGE_SEED } from "../lib/xstocks/usage-seed.ts";
 import { TEAM_WALLETS } from "../lib/xstocks/team-wallets.ts";
 import { DEX_QUOTE_PATH, STATE_DEX_QUOTES, compareDex, parseQuote, quoteBasket, runDexQuotes } from "../lib/xstocks/dex-quotes.ts";
@@ -102,6 +103,29 @@ test("usage counts each new row once, keeps the team's wallets apart and summari
   // The first run starts from the history read at launch.
   assert.equal(updateUsage(null, { fromBlock: 0, toBlock: USAGE_SEED.toBlock, keep: 1_500, rows: [] }), USAGE_SEED);
   assert.ok(Object.keys(USAGE_SEED.wallets).every((address) => !(address in TEAM_WALLETS)));
+});
+
+test("load-test wallets counted before they were listed move to the team's figures once", () => {
+  const late = LOAD_TEST_WALLETS.slice(100, 100 + LISTED_LATE.wallets);
+  const outsider = wallet(9);
+  const wallets = Object.fromEntries(late.map((address, index) => [address, {
+    firstAt: "2026-10-04T10:00:00Z", lastAt: "2026-10-04T10:20:00Z",
+    actions: index === 0 ? LISTED_LATE.actions - (late.length - 1) * 12 : 12,
+    volumeMicros: (index === 0 ? LISTED_LATE.volumeMicros - BigInt(late.length - 1) : 1n).toString(),
+  }]));
+  wallets[outsider] = { firstAt: "2026-09-25T00:00:00Z", lastAt: "2026-09-25T01:00:00Z", actions: 71, volumeMicros: "500" };
+  const kinds = Object.fromEntries(Object.entries(LISTED_LATE.kinds).map(([kind, count]) => [kind, { all: count + 10, outside: count + 1 }]));
+  const usage = { fromBlock: 1, toBlock: 10, wallets, kinds, team: { actions: 5, volumeMicros: "7" } };
+  const moved = moveListedLate(usage);
+  assert.deepEqual(Object.keys(moved.wallets), [outsider]);
+  assert.deepEqual(moved.team, { actions: 5 + LISTED_LATE.actions, volumeMicros: (7n + LISTED_LATE.volumeMicros).toString() });
+  assert.ok(Object.values(moved.kinds).every((kind) => kind.outside === 1 && kind.all > 10));
+  assert.deepEqual(moved.migrations, [LISTED_LATE.id]);
+  // Applied once; a state that does not match what was read is left alone.
+  assert.equal(moveListedLate(moved), moved);
+  const other = { ...usage, wallets: { ...wallets, [late[1]]: { ...wallets[late[1]], actions: 13 } } };
+  assert.equal(moveListedLate(other), other);
+  assert.equal(moveListedLate(USAGE_SEED), USAGE_SEED);
 });
 
 const quotePayload = (symbol) => ({

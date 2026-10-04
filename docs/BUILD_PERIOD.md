@@ -54,9 +54,11 @@ Ganymede was selected as one of 30 finalists from 150 teams. The organizers conf
 | 2026-10-03 06:16 | `5ad7a95` | Who controls each contract, read in the browser; SECURITY.md and lending-market fuzzing; one-click test OKB for a first wallet; "Open in the OKX app"; hourly OKX DEX aggregator quotes for building the basket by hand; usage counted without the team's wallets; OpenAPI, llms.txt and an agent example |
 | 2026-10-04 02:42 | `22c56b6` | USTX tracks nine xStocks: Alphabet, Oracle and Palantir join, re-fixed at the prevailing NAV, and a name being added joins only at its first priced record |
 | 2026-10-04 04:03 | `42155c8` | Six funds over 18 xStocks: Magnificent 7, AI & Semiconductors, Crypto Economy, US Core Index and Retail Favorites, each recorded under its own product key and verified on its own page, bought with the demo balance |
-
 | 2026-10-04 05:40 | `21f476e` | Usage figures count all 100 load-test wallets as the team’s, apart from other visitors |
 | 2026-10-04 09:25 | `b45516d` | Customer-facing price comparison and browser arithmetic, in-place fund selection on Markets, multi-fund portfolio/reset consistency, verified fund prices and recoverable order retries |
+| 2026-10-04 10:34 | `772d056` | Lending-market load test scaled to 3,000 wallets; those wallets counted as the team's usage |
+| 2026-10-04 10:40 | `5328529` | Previously counted load-test wallets reclassified into the team's usage |
+| 2026-10-04 10:43 | `defa322` | Fund selection buttons retain left-aligned names and tickers below them across desktop and phone layouts |
 
 ## Every commit in the build period (UTC)
 

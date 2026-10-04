@@ -22,6 +22,8 @@ export type Usage = {
   /** Actions by kind: all wallets, and wallets outside the team's. */
   kinds: Record<string, { all: number; outside: number }>;
   team: { actions: number; volumeMicros: string };
+  /** One-time corrections already applied (LISTED_LATE). */
+  migrations?: string[];
 };
 
 const add = (value: string, more: bigint) => (BigInt(value) + more).toString();
@@ -48,8 +50,41 @@ export function addUsage(usage: Usage, rows: MarketActivity[], toBlock: number):
   return next;
 }
 
+/**
+ * Load-test wallets 101 to 3,000 began trading on 4 October before they were listed as the team's,
+ * and the Worker then running counted 35 of them as outside wallets. Their actions by kind were read
+ * from X Layer Testnet for exactly those wallets, blocks 42,648,562 to 42,650,642: 423 actions and
+ * $25,977.951319 of trades. The correction moves them to the team's figures once, and only from the
+ * state they were read against, where the listed wallets hold exactly those 423 actions.
+ */
+export const LISTED_LATE = {
+  id: "2026-10-04-load-test-wallets",
+  wallets: 35,
+  actions: 423,
+  volumeMicros: 25_977_951_319n,
+  kinds: { invest: 40, redeem: 43, deposit: 38, borrow: 69, repay: 69, withdrawCollateral: 72, lend: 32, withdraw: 60 } as Record<string, number>,
+};
+
+/** `usage` with the LISTED_LATE correction applied, if it has not been and the state matches. */
+export function moveListedLate(usage: Usage): Usage {
+  if (usage.migrations?.includes(LISTED_LATE.id)) return usage;
+  const listed = Object.entries(usage.wallets).filter(([address]) => address in TEAM_WALLETS);
+  const actions = listed.reduce((sum, [, wallet]) => sum + wallet.actions, 0);
+  const volume = listed.reduce((sum, [, wallet]) => sum + BigInt(wallet.volumeMicros), 0n);
+  const fits = Object.entries(LISTED_LATE.kinds).every(([kind, count]) => (usage.kinds[kind]?.outside ?? 0) >= count);
+  if (listed.length !== LISTED_LATE.wallets || actions !== LISTED_LATE.actions || volume !== LISTED_LATE.volumeMicros || !fits) return usage;
+  const wallets = Object.fromEntries(Object.entries(usage.wallets).filter(([address]) => !(address in TEAM_WALLETS)));
+  const kinds = { ...usage.kinds };
+  for (const [kind, count] of Object.entries(LISTED_LATE.kinds)) kinds[kind] = { ...kinds[kind], outside: kinds[kind].outside - count };
+  return {
+    ...usage, wallets, kinds,
+    team: { actions: usage.team.actions + actions, volumeMicros: add(usage.team.volumeMicros, volume) },
+    migrations: [...(usage.migrations ?? []), LISTED_LATE.id],
+  };
+}
+
 /** The usage carried forward by the activity index's latest run. */
-export const updateUsage = (usage: Usage | null, index: ActivityIndex): Usage => addUsage(usage ?? USAGE_SEED, index.rows, index.toBlock);
+export const updateUsage = (usage: Usage | null, index: ActivityIndex): Usage => addUsage(moveListedLate(usage ?? USAGE_SEED), index.rows, index.toBlock);
 
 export function parseUsage(value: unknown): Usage | null {
   if (typeof value !== "string") return null;

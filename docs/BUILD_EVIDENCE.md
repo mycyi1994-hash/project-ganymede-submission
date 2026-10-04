@@ -1,6 +1,6 @@
 # Build provenance
 
-Production source revision: `b45516dcae1a9305e99a8a5f0f4470b42956a61e`.
+Production source revision: `defa322e08db336eaefef9a56311049666912536`.
 
 This is a source snapshot, not a claim that the entire project was newly built for this event. The original repository remains private. The entries below were exported from its Git history; reviewers can inspect current implementations and tests, and request original history access from the team if needed. No old secrets, local environment files or full private Git history are published.
 
@@ -551,3 +551,14 @@ Fund names update the Markets preview in place, and separate arrows open fund de
 Validation of production source: 260 application tests, typecheck and build; lint with 0 errors and 10 existing warnings. Controlled browser checks cover race/failure handling, keyboard operation, WCAG A/AA and 390px layouts. After deployment, seven public routes and four redirects passed; all five additional funds verified against their live X Layer records, and the three-value price comparison completed. A new USTX NAV at 10:20:36 UTC was confirmed after deployment without warnings or blockers. These are point-in-time observations, not continuous availability or a security audit.
 
 Public-snapshot validation: clean `npm ci` and `npm test` passed all 260 application tests; clean relayer `npm ci`, typecheck and all 30 tests passed.
+
+
+## Fund list alignment — 4 October 2026
+
+Production source: `defa322e08db336eaefef9a56311049666912536`. App Worker version: `59a8155a-4240-409c-a47b-c70ec3b7f57c`; prior version: `96579b3d-f1cc-4438-97d0-1c210f25c903`. Settlement relayer remains `cb38524c-cb75-4350-a9ee-a363f49a5c93`. Exported revision: `70ccee34c9f89b7da142bdc48b6fa42c44068f11` (application code matches production; release documentation is newer).
+
+Markets keeps fund names left aligned with tickers below them after the names became selection buttons. The separate arrows still open the fund pages. This snapshot also includes the latest main's 3,000-wallet lending load test and the correction that counts those test wallets as the team's usage.
+
+Validation: 261 application tests, typecheck and build; lint with 0 errors and 10 existing warnings. Chromium checked all six fund rows at eight widths from 320 to 1832px, including label positions, text and price boundaries, and selection versus detail navigation. The published site passed the same layout checks. These are point-in-time observations, not continuous availability or a security audit.
+
+Public-snapshot validation: clean `npm ci` and `npm test` passed all 261 application tests; clean relayer `npm ci`, typecheck and all 30 tests passed. The first NAV after deployment was confirmed at 10:45:26 UTC without warnings or blockers.

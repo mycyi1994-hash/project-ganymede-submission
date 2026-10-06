@@ -37,6 +37,34 @@ export function decodeLatestNav(result: string): OnchainNav {
   };
 }
 
+/** keccak256("NavPublished(bytes32,uint256,uint256,bytes32,uint64)"); equals topic0 of the registry's logs on X Layer Testnet. */
+export const NAV_PUBLISHED_TOPIC = "0x7473313be7106e5141b2da10837d77c93ad5b7e1fa646edaaafcb7493432298b";
+
+export type NavPublishedEvent = { productKey: string; holdingsHash: string; navPerShareMicros: string; sharesOutstandingMicros: string; effectiveAt: string };
+
+export function decodeNavPublished(log: { topics: string[]; data: string }): NavPublishedEvent | null {
+  if (log.topics.length !== 3 || log.topics[0].toLowerCase() !== NAV_PUBLISHED_TOPIC) return null;
+  const data = log.data.startsWith("0x") ? log.data.slice(2) : log.data;
+  if (data.length !== 64 * 3 || !/^[0-9a-f]+$/i.test(data)) return null;
+  const word = (index: number) => BigInt(`0x${data.slice(index * 64, (index + 1) * 64)}`);
+  return { productKey: log.topics[1].toLowerCase(), holdingsHash: log.topics[2].toLowerCase(), navPerShareMicros: word(0).toString(), sharesOutstandingMicros: word(1).toString(), effectiveAt: new Date(Number(word(2)) * 1000).toISOString() };
+}
+
+export type TransactionReceipt = { status?: string; blockNumber?: string; logs?: { address: string; topics: string[]; data: string }[] };
+
+/** A transaction's receipt, or null if the chain does not know the transaction. */
+export async function readTransactionReceipt(rpcUrl: string, txHash: string, options: { fetcher?: typeof fetch } = {}): Promise<TransactionReceipt | null> {
+  if (!/^0x[0-9a-f]{64}$/i.test(txHash)) throw new Error("Invalid transaction hash");
+  const response = await (options.fetcher ?? fetch)(rpcUrl, {
+    method: "POST", headers: { "Content-Type": "application/json" }, signal: AbortSignal.timeout(10_000),
+    body: JSON.stringify({ jsonrpc: "2.0", id: 3, method: "eth_getTransactionReceipt", params: [txHash] }),
+  });
+  if (!response.ok) throw new Error(`Settlement RPC ${response.status}`);
+  const payload = await response.json() as { result?: TransactionReceipt | null; error?: { message?: string } };
+  if (payload.error) throw new Error(payload.error.message ?? "eth_getTransactionReceipt failed");
+  return payload.result ?? null;
+}
+
 /** Reads USTX's record, or with `productKey` another basket's record in the registry it names. */
 export async function readLatestNav(rpcUrl: string, registry: string, options: { fetcher?: typeof fetch; chainId?: number; productKey?: string } = {}): Promise<OnchainNav> {
   if (!options.productKey && XSTOCKS_PRODUCT.id !== "us-tech-x") throw new Error("XSTOCKS_PRODUCT_KEY is stale — recompute it for the new product id");

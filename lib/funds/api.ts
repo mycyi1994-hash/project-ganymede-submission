@@ -5,6 +5,7 @@ import { downsampleSeries, parseSeries, STATE_SERIES, type SeriesPoint } from ".
 import type { Publication, RebalanceEvidence } from "../xstocks/cycle";
 import { FUNDS, type FundDefinition, type FundKind, universeToken } from "./catalog";
 import { fundStateKey, type FundLatest } from "./cycle";
+import type { TransitionArchive } from "../income/transitions";
 
 const parse = <T>(value: string | undefined | null, empty: T): T => { try { return value ? JSON.parse(value) as T : empty; } catch { return empty; } };
 
@@ -47,15 +48,22 @@ export type FundDetail = FundSummary & {
   latest: FundLatest | null;
   history: Publication[];
   rebalance: RebalanceEvidence | null;
+  /** An income product's sales, fixing, knock-in and observations, for tracing its latest record (lib/income/transitions.ts); null for a basket. */
+  transitions: TransitionArchive | null;
 };
 
 export async function fundDetail(repo: EngineRepository, fund: FundDefinition): Promise<FundDetail> {
-  const [summary, latest, history, rebalance] = await Promise.all([
+  const income = fund.kind === "covered-call" || fund.kind === "autocall";
+  const [summary, latest, history, rebalance, transitions] = await Promise.all([
     fundSummary(repo, fund, 300),
     repo.getState(fundStateKey(fund.id, "latest")),
     repo.getState(fundStateKey(fund.id, "history")),
     repo.getState(fundStateKey(fund.id, "rebalance")),
+    income ? repo.getState(fundStateKey(fund.id, "transitions")) : null,
   ]);
-  return { ...summary, latest: parse<FundLatest | null>(latest?.value, null), history: parse<Publication[]>(history?.value, []), rebalance: parse<RebalanceEvidence | null>(rebalance?.value, null) };
+  return {
+    ...summary, latest: parse<FundLatest | null>(latest?.value, null), history: parse<Publication[]>(history?.value, []), rebalance: parse<RebalanceEvidence | null>(rebalance?.value, null),
+    transitions: parse<TransitionArchive | null>(transitions?.value, null),
+  };
 }
 

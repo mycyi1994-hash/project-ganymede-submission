@@ -7,10 +7,11 @@
 import { PRICE_CLOCK_TOLERANCE_MS, PROOF_DEPLOYMENT, type Check } from "./proof";
 import { layeredChecks } from "./proof-experiment";
 import { XSTOCKS_PRODUCT } from "./basket";
-import { readLatestNav, XSTOCKS_PRODUCT_KEY, type OnchainNav } from "./onchain";
+import { decodeNavPublished, readLatestNav, XSTOCKS_PRODUCT_KEY, type NavPublishedEvent, type OnchainNav } from "./onchain";
 
-/** keccak256("NavPublished(bytes32,uint256,uint256,bytes32,uint64)"); equals topic0 of the registry's logs on X Layer Testnet. */
-export const NAV_PUBLISHED_TOPIC = "0x7473313be7106e5141b2da10837d77c93ad5b7e1fa646edaaafcb7493432298b";
+// The registry's event decoder lives with its other reads (lib/xstocks/onchain.ts).
+export { decodeNavPublished, NAV_PUBLISHED_TOPIC, type NavPublishedEvent } from "./onchain";
+
 export const EVIDENCE_KIND = "ganymede-nav-evidence";
 
 export type EvidenceBundle = {
@@ -59,15 +60,6 @@ export function parseEvidence(value: unknown): EvidenceBundle {
   return bundle;
 }
 
-export type NavPublishedEvent = { productKey: string; holdingsHash: string; navPerShareMicros: string; sharesOutstandingMicros: string; effectiveAt: string };
-
-export function decodeNavPublished(log: { topics: string[]; data: string }): NavPublishedEvent | null {
-  if (log.topics.length !== 3 || log.topics[0].toLowerCase() !== NAV_PUBLISHED_TOPIC) return null;
-  const data = log.data.startsWith("0x") ? log.data.slice(2) : log.data;
-  if (data.length !== 64 * 3 || !/^[0-9a-f]+$/i.test(data)) return null;
-  const word = (index: number) => BigInt(`0x${data.slice(index * 64, (index + 1) * 64)}`);
-  return { productKey: log.topics[1].toLowerCase(), holdingsHash: log.topics[2].toLowerCase(), navPerShareMicros: word(0).toString(), sharesOutstandingMicros: word(1).toString(), effectiveAt: new Date(Number(word(2)) * 1000).toISOString() };
-}
 
 export type EvidenceResult = { label: string; state: "pass" | "fail" | "skip"; detail: string };
 type Rpc = (method: string, params: unknown[]) => Promise<unknown>;

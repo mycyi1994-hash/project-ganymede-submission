@@ -17,8 +17,9 @@ import { parseFundComposition } from "../xstocks/proof";
 import { SERIES_LIMIT, type SeriesPoint } from "../xstocks/series";
 import { FUND_INCEPTION_NAV_MICROS, INCOME_FUNDS, OTHER_FUNDS, fundConstituents, universeToken, type FundDefinition } from "./catalog";
 import { runIncomeCycle } from "../income/cycle";
+import { addTransition, type TransitionArchive } from "../income/transitions";
 
-export const fundStateKey = (fundId: string, part: "basket" | "latest" | "history" | "confirmed" | "rebalance" | "series") => `fund:${fundId}:${part}`;
+export const fundStateKey = (fundId: string, part: "basket" | "latest" | "history" | "confirmed" | "rebalance" | "series" | "transitions") => `fund:${fundId}:${part}`;
 export const HISTORY_LIMIT = 12;
 
 export type FundLatest = {
@@ -86,6 +87,18 @@ export async function recordConfirmed(repo: EngineRepository, fundId: string, pu
   if (!confirmed || Date.parse(publication.asOf) > Date.parse(confirmed.asOf)) await repo.setState(fundStateKey(fundId, "confirmed"), JSON.stringify(publication));
   const series = await read<SeriesPoint[]>(repo, fundStateKey(fundId, "series"), []);
   await repo.setState(fundStateKey(fundId, "series"), JSON.stringify(addSeriesPoint(series, publication)));
+  // An income product's sales, fixing, knock-in and observations are kept for the browser to trace
+  // later records to (lib/income/transitions.ts). This never holds up a record: one not kept shows
+  // in that check as missing.
+  if (INCOME_FUNDS.some((fund) => fund.id === fundId)) {
+    try {
+      const archive = await read<TransitionArchive | null>(repo, fundStateKey(fundId, "transitions"), null);
+      const next = addTransition(archive, publication);
+      if (next !== archive) await repo.setState(fundStateKey(fundId, "transitions"), JSON.stringify(next));
+    } catch (error) {
+      console.error(`${fundId}: the record at ${publication.asOf} was not archived`, error);
+    }
+  }
 }
 
 /** Compared only when every holding has a deep pool pinned; a thin pool would only add noise. */

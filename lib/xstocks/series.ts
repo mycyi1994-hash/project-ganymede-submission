@@ -5,8 +5,7 @@
  * publication's transaction receipt, a few per cycle.
  */
 import { XSTOCKS_PRODUCT } from "./basket";
-import { decodeNavPublished } from "./evidence";
-import { XSTOCKS_PRODUCT_KEY } from "./onchain";
+import { decodeNavPublished, XSTOCKS_PRODUCT_KEY } from "./onchain";
 
 export const STATE_SERIES = "xstocks:series";
 export const STATE_SERIES_CURSOR = "xstocks:series-cursor";

@@ -19,8 +19,9 @@ import { AssetMark, Icon } from "./Icons";
 import { OkxSource } from "./OkxSource";
 
 // The income products: two covered-call funds and a step-down autocallable note (ELS) on SPYx and
-// QQQx. Each page reads its record and documents from GET /api/v1/funds, checks the record against X
-// Layer in the browser, and draws the product's payoff from the document. Demo dollars only.
+// QQQx. Each page reads its record and documents from GET /api/v1/funds, checks the record and the
+// records it rests on against X Layer in the browser, and draws the product's payoff from the
+// document. Demo dollars only.
 
 const money = (value: number, digits = 2) => `$${value.toLocaleString("en-US", { minimumFractionDigits: digits, maximumFractionDigits: digits })}`;
 const pct = (ratio: number, digits = 1) => `${(ratio * 100).toFixed(digits)}%`;
@@ -267,7 +268,7 @@ export function IncomeScreen({ id }: { id: string }) {
         {!latest && <p className="gmd-caption">The first record is written within five minutes of the product&rsquo;s launch{terms.kind === "autocall" ? ", and fixes the note’s starting levels" : ""}.</p>}
         <section className="gmd-terms"><h2>How {definition.ticker} works</h2><dl className="gmd-facts">
           {terms.kind === "covered-call" ? <CoveredCallFacts terms={terms} /> : <AutocallFacts terms={terms} />}
-          <div><dt>Records</dt><dd>Value and its document published on X Layer Testnet every five minutes; your browser recomputes the value from the document</dd></div>
+          <div><dt>Records</dt><dd>Value and its document published on X Layer Testnet every five minutes; your browser recomputes the value from the document and checks the records it rests on ({terms.kind === "covered-call" ? "each call’s sale" : "the fixing, any knock-in and each observation"}) against their own transactions</dd></div>
         </dl><p className="gmd-caption">A demo product on X Layer Testnet. Its value is a model with no money behind it; it is not an offer, a security or investment advice.</p></section>
       </div>
       <FundClosed ticker={definition.ticker} note={closed ?? notOpen} />

@@ -82,12 +82,18 @@ export const OPENAPI = {
       get: {
         operationId: "getFunds",
         summary: "Every Ganymede product and its latest NAV record, or one product",
-        description: "Nine products, each recorded every five minutes in the NAV registry under productKey = keccak256(id): six baskets of xStocks (USTX, M7X, AIX, CRYX, CORX, RTLX), two covered-call funds (SPYC, QQQC) and a step-down autocallable note (ELS1); kind tells them apart. With ?id=, one product with its recent records, each with its canonical document (a basket's holdings, a covered call's ETF and call, the note's levels and observations), and how a basket's prices compared with the X Layer pools.",
+        description: "Nine products, each recorded every five minutes in the NAV registry under productKey = keccak256(id): six baskets of xStocks (USTX, M7X, AIX, CRYX, CORX, RTLX), two covered-call funds (SPYC, QQQC) and a step-down autocallable note (ELS1); kind tells them apart. With ?id=, one product with its recent records, each with its canonical document (a basket's holdings, a covered call's ETF and call, the note's levels and observations), and how a basket's prices compared with the X Layer pools; for an income product, also transitions: every record its later records rest on (each call's sale; the note's fixing, knock-in and observations) with its document and transaction, complete from transitions.since.",
         parameters: [{ name: "id", in: "query", required: false, schema: { type: "string", enum: ["us-tech-x", "magnificent-7", "ai-chips", "crypto-economy", "us-core", "retail-favorites", "spy-covered-call", "qqq-covered-call", "spy-qqq-autocall-1"] } }],
         responses: {
           200: { description: "The funds, or one fund", content: { "application/json": { schema: { type: "object", properties: {
             funds: { type: "array", items: { type: "object", properties: { id: { type: "string" }, ticker: { type: "string" }, name: { type: "string" }, productKey: { type: "string" }, kind: { type: "string", enum: ["basket", "covered-call", "autocall"] }, onchainShares: { type: "boolean", description: "Only USTX has a share token that wallets can buy." }, holdings: { type: "array", items: { type: "object" } }, nav: { type: ["object", "null"] }, changePercent: { type: ["number", "null"] }, series: { type: "array", items: { type: "array" } } } } },
-            fund: { type: "object" },
+            fund: { type: "object", properties: {
+              history: { type: "array", items: { type: "object" }, description: "The latest twelve records, newest first, each with its canonical document and transaction." },
+              transitions: { type: ["object", "null"], description: "An income product's sales, fixing, knock-in and observations, oldest first; null for a basket.", properties: {
+                since: { type: "string", format: "date-time", description: "Every such record from this time on is here." },
+                records: { type: "array", items: { type: "object", properties: { asOf: { type: "string", format: "date-time" }, navPerShareMicros: { type: "string" }, holdingsHash: { type: "string" }, canonical: { type: "string" }, txHash: { type: ["string", "null"] } } } },
+              } },
+            } },
           } } } } },
           404: { description: "No fund has that id", content: { "application/json": { schema: error } } },
         },

@@ -18,7 +18,8 @@ import { sha256Hex } from "@/lib/engine/fixed";
 import { coveredCallReturn, premiumYield, type CoveredCallDocument } from "@/lib/income/covered-call";
 import { couponPayout, observationDate, type AutocallDocument } from "@/lib/income/autocall";
 import { autocallTerms } from "@/lib/income/terms";
-import { incomeTermsHold, recomputeIncomeNav, type IncomeDocument } from "@/lib/income/verify";
+import { checkIncomeHistory, fingerprintProof, incomeTermsHold, recomputeIncomeNav, type IncomeDocument } from "@/lib/income/verify";
+import type { TransitionArchive } from "@/lib/income/transitions";
 
 // The tools Ganymede's MCP server offers (lib/mcp/server.ts): reads of USTX on X Layer for AI
 // agents, built on the public APIs and the same checks the Transparency page runs. None signs or
@@ -93,13 +94,29 @@ async function confirmedRecord(repo: EngineRepository, fund: FundDefinition): Pr
   }
 }
 
+/**
+ * Whether an income product's record rests on its archived sales, fixing, knock-in and observations
+ * (lib/income/verify.ts checkIncomeHistory), each matched to its fingerprint; the product page also
+ * reads each one's transaction on X Layer.
+ */
+async function historyHolds(repo: EngineRepository, fund: FundDefinition, document: unknown): Promise<boolean> {
+  if (fund.kind !== "covered-call" && fund.kind !== "autocall") return true;
+  try {
+    const stored = await repo.getState(fundStateKey(fund.id, "transitions"));
+    const archive = stored ? JSON.parse(stored.value) as TransitionArchive : null;
+    return (await checkIncomeHistory(fund.id, document as IncomeDocument, archive, fingerprintProof)).result === "matched";
+  } catch {
+    return false;
+  }
+}
+
 /** What a product's latest document says, in a customer's terms: holdings, the month's call, or the note's levels. */
-function describeDocument(fund: FundDefinition, document: unknown, nowMs: number): Record<string, unknown> {
+function describeDocument(fund: FundDefinition, document: unknown, nowMs: number, restsOnRecords = true): Record<string, unknown> {
   if (!document || typeof document !== "object") return { document: null };
   if (fund.kind === "covered-call") {
     const call = document as CoveredCallDocument;
     const yields = premiumYield(call);
-    const consistent = incomeTermsHold(fund.id, call as IncomeDocument) && recomputeIncomeNav(fund.id, call as IncomeDocument)?.toString() === call.navPerShareMicros;
+    const consistent = restsOnRecords && incomeTermsHold(fund.id, call as IncomeDocument) && recomputeIncomeNav(fund.id, call as IncomeDocument)?.toString() === call.navPerShareMicros;
     return {
       etf: { symbol: call.underlying.symbol, priceUsd: call.underlying.price },
       call: {
@@ -118,7 +135,7 @@ function describeDocument(fund: FundDefinition, document: unknown, nowMs: number
     const terms = autocallTerms(fund.id);
     if (!terms) return { document: null };
     const state = note.state;
-    const consistent = incomeTermsHold(fund.id, note as IncomeDocument) && recomputeIncomeNav(fund.id, note as IncomeDocument)?.toString() === note.navPerShareMicros;
+    const consistent = restsOnRecords && incomeTermsHold(fund.id, note as IncomeDocument) && recomputeIncomeNav(fund.id, note as IncomeDocument)?.toString() === note.navPerShareMicros;
     return {
       status: state.status, fixedAt: state.fixedAt, subscriptionEndsAt: note.subscriptionEndsAt,
       indices: terms.underlyings.map(symbol => ({ symbol, startUsd: state.initial[symbol], nowUsd: note.prices[symbol], levelPercent: percent(note.performance[symbol]) })),
@@ -333,7 +350,8 @@ export function ustxTools(origin: string): McpTool[] {
           investable: fund.onchainShares, page: page(fund.href),
         };
         if (fund.onchainShares) return { ...base, seeAlso: "get_ustx_nav, get_ustx_holdings and quote_ustx_order give USTX's record, holdings and quotes.", environment: DEMO };
-        return { ...base, ...describeDocument(fund, confirmed?.document ?? null, Date.now()), notOpen: "Investing in this product is not open yet: it has no share token. Its value is recorded on X Layer every five minutes.", environment: DEMO };
+        const restsOnRecords = confirmed ? await historyHolds(repo, fund, confirmed.document) : true;
+        return { ...base, ...describeDocument(fund, confirmed?.document ?? null, Date.now(), restsOnRecords), notOpen: "Investing in this product is not open yet: it has no share token. Its value is recorded on X Layer every five minutes.", environment: DEMO };
       },
     },
   ];

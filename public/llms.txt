@@ -14,7 +14,7 @@
 - [Latest NAV record](https://ganymede-xlayer.gana003.workers.dev/api/v1/ustx): NAV per share, validity window, contracts and how to verify it.
 - [Pools](https://ganymede-xlayer.gana003.workers.dev/api/v1/ustx/pools): the constant-product and Uniswap v4 USTX/dUSD pools and their results for liquidity providers.
 - [Market activity](https://ganymede-xlayer.gana003.workers.dev/api/v1/ustx/activity): the latest orders, trades, arbitrage and loans, with 24-hour figures.
-- [Funds](https://ganymede-xlayer.gana003.workers.dev/api/v1/funds): all nine products with their latest NAV records and their kind: six baskets (USTX, M7X, AIX, CRYX, CORX, RTLX), two covered-call funds (SPYC, QQQC) and a step-down autocallable note (ELS1). Add ?id=<id> for one product's documents and recent records. Only USTX can be bought; the others have no share token yet.
+- [Funds](https://ganymede-xlayer.gana003.workers.dev/api/v1/funds): all nine products with their latest NAV records and their kind: six baskets (USTX, M7X, AIX, CRYX, CORX, RTLX), two covered-call funds (SPYC, QQQC) and a step-down autocallable note (ELS1). Add ?id=<id> for one product's documents and recent records; an income product's also lists in `transitions` every record its later ones rest on (each call's sale; the note's fixing, knock-in and observations), each with its document and transaction. Only USTX can be bought; the others have no share token yet.
 - [Usage](https://ganymede-xlayer.gana003.workers.dev/api/v1/ustx/usage): usage since launch, with the team's and test wallets counted apart.
 - [OKX DEX quotes](https://ganymede-xlayer.gana003.workers.dev/api/v1/ustx/dex-quotes): what building the basket by hand costs on X Layer mainnet, quoted hourly by the OKX OnchainOS DEX aggregator.
 

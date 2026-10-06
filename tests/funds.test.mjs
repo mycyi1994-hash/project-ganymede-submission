@@ -193,6 +193,15 @@ test("Ask USTX and MCP agents read every product: the list, a basket's weights, 
     const confirmedCall = await run("get_fund", { id: "SPYC" });
     assert.equal(confirmedCall.etf.priceUsd, 668.9, "the confirmed record's ETF price, not a newer unconfirmed one");
     assert.equal(confirmedCall.asOf, at);
+    // An archived sale that does not hash to its fingerprint leaves the record not shown consistent.
+    db.readOnly = false;
+    const archiveKey = fundStateKey("spy-covered-call", "transitions");
+    const archive = JSON.parse(sql.prepare("SELECT value FROM engine_state WHERE key = ?").get(archiveKey).value);
+    assert.equal(archive.records[0].asOf, at, "the call's sale is archived");
+    archive.records[0].holdingsHash = `0x${"0".repeat(64)}`;
+    sql.prepare("UPDATE engine_state SET value = ? WHERE key = ?").run(JSON.stringify(archive), archiveKey);
+    db.readOnly = true;
+    assert.equal((await run("get_fund", { id: "SPYC" })).documentConsistent, false);
     const ustx = await run("get_fund", { id: "USTX" });
     assert.match(ustx.seeAlso, /get_ustx_holdings/);
     await assert.rejects(run("get_fund", { id: "nope" }), /id must be one of/);

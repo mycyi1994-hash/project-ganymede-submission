@@ -1,6 +1,6 @@
 # Build provenance
 
-Production source revision: `1284a9db50ffe1c51c067c3173ff2c8f0f852e4c`.
+Production source revision: `a8b64c357f709bc7b3f986899550746cb2bdb83a`.
 
 This is a source snapshot, not a claim that the entire project was newly built for this event. The original repository remains private. The entries below were exported from its Git history; reviewers can inspect current implementations and tests, and request original history access from the team if needed. No old secrets, local environment files or full private Git history are published.
 
@@ -672,3 +672,11 @@ The deployed range hook places a position's bins around the pool's price when th
 Checks: `npm test` passed all 267 application tests, `npm run lint` reported no errors, and the onchain suite passed 112 tests. After deployment the 11:24 UTC activity index and the 11:25 UTC NAV records of USTX and all eight other products ran on the new version, legacy routes redirected and a forged identity header was refused. These are point-in-time observations, not continuous availability or a security audit.
 
 Public-snapshot validation: clean `npm ci` and `npm test` passed all 267 application tests; clean relayer `npm ci`, typecheck and all 34 tests passed.
+
+## Income records traced to the records they rest on — 6 October 2026
+
+Production source: `a8b64c357f709bc7b3f986899550746cb2bdb83a`. App Worker version: `d17ec1c8-4957-42f4-8f3b-e0d3d9830ac7`; prior version: `35a130d7-d437-4972-946a-cba1ffafe294`. Arbitrage keeper version: `d8398e4c-aab4-4b42-9116-7753bb554f07`, unchanged. Exported development commit: `01dc2493899713de328d0a07ad09c95e33e47eac`, which adds only the release record and the build-period record to the production source.
+
+A covered call's units after a roll, and a note's fixing levels, knock-in and observations, are decided at earlier records, which a later product page did not have. Each confirmed sale, fixing, knock-in and observation is now archived (`lib/income/transitions.ts`), and no later record is sent before such a record is confirmed. The product page traces the latest record back through them, checks each archived record against the NavPublished event in its own transaction receipt, and fails a record whose position, roll arithmetic or note state does not follow from them. The archives start at each product's first record of 4 October 2026: those documents were rebuilt from the launch code and match their transactions' fingerprints.
+
+Checks: `npm test` passed all 273 application tests, `npm run lint` reported no errors, and the onchain suite passed 113 tests on the change that waits for the range hook's redeploy. After deployment the 12:10 UTC NAV records of USTX and all eight other products ran on the new version, the three income pages showed the browser check as matched against those receipts, twelve pages at two widths returned 200 with no page errors or horizontal overflow, legacy routes redirected and a forged identity header was refused. These are point-in-time observations, not continuous availability or a security audit.

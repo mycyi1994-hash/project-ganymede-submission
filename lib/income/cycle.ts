@@ -13,9 +13,10 @@ import type { Publication } from "../xstocks/cycle";
 import { POOL_TOLERANCE, type PoolPrices } from "../xstocks/pool-prices";
 import { INCOME_FUNDS, universeToken } from "../funds/catalog";
 import { fundStateKey, HISTORY_LIMIT, navRequest, read, recordConfirmed, type FundLatest } from "../funds/cycle";
-import { stepAutocall, type AutocallDocument, type AutocallState } from "./autocall";
+import { stepAutocall, type AutocallState } from "./autocall";
 import { stepCoveredCall, type CoveredCallState } from "./covered-call";
 import { INCOME_TERMS } from "./terms";
+import { isIncomeTransition, transitionLabel } from "./transitions";
 
 export const incomeModelKey = (id: string) => `fund:${id}:model`;
 
@@ -49,29 +50,37 @@ export function quoteBlockers(quotes: Quote[], now: string): string[] {
   });
 }
 
-/** Whether a record is a note's last: its document has the note called or matured. */
-function endsNote(publication: Publication): boolean {
-  try {
-    const document = JSON.parse(publication.canonical) as Partial<AutocallDocument>;
-    return document.kind === "autocall" && (document.state?.status === "called" || document.state?.status === "matured");
-  } catch {
-    return false;
+/**
+ * The newest record that decided something (a sale, the fixing, a knock-in or an observation) when
+ * it is not confirmed and nothing after it is. The model has already moved past it, so it goes on
+ * chain before any later record: every record then rests on records on X Layer. One at or before the
+ * confirmed record can no longer be sent (the registry takes only later times), and is left; so is a
+ * simulated one, where no relayer is configured and nothing goes on chain.
+ */
+export function unconfirmedTransition(history: Publication[], confirmed: Publication | null): Publication | null {
+  for (const entry of history) {
+    if (confirmed && Date.parse(entry.asOf) <= Date.parse(confirmed.asOf)) return null;
+    let document: unknown = null;
+    try { document = JSON.parse(entry.canonical); } catch { continue; }
+    if (isIncomeTransition(document)) return entry.status === "confirmed" || entry.status === "simulated" ? null : entry;
   }
+  return null;
 }
 
-/** A note's final record sent again when the relayer refused it, and kept as confirmed once it is. */
-async function resendFinal(repo: EngineRepository, settlement: SettlementClient, fundId: string): Promise<{ publication: Publication | null; error: string | null }> {
-  const history = await read<Publication[]>(repo, fundStateKey(fundId, "history"), []);
-  const final = history.find(endsNote);
-  if (!final || final.status !== "failed") return { publication: null, error: null };
-  const request = navRequest(fundId, final);
+/**
+ * That record sent again when the relayer refused it, and kept as confirmed once it is. One still
+ * queued or submitted is asked about again by the funds cycle's reconcile, under its own key.
+ */
+async function resendTransition(repo: EngineRepository, settlement: SettlementClient, fundId: string, history: Publication[], entry: Publication): Promise<{ confirmed: boolean; error: string | null }> {
+  if (entry.status !== "failed") return { confirmed: false, error: null };
+  const request = navRequest(fundId, entry);
   const result = await settlement.settle(request);
   await repo.saveSettlement(request, result);
-  Object.assign(final, { status: result.status, txHash: result.txHash ?? final.txHash, error: result.error });
+  Object.assign(entry, { status: result.status, txHash: result.txHash ?? entry.txHash, error: result.error });
   await repo.setState(fundStateKey(fundId, "history"), JSON.stringify(history));
-  if (result.status !== "confirmed") return { publication: null, error: result.error };
-  await recordConfirmed(repo, fundId, final);
-  return { publication: final, error: null };
+  if (result.status !== "confirmed") return { confirmed: false, error: result.error };
+  await recordConfirmed(repo, fundId, entry);
+  return { confirmed: true, error: null };
 }
 
 export async function runIncomeCycle(repo: EngineRepository, settlement: SettlementClient, quotes: Map<string, Quote>, now: string, maxQuoteAgeMinutes: number, pools: PoolPrices | null = null): Promise<{ published: number; warnings: string[] }> {
@@ -91,7 +100,19 @@ export async function runIncomeCycle(repo: EngineRepository, settlement: Settlem
       if (fresh.length && Date.parse(now) - Date.parse(asOf) > maxQuoteAgeMinutes * 60_000) blockers.push(`The OnchainOS price is older than ${maxQuoteAgeMinutes} minutes`);
       const disagrees = poolBlocker(fresh, pools);
       if (disagrees) blockers.push(disagrees);
-      const confirmed = await read<Publication | null>(repo, fundStateKey(fund.id, "confirmed"), null);
+      let confirmed = await read<Publication | null>(repo, fundStateKey(fund.id, "confirmed"), null);
+      // A sale, fixing, knock-in or observation not yet on chain goes first (lib/income/transitions.ts).
+      const recorded = await read<Publication[]>(repo, fundStateKey(fund.id, "history"), []);
+      const waiting = unconfirmedTransition(recorded, confirmed);
+      if (waiting) {
+        const label = transitionLabel(JSON.parse(waiting.canonical));
+        const sent = await resendTransition(repo, settlement, fund.id, recorded, waiting);
+        if (sent.confirmed) { confirmed = waiting; published += 1; }
+        else {
+          if (sent.error) warnings.push(`${fund.ticker} ${label}: ${sent.error}`);
+          blockers.unshift(`The ${label} at ${waiting.asOf} is not confirmed yet, and no later record is sent before it`);
+        }
+      }
       if (!blockers.length && confirmed && Math.floor(Date.parse(asOf) / 1000) <= Math.floor(Date.parse(confirmed.asOf) / 1000)) blockers.push("No price is newer than the last NAV record");
       const prices = Object.fromEntries(fresh.map((quote) => [quote.symbol, Number(quote.priceMicros) / 1e6]));
 
@@ -105,11 +126,8 @@ export async function runIncomeCycle(repo: EngineRepository, settlement: Settlem
       } else if (terms.kind === "autocall") {
         const previous = await read<AutocallState | null>(repo, incomeModelKey(fund.id), null);
         if (previous && previous.status !== "live") {
-          // Settled, whatever the prices now: nothing more is recorded once its final record is
-          // confirmed. A final record the relayer refused is sent again; one still queued or
-          // submitted is asked about again by the funds cycle's reconcile.
-          const final = confirmed && endsNote(confirmed) ? { publication: confirmed, error: null } : await resendFinal(repo, settlement, fund.id);
-          if (final.error) warnings.push(`${fund.ticker} final record: ${final.error}`);
+          // Settled, whatever the prices now: nothing more is recorded. Its final record, if the
+          // relayer refused it, was sent again above until it is confirmed.
           ended = true;
         } else if (!blockers.length) {
           const step = stepAutocall(fund.id, terms, previous, prices, asOf);

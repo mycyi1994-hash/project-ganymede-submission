@@ -1982,16 +1982,41 @@ a.gmd-pool-pair:hover b { text-decoration: underline; text-underline-offset: 3px
   .gmd-strategy-row { grid-template-columns: minmax(0,1fr); gap: 4px; }
   .gmd-strategy-row .gmd-segmented button { flex: 1 1 0; min-width: 0; }
 }
-/* Custom's drawn shape: a bar per bin to paint, the presets to start from and the shapes kept in this browser. */
-.gmd-shape-editor { display: grid; gap: 8px; min-width: 0; }
-.gmd-shape-plot { min-width: 0; padding: 6px 6px 2px; border: 1px solid var(--gmd-line); border-radius: 8px; background: #fff; }
-.gmd-shape-plot svg { display: block; width: 100%; height: auto; touch-action: none; cursor: crosshair; user-select: none; -webkit-user-select: none; }
-.gmd-shape-bar.is-dollars { fill: var(--gmd-dusd); }
-.gmd-shape-bar.is-shares { fill: var(--gmd-ustx); }
-.gmd-shape-bar.is-unused { opacity: .18; }
-.gmd-shape-bar:focus { outline: none; }
-.gmd-shape-bar:focus-visible { stroke: var(--gmd-ink); stroke-width: 2; }
-.gmd-shape-price { stroke: var(--gmd-ink); stroke-width: 1; stroke-dasharray: 3 3; }
+/* Custom's price range card, laid out as Meteora's DLMM Pro: the shape in a grid of blocks, a column per bin, with the current price,
+   undo and redo, the range and its prices, and setups kept in this browser. */
+.gmd-range-card { gap: 12px; }
+.gmd-range-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.gmd-range-head > div:first-child { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 12px; }
+.gmd-range-head b { font-size: 13px; color: var(--gmd-ink); }
+.gmd-range-legend { display: inline-flex; align-items: center; gap: 5px; font-size: 12px; color: var(--gmd-copy); }
+.gmd-range-legend i { display: inline-block; width: 9px; height: 9px; border-radius: 3px; }
+.gmd-range-legend i.is-dollars { background: var(--gmd-dusd); }
+.gmd-range-legend i.is-shares { margin-left: 6px; background: var(--gmd-ustx); }
+.gmd-range-history { display: flex; gap: 4px; }
+.gmd-app .gmd-range-history .gmd-icon-button { display: inline-grid; place-items: center; width: 30px; height: 30px; min-height: 0; padding: 0; border: 1px solid var(--gmd-line); border-radius: 6px; background: #fff; color: var(--gmd-ink); }
+.gmd-app .gmd-range-history .gmd-icon-button:hover:not(:disabled) { background: #edf3f1; }
+.gmd-grid-plot { min-width: 0; padding: 8px 8px 0; border: 1px solid var(--gmd-line); border-radius: 10px; background: #fff; }
+.gmd-grid-plot svg { display: block; width: 100%; height: auto; touch-action: none; cursor: pointer; user-select: none; -webkit-user-select: none; }
+.gmd-grid-col rect.is-on, .gmd-grid-col rect.is-off { transition: fill 90ms ease; }
+.gmd-grid-col.is-dollars rect.is-on { fill: var(--gmd-dusd); }
+.gmd-grid-col.is-shares rect.is-on { fill: var(--gmd-ustx); }
+.gmd-grid-col.is-dollars rect.is-off { fill: #d9701f1a; }
+.gmd-grid-col.is-shares rect.is-off { fill: #0f8f841a; }
+.gmd-grid-col.is-unused rect.is-off { fill: #eef1f2; }
+.gmd-grid-col.is-unused rect.is-on { fill: #c9d2d6; }
+.gmd-grid-key { fill: transparent; }
+.gmd-grid-key:focus { outline: none; }
+.gmd-grid-key:focus-visible { stroke: var(--gmd-ink); stroke-width: 2; }
+.gmd-grid-price { stroke: var(--gmd-ink); stroke-width: 1.25; stroke-dasharray: 3 3; }
+.gmd-grid-pill rect { fill: var(--gmd-ink); }
+.gmd-grid-pill text { fill: #fff; font-size: 12px; font-weight: 600; font-variant-numeric: tabular-nums; }
+.gmd-range-prices { display: grid; grid-template-columns: repeat(2, minmax(0,1fr)); gap: 8px; }
+.gmd-range-prices > div { display: grid; gap: 1px; padding: 8px 10px; border: 1px solid var(--gmd-line); border-radius: 8px; background: #fff; }
+.gmd-range-prices span { font-size: 12px; color: var(--gmd-copy); }
+.gmd-range-prices b { font-size: 15px; color: var(--gmd-ink); font-variant-numeric: tabular-nums; }
+.gmd-range-prices small { font-size: 11px; color: var(--gmd-copy); font-variant-numeric: tabular-nums; }
+.gmd-app .gmd-shape-saved .gmd-range-save { min-height: 30px; padding: 4px 16px; font-size: 13px; }
+.gmd-strategy-clipped { color: var(--gmd-copy); }
 .gmd-shape-tools, .gmd-shape-saved { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; font-size: 12px; color: var(--gmd-copy); }
 .gmd-shape-tools .gmd-small-button, .gmd-shape-saved .gmd-small-button { min-height: 30px; padding: 4px 10px; font-size: 12px; }
 .gmd-shape-saved input { flex: 1 1 140px; min-width: 0; min-height: 30px; padding: 4px 8px; border: 1px solid var(--gmd-line); border-radius: 6px; background: #fff; color: var(--gmd-ink); font-size: 12px; }

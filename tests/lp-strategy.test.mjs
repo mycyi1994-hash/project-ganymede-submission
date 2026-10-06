@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { DRAWN_MAX, allocateShares, binTicksFor, constantProductRange, drawingFrom, drawingProblem, fitDrawing, LP_STRATEGIES, ownAboveShare, ownBins, planRange, planStrategy, strategyShape, strategyYear, workingNearNav } from "../lib/xstocks/lp-strategy.ts";
+import { DRAWN_LEVELS, DRAWN_MAX, DRAWN_STEP, allocateShares, binTicksFor, constantProductRange, drawingFrom, drawingProblem, fitDrawing, LP_STRATEGIES, ownAboveShare, ownBins, ownSides, planRange, planStrategy, strategyShape, strategyYear, workingNearNav } from "../lib/xstocks/lp-strategy.ts";
 import { MULTICALL3, RangePriceMoved, assertRangePriceNear, openLimits, previewShape, previewWeights, rangeCalls, rangeErrorMessage, rangeFill, readAll, readRangeTick, shapeWeights } from "../lib/xstocks/range-liquidity.ts";
 import { decodeFunctionData, encodeFunctionResult, parseAbi } from "viem";
 
@@ -92,7 +92,7 @@ test("a preset's weights, lowest price first, are the hook's: even, nearest heav
   assert.deepEqual(previewShape("curve", 30, 3, 2, 600, 300, 100), previewWeights([1, 2, 3, 2, 1], 30, 3, 2, 600, 300, 100));
 });
 
-test("a drawn shape: each bar is the dollars its bin holds, and the deposit splits by the bars", () => {
+test("a drawn shape: each column is the dollars its bin holds, and the deposit splits by the columns", () => {
   const own = { shape: "drawn", rangePercent: 3, bins: 5, sides: "both", drawn: [10, 20, 30, 40, 100, 60, 0, 30, 30, 0] };
   assert.deepEqual(ownBins(own), { binsBelow: 5, binsAbove: 5, weights: [10, 20, 30, 40, 100, 60, 0, 30, 30, 0] });
   // 120 of the 320 drawn are above the price: that share of the deposit buys USTX at the NAV.
@@ -102,40 +102,54 @@ test("a drawn shape: each bar is the dollars its bin holds, and the deposit spli
   // Below the price the farthest bin comes first; each bin's dollars are its bar's share of its side.
   assert.deepEqual(bins.map(bin => Math.round(bin.value * 1e6) / 1e6), [31.25, 62.5, 93.75, 125, 312.5, 187.5, 0, 93.75, 93.75, 0]);
   assert.equal(bins[6].side, "shares");
-  // One side only sends that side's bars, and takes the whole deposit.
+  // One side only sends that side's columns, and takes the whole deposit.
   assert.deepEqual(ownBins({ ...own, sides: "below" }), { binsBelow: 5, binsAbove: 0, weights: [10, 20, 30, 40, 100] });
   assert.deepEqual(ownBins({ ...own, sides: "above" }), { binsBelow: 0, binsAbove: 5, weights: [60, 0, 30, 30, 0] });
   assert.equal(ownAboveShare({ ...own, sides: "above" }), 1);
   assert.equal(ownAboveShare({ ...own, sides: "below" }), 0);
-  // A preset keeps half each, whatever bars were drawn before it.
+  assert.equal(ownSides(own), "both");
+  // A preset keeps half each, whatever was drawn before it.
   assert.equal(ownAboveShare({ ...own, shape: "curve" }), 0.5);
   assert.deepEqual(ownBins({ ...own, shape: "curve" }).weights, shapeWeights("curve", 5, 5));
-  // A side it fills needs a bar above zero.
+  // A side drawn empty is not filled, as on DLMM Pro: the position is one-sided and takes the whole deposit there.
+  const below = { ...own, drawn: [10, 20, 30, 40, 100, 0, 0, 0, 0, 0] };
+  assert.deepEqual(ownBins(below), { binsBelow: 5, binsAbove: 0, weights: [10, 20, 30, 40, 100] });
+  assert.equal(ownSides(below), "below");
+  assert.equal(ownAboveShare(below), 0);
+  assert.deepEqual(planRange(1_000_000_000n, NAV, ownSides(below), ownAboveShare(below)), { investMicros: 0n, sharesMicros: 0n, dollarsMicros: 1_000_000_000n });
+  assert.equal(ownSides({ ...own, drawn: [0, 0, 0, 0, 0, 10, 0, 0, 0, 0] }), "above");
+  // It needs a block on a side it fills.
   assert.equal(drawingProblem(own), null);
-  assert.equal(drawingProblem({ ...own, drawn: [10, 20, 30, 40, 100, 0, 0, 0, 0, 0] }), "Draw a bar above the price too, or fill only the side below.");
-  assert.equal(drawingProblem({ ...own, sides: "below", drawn: [10, 20, 30, 40, 100, 0, 0, 0, 0, 0] }), null);
-  assert.equal(drawingProblem({ ...own, sides: "above", drawn: [10, 20, 30, 40, 100, 0, 0, 0, 0, 0] }), "Draw at least one bar above the price.");
-  assert.equal(drawingProblem({ ...own, drawn: Array(10).fill(0) }), "Draw at least one bar.");
+  assert.equal(drawingProblem(below), null);
+  assert.equal(drawingProblem({ ...below, sides: "below" }), null);
+  assert.equal(drawingProblem({ ...below, sides: "above" }), "Draw at least one block above the price.");
+  assert.equal(drawingProblem({ ...own, drawn: Array(10).fill(0) }), "Draw at least one block.");
+  assert.equal(drawingProblem({ ...own, sides: "below", drawn: Array(10).fill(0) }), "Draw at least one block below the price.");
   assert.equal(drawingProblem({ ...own, shape: "spot", drawn: Array(10).fill(0) }), null);
   // A drawing whose bars above are few may leave the part bought at the NAV under the fund's $10.
   assert.equal(planRange(100_000_000n, NAV, "both", 0.05), null);
   assert.ok(planRange(100_000_000n, NAV, "both", 0.1));
 });
 
-test("a drawing keeps its picture when the bins change, and starts from a preset", () => {
-  // Bars are whole numbers from 0 to DRAWN_MAX; a drawing of the right length is kept as it is.
-  assert.deepEqual(fitDrawing([0, 50.4, 120, -3, 7, 8], 3), [0, 50, DRAWN_MAX, 0, 7, 8]);
-  // Five bars a side stretched to ten and back: each side resampled along its length.
-  const drawn = [0, 25, 50, 75, 100, 100, 75, 50, 25, 0];
+test("a drawing is whole blocks, keeps its picture when the bins change, and starts from a preset", () => {
+  // Each column is a stack of up to ten blocks: a multiple of DRAWN_STEP from 0 to DRAWN_MAX.
+  assert.equal(DRAWN_LEVELS * DRAWN_STEP, DRAWN_MAX);
+  assert.deepEqual(fitDrawing([0, 50.4, 120, -3, 7, 8], 3), [0, 50, DRAWN_MAX, 0, 10, 10]);
+  assert.deepEqual(fitDrawing([0, 54, 55, 45, 44, 99], 3), [0, 50, 60, 50, 40, 100]);
+  // Five columns a side stretched to ten and back: each side resampled along its length.
+  const drawn = [0, 20, 50, 80, 100, 100, 80, 50, 20, 0];
   const ten = fitDrawing(drawn, 10);
   assert.equal(ten.length, 20);
+  assert.ok(ten.every(column => column % DRAWN_STEP === 0));
   assert.deepEqual([ten[0], ten[9], ten[10], ten[19]], [0, 100, 100, 0]);
-  assert.ok(ten.slice(0, 10).every((bar, index, side) => index === 0 || bar >= side[index - 1]), "the left side still rises");
+  assert.ok(ten.slice(0, 10).every((column, index, side) => index === 0 || column >= side[index - 1]), "the left side still rises");
   assert.deepEqual(fitDrawing(ten, 5), drawn);
   // Nothing drawn yet is a flat half.
   assert.deepEqual(fitDrawing(undefined, 2), [50, 50, 50, 50]);
-  // A preset as bars: Curve's tallest next to the price.
-  assert.deepEqual(drawingFrom("curve", 4), [25, 50, 75, 100, 100, 75, 50, 25]);
+  // A preset as blocks: Curve's tallest next to the price, every bin at least one block.
+  assert.deepEqual(drawingFrom("curve", 4), [30, 50, 80, 100, 100, 80, 50, 30]);
+  assert.deepEqual(drawingFrom("bid-ask", 5), [100, 80, 60, 40, 20, 20, 40, 60, 80, 100]);
+  assert.ok(drawingFrom("curve", 20).every(column => column >= DRAWN_STEP));
   assert.deepEqual(drawingFrom("spot", 2), [100, 100, 100, 100]);
 });
 

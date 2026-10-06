@@ -25,7 +25,7 @@ import { useWalletAccount } from "./WalletAccount";
 import { TxLink, sendFromWallet, useInjectedWallet, useWalletChain, type Provider } from "./WalletInvest";
 import { TxSteps, WalletGate, orderDeadline, runPlan, useUnmountSignal, type PlanProgress, type PlanStep, type StepState, type TxStep } from "./LiquidityParts";
 import { V4_POOL_DEPLOYMENT, formatFeePips, v4Calls, v4ErrorMessage, v4Fill, v4ValueMicros, v4WithdrawEstimate, type V4Amounts } from "@/lib/xstocks/v4-liquidity";
-import { allocateShares, binTicksFor, drawingProblem, ownAboveShare, ownBins, planRange, planStrategy, strategyById } from "@/lib/xstocks/lp-strategy";
+import { allocateShares, binTicksFor, drawingProblem, ownAboveShare, ownBins, ownSides, planRange, planStrategy, strategyById } from "@/lib/xstocks/lp-strategy";
 import { RANGE_POOL_DEPLOYMENT, RangePriceMoved, assertRangePriceNear, openLimits, rangeCalls, rangeErrorMessage, rangeFill } from "@/lib/xstocks/range-liquidity";
 import { V4LiquidityPanel, V4PoolGuide, V4PoolOverview, useV4Pool, v4Position, type V4Reader } from "./PoolsV4";
 import { PoolResults } from "./PoolResults";
@@ -42,6 +42,8 @@ const ONE = 1_000_000n;
 const FEE_PERCENT = `${POOL_FEE_BPS / 100n}.${(POOL_FEE_BPS % 100n).toString().padStart(2, "0")}%`;
 const usd = (micros: bigint) => formatUsdMicros(micros, 2);
 const ustx = (micros: bigint) => `${formatShares(micros)} USTX`;
+/** A price in micros as dollars per USTX, for the shape grid's labels. */
+const usdOf = (micros: bigint | null | undefined) => micros ? Number(micros) / 1e6 : null;
 const day = (iso: string) => new Date(iso).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric", timeZone: "UTC" });
 
 type Snapshot = { owner: string | null; pool: PoolLiquidity; account: LiquidityAccount | null };
@@ -176,7 +178,7 @@ function PoolSummary({ snapshot, v4, range, owner, growth, amount, strategy, onS
       <div><span>In the pool</span><strong>{pool && nav !== null ? formatUsdRounded(poolValueMicros(pool, nav)) : <Skeleton width={72} />}</strong><small>USTX and demo dollars</small></div>
       <div><span>Your liquidity</span><strong>{!owner ? "—" : !account || !mine ? <Skeleton width={56} /> : account.lpMicros === 0n ? "None yet" : mine.valueMicros !== null ? formatUsdRounded(mine.valueMicros) : `${formatSharesShort(account.lpMicros, 4)} USTX-LP`}</strong><small>{owner ? "In this wallet" : "Connect OKX Wallet"}</small></div>
     </div>
-    {!owner && v4 && <StrategyPicker value={strategy} onChange={onStrategy} range={Boolean(range)} />}
+    {!owner && v4 && <StrategyPicker value={strategy} onChange={onStrategy} range={Boolean(range)} priceUsd={usdOf(range?.snapshot?.pool.priceMicros ?? nav)} />}
     {pool ? <StrategyChart choice={strategy} amountMicros={BigInt(Math.round(deposit * 1e6))} pool={pool} v4={v4?.snapshot?.pool ?? null} deployment={V4_POOL_DEPLOYMENT} range={range?.snapshot?.pool ?? null} />
       : <div className="gmd-lq is-loading" aria-busy="true"><Skeleton width="100%" className="gmd-lq-skeleton" /></div>}
     <p className="gmd-caption">Demo dollars and USTX have no value. Every figure here is read from the pools on X Layer.</p>
@@ -380,7 +382,7 @@ function LiquidityPanel({ provider, chain, owner, reader, v4, range, onBusy, amo
   const rangeAccount = rangeSnapshot && owner && rangeSnapshot.owner === owner ? rangeSnapshot.account : null;
   const rangeFresh = !range || (rangeSnapshot !== null && rangeSnapshot.pool.block >= range.watermark);
   const own = range && RANGE_POOL_DEPLOYMENT ? ownRangeOf(strategy) : null;
-  const rangePlan = own ? planRange(dollarsOnly ?? 0n, nav, own.sides, ownAboveShare(own)) : null;
+  const rangePlan = own ? planRange(dollarsOnly ?? 0n, nav, ownSides(own), ownAboveShare(own)) : null;
   // A strategy with part at the NAV: one investment, then each pool's part.
   const percent = v4 && V4_POOL_DEPLOYMENT && !own ? strategyPercent(strategy) : 0;
   const mixed = percent > 0;
@@ -790,7 +792,7 @@ function LiquidityPanel({ provider, chain, owner, reader, v4, range, onBusy, amo
       </div>
       {account.dollarsMicros < 20n * ONE && claimRow}
       <GasNotice address={address} gasWei={account.gasWei} onFunded={reader.retry} />
-      {v4 && <StrategyPicker value={strategy} onChange={next => { onStrategy(next); setFailure(null); }} range={Boolean(range)} />}
+      {v4 && <StrategyPicker value={strategy} onChange={next => { onStrategy(next); setFailure(null); }} range={Boolean(range)} priceUsd={usdOf(rangePool?.priceMicros ?? nav)} />}
       <div className="gmd-order-input">
         <label htmlFor="liquidity-simple">Demo dollars to add</label>
         <div><input id="liquidity-simple" inputMode="decimal" autoComplete="off" placeholder="0" value={tab === "add" ? dollarsText : ""} onChange={event => { setTab("add"); setMode("dollars"); setDollarsText(event.target.value); setFailure(null); }} aria-invalid={fresh && Boolean(dollarsText) && Boolean(addProblem)} aria-describedby="liquidity-simple-help" /><span>dUSD</span></div>
@@ -803,7 +805,7 @@ function LiquidityPanel({ provider, chain, owner, reader, v4, range, onBusy, amo
       {failureLine}
       <button type="button" className="gmd-button" disabled={tab !== "add" || Boolean(addProblem) || !ready} onClick={() => void run()}>Add liquidity{mixed || own ? `: ${strategyById(strategy.id).name}` : ""} <Icon name="arrow" size={17} /></button>
       {(account.lpMicros > 0n || v4Lp > 0n || Boolean(v4Account?.waiting) || ownPositions.length > 0) && <button type="button" className="gmd-button is-secondary" disabled={!fresh} onClick={() => { setFailure(null); void run(true); }}>Withdraw all as demo dollars</button>}
-      <p className="gmd-caption">{own ? `${own.sides === "below" ? "Your demo dollars go into bins below the price, buying USTX if it falls." : own.sides === "above" ? "Your demo dollars buy USTX at the NAV for bins above the price, sold if it rises." : own.shape === "drawn" ? `${Math.round(ownAboveShare(own) * 100)}% of your demo dollars buy USTX at the NAV for the bins above the price, as you drew them; the rest fills the bins below.` : "Half your demo dollars buy USTX at the NAV for the bins above the price; the other half fills the bins below."} The position is yours alone: close it any time for its tokens and fees.` : mixed ? `Part of your demo dollars buys USTX at the NAV, then ${percent === 100 ? "both go into the v4 pool, which holds them near the NAV" : `${percent}% goes into the v4 pool at the NAV and the rest into the constant-product pool`}. The v4 pool's part becomes LP tokens at the next NAV record.` : "Part of your demo dollars buys USTX at the NAV, then both go into the pool."} Your wallet asks you to confirm each step. Demo dollars and USTX have no value.</p>
+      <p className="gmd-caption">{own ? `${ownSides(own) === "below" ? "Your demo dollars go into bins below the price, buying USTX if it falls." : ownSides(own) === "above" ? "Your demo dollars buy USTX at the NAV for bins above the price, sold if it rises." : own.shape === "drawn" ? `${Math.round(ownAboveShare(own) * 100)}% of your demo dollars buy USTX at the NAV for the bins above the price, as you drew them; the rest fills the bins below.` : "Half your demo dollars buy USTX at the NAV for the bins above the price; the other half fills the bins below."} The position is yours alone: close it any time for its tokens and fees.` : mixed ? `Part of your demo dollars buys USTX at the NAV, then ${percent === 100 ? "both go into the v4 pool, which holds them near the NAV" : `${percent}% goes into the v4 pool at the NAV and the rest into the constant-product pool`}. The v4 pool's part becomes LP tokens at the next NAV record.` : "Part of your demo dollars buys USTX at the NAV, then both go into the pool."} Your wallet asks you to confirm each step. Demo dollars and USTX have no value.</p>
       <button type="button" className="gmd-text-button" onClick={() => { setExpert(true); setFailure(null); }}>More options: both tokens, or part of your liquidity</button>
     </>);
   }

@@ -5,8 +5,8 @@
  * Uniswap v4 pool's hook keeps it within about 2% of the NAV and moves it to each NAV record (Curve).
  * Bid-Ask and Custom open a position of one's own in the range pool
  * (contracts/GanymedeRangeLiquidityHook.sol, lib/xstocks/range-liquidity.ts): bins either side of the
- * price, shaped Spot, Curve or Bid-Ask, or drawn bin by bin as on Meteora's DLMM Pro, over a range
- * and on the sides one chooses.
+ * price, shaped Spot, Curve or Bid-Ask, or drawn block by block in a grid as on Meteora's DLMM Pro,
+ * over a range and on the sides one chooses.
  */
 import { FUND_MIN_INVESTMENT_MICROS } from "./fund";
 import { shapeWeights, type PresetShape } from "./range-liquidity";
@@ -18,19 +18,22 @@ export type Strategy = { id: StrategyId; name: string; label: string; pool: "poo
 export type RangeSides = "both" | "below" | "above";
 /**
  * One's own position: its shape, how far either side of the price it reaches, its bins per side and
- * which sides it fills. A drawn shape keeps a bar for every bin on both sides, lowest price first
- * (`bins` below, then `bins` above), each from 0 to DRAWN_MAX, whichever sides it fills.
+ * which sides it fills. A drawn shape keeps a column for every bin on both sides, lowest price first
+ * (`bins` below, then `bins` above), each a stack of DRAWN_LEVELS blocks of DRAWN_STEP, as on
+ * Meteora's DLMM Pro; a side drawn empty is not filled.
  */
 export type OwnRange = { shape: PresetShape | "drawn"; rangePercent: number; bins: number; sides: RangeSides; drawn?: number[] };
-/** The tallest bar of a drawn shape. */
-export const DRAWN_MAX = 100;
+/** A drawn column's height: whole blocks of DRAWN_STEP, up to DRAWN_LEVELS of them (DRAWN_MAX). */
+export const DRAWN_LEVELS = 10;
+export const DRAWN_STEP = 10;
+export const DRAWN_MAX = DRAWN_LEVELS * DRAWN_STEP;
 
 export const LP_STRATEGIES: Strategy[] = [
   { id: "spot", name: "Spot", label: "Even at every price", pool: "pooled", v4Percent: 0, summary: "All of it in the constant-product pool: liquidity at every price, so it earns on any trade and never leaves its range, but little of it works near the NAV." },
   { id: "curve", name: "Curve", label: "Concentrated at the NAV", pool: "pooled", v4Percent: 100, summary: "All of it in the v4 pool: the hook keeps it within about 2% of the NAV and moves it to each NAV record, so far more of each dollar meets trades near the NAV." },
   { id: "spot-curve", name: "Spot + Curve", label: "Half in each", pool: "pooled", v4Percent: 50, summary: "Half in each pool: a peak at the NAV from the v4 pool on a low, even base from the constant-product pool." },
   { id: "bid-ask", name: "Bid-Ask", label: "Heaviest at the ends", pool: "range", v4Percent: 0, summary: "A position of your own: demo dollars below the price and USTX above it, more in each bin the farther it is from the price, out to 3% either side. It buys more as the price falls and sells more as it rises, earning most from large moves that come back." },
-  { id: "custom", name: "Custom", label: "Your own range", pool: "range", v4Percent: 0, summary: "A position of your own, set as you like: its shape, a preset or drawn bar by bar, how far it reaches either side of the price, how many bins, and whether it fills both sides or only one." },
+  { id: "custom", name: "Custom", label: "Your own range", pool: "range", v4Percent: 0, summary: "A position of your own, set as you like: its shape, a preset or drawn block by block, how far it reaches either side of the price, how many bins, and whether it fills both sides or only one." },
 ];
 
 export const BID_ASK_RANGE: OwnRange = { shape: "bid-ask", rangePercent: 3, bins: 10, sides: "both" };
@@ -42,12 +45,12 @@ export function binTicksFor(rangePercent: number, bins: number): number {
 }
 
 /**
- * A drawing fitted to `bins` bars a side: kept as it is when it has 2 × `bins` bars, otherwise each
- * side resampled along its length, so changing the bins keeps the picture. Bars are whole numbers
- * from 0 to DRAWN_MAX.
+ * A drawing fitted to `bins` columns a side: kept as it is when it has 2 × `bins` columns, otherwise
+ * each side resampled along its length, so changing the bins keeps the picture. Each column is a
+ * whole number of blocks: a multiple of DRAWN_STEP from 0 to DRAWN_MAX.
  */
 export function fitDrawing(drawn: readonly number[] | undefined, bins: number): number[] {
-  const clamp = (value: number) => Math.max(0, Math.min(DRAWN_MAX, Math.round(Number.isFinite(value) ? value : 0)));
+  const clamp = (value: number) => Math.max(0, Math.min(DRAWN_LEVELS, Math.round((Number.isFinite(value) ? value : 0) / DRAWN_STEP))) * DRAWN_STEP;
   if (drawn && drawn.length === 2 * bins) return drawn.map(clamp);
   if (!drawn || drawn.length < 2 || drawn.length % 2) return Array.from({ length: 2 * bins }, () => DRAWN_MAX / 2);
   const half = drawn.length / 2;
@@ -59,46 +62,58 @@ export function fitDrawing(drawn: readonly number[] | undefined, bins: number): 
   return [...resample(drawn.slice(0, half)), ...resample(drawn.slice(half))];
 }
 
-/** A preset shape as bars to draw from: its weights on both sides, scaled to DRAWN_MAX. */
+/** A preset shape as blocks to draw from: its weights on both sides, the heaviest DRAWN_MAX, every bin at least one block. */
 export function drawingFrom(shape: PresetShape, bins: number): number[] {
   const weights = shapeWeights(shape, bins, bins);
   const most = Math.max(...weights);
-  return weights.map(weight => Math.round(weight / most * DRAWN_MAX));
+  return weights.map(weight => Math.max(1, Math.round(weight / most * DRAWN_LEVELS)) * DRAWN_STEP);
 }
+
+const total = (values: readonly number[]) => values.reduce((sum, value) => sum + value, 0);
 
 /**
  * The bins a position of one's own opens and each one's weight, lowest price first, as the hook
- * takes them: a preset's own weights, or the drawn bars of the sides it fills.
+ * takes them: a preset's own weights on the sides it fills, or the drawn columns of each side it
+ * fills that has a block drawn; a side drawn empty is left out.
  */
 export function ownBins(own: OwnRange): { binsBelow: number; binsAbove: number; weights: number[] } {
-  const binsBelow = own.sides === "above" ? 0 : own.bins, binsAbove = own.sides === "below" ? 0 : own.bins;
-  if (own.shape !== "drawn") return { binsBelow, binsAbove, weights: shapeWeights(own.shape, binsBelow, binsAbove) };
+  const below = own.sides !== "above", above = own.sides !== "below";
+  if (own.shape !== "drawn") {
+    const binsBelow = below ? own.bins : 0, binsAbove = above ? own.bins : 0;
+    return { binsBelow, binsAbove, weights: shapeWeights(own.shape, binsBelow, binsAbove) };
+  }
   const drawn = fitDrawing(own.drawn, own.bins);
-  return { binsBelow, binsAbove, weights: [...(binsBelow ? drawn.slice(0, own.bins) : []), ...(binsAbove ? drawn.slice(own.bins) : [])] };
+  const lower = drawn.slice(0, own.bins), upper = drawn.slice(own.bins);
+  const binsBelow = below && total(lower) > 0 ? own.bins : 0, binsAbove = above && total(upper) > 0 ? own.bins : 0;
+  return { binsBelow, binsAbove, weights: [...(binsBelow ? lower : []), ...(binsAbove ? upper : [])] };
+}
+
+/** The sides a position of one's own fills: as chosen, or for a drawing, the chosen sides it drew on. */
+export function ownSides(own: OwnRange): RangeSides {
+  if (own.shape !== "drawn") return own.sides;
+  const { binsBelow, binsAbove } = ownBins(own);
+  return binsBelow && !binsAbove ? "below" : binsAbove && !binsBelow ? "above" : own.sides;
 }
 
 /**
  * The share of the deposit for the bins above the price: half for a preset on both sides, and for a
- * drawing the bars above over all the bars, since a bar's height is the dollars it holds.
+ * drawing the blocks above over all the blocks, since a column's height is the dollars its bin holds.
  */
 export function ownAboveShare(own: OwnRange): number {
-  if (own.sides !== "both") return own.sides === "above" ? 1 : 0;
+  const sides = ownSides(own);
+  if (sides !== "both") return sides === "above" ? 1 : 0;
   if (own.shape !== "drawn") return 0.5;
   const { binsBelow, weights } = ownBins(own);
-  const below = weights.slice(0, binsBelow).reduce((total, weight) => total + weight, 0);
-  const above = weights.slice(binsBelow).reduce((total, weight) => total + weight, 0);
+  const below = total(weights.slice(0, binsBelow)), above = total(weights.slice(binsBelow));
   return below + above > 0 ? above / (below + above) : 0.5;
 }
 
-/** Why a drawing cannot open, or null: each side it fills needs a bar above zero. */
+/** Why a drawing cannot open, or null: it needs a block on a side it fills. */
 export function drawingProblem(own: OwnRange): string | null {
   if (own.shape !== "drawn") return null;
-  const { binsBelow, binsAbove, weights } = ownBins(own);
-  const below = weights.slice(0, binsBelow).some(weight => weight > 0), above = weights.slice(binsBelow).some(weight => weight > 0);
-  if (binsBelow && binsAbove && !below && !above) return "Draw at least one bar.";
-  if (binsBelow && !below) return binsAbove ? "Draw a bar below the price too, or fill only the side above." : "Draw at least one bar below the price.";
-  if (binsAbove && !above) return binsBelow ? "Draw a bar above the price too, or fill only the side below." : "Draw at least one bar above the price.";
-  return null;
+  const { binsBelow, binsAbove } = ownBins(own);
+  if (binsBelow || binsAbove) return null;
+  return own.sides === "below" ? "Draw at least one block below the price." : own.sides === "above" ? "Draw at least one block above the price." : "Draw at least one block.";
 }
 
 /**

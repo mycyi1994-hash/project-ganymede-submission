@@ -3,7 +3,7 @@ import type { CSSProperties } from "react";
 // a stylesheet imported on its own becomes an empty chunk that the build drops but still preloads.
 import "./product.css";
 
-export function Icon({ name, size = 20 }: { name: "arrow" | "back" | "external" | "wallet" | "market" | "portfolio" | "activity" | "check" | "info" | "refresh" | "chevron" | "lock" | "download" | "close" | "pool" | "spark" | "send"; size?: number }) {
+export function Icon({ name, size = 20 }: { name: "arrow" | "back" | "external" | "wallet" | "market" | "portfolio" | "activity" | "check" | "info" | "refresh" | "chevron" | "lock" | "download" | "close" | "pool" | "spark" | "send" | "undo" | "redo"; size?: number }) {
   const paths: Record<string, string> = {
     arrow: "M5 12h14m-5-5 5 5-5 5", back: "M19 12H5m5-5-5 5 5 5", external: "M8 5h11v11M19 5 5 19",
     wallet: "M4 7V5a2 2 0 0 1 2-2h12v4M4 7h16v14H4V7Zm12 5h4v5h-4a2.5 2.5 0 0 1 0-5Z",
@@ -16,6 +16,7 @@ export function Icon({ name, size = 20 }: { name: "arrow" | "back" | "external" 
     download: "M12 4v11m-5-5 5 5 5-5M5 20h14", close: "M6 6l12 12M18 6 6 18",
     spark: "M12 3l1.8 5.2L19 10l-5.2 1.8L12 17l-1.8-5.2L5 10l5.2-1.8L12 3Zm7 12 .8 2.2L22 18l-2.2.8L19 21l-.8-2.2L16 18l2.2-.8L19 15Z",
     send: "M4 12 20 4l-6 16-3-7-7-1Z",
+    undo: "M9 14 4 9l5-5M4 9h10.5a5.5 5.5 0 0 1 0 11H11", redo: "m15 14 5-5-5-5m5 5H9.5a5.5 5.5 0 0 0 0 11H13",
     pool: "M3 15c2.5 0 2.5-2 5-2s2.5 2 5 2 2.5-2 5-2 3 2 3 2M3 20c2.5 0 2.5-2 5-2s2.5 2 5 2 2.5-2 5-2 3 2 3 2M12 3c2.5 3 4 5 4 6.5a4 4 0 0 1-8 0C8 8 9.5 6 12 3Z",
   };
   return <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d={paths[name]} /></svg>;

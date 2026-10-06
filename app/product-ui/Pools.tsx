@@ -25,11 +25,11 @@ import { useWalletAccount } from "./WalletAccount";
 import { TxLink, sendFromWallet, useInjectedWallet, useWalletChain, type Provider } from "./WalletInvest";
 import { TxSteps, WalletGate, orderDeadline, runPlan, useUnmountSignal, type PlanProgress, type PlanStep, type StepState, type TxStep } from "./LiquidityParts";
 import { V4_POOL_DEPLOYMENT, formatFeePips, v4Calls, v4ErrorMessage, v4Fill, v4ValueMicros, v4WithdrawEstimate, type V4Amounts } from "@/lib/xstocks/v4-liquidity";
-import { allocateShares, binTicksFor, planRange, planStrategy, strategyById } from "@/lib/xstocks/lp-strategy";
+import { allocateShares, binTicksFor, drawingProblem, ownAboveShare, ownBins, planRange, planStrategy, strategyById } from "@/lib/xstocks/lp-strategy";
 import { RANGE_POOL_DEPLOYMENT, RangePriceMoved, assertRangePriceNear, openLimits, rangeCalls, rangeErrorMessage, rangeFill } from "@/lib/xstocks/range-liquidity";
 import { V4LiquidityPanel, V4PoolGuide, V4PoolOverview, useV4Pool, v4Position, type V4Reader } from "./PoolsV4";
 import { PoolResults } from "./PoolResults";
-import { DEFAULT_CHOICE, StrategyChart, StrategyPicker, ownRangeOf, strategyPercent, type StrategyChoice } from "./PoolStrategy";
+import { DEFAULT_CHOICE, SHAPE_LABELS, StrategyChart, StrategyPicker, ownRangeOf, strategyPercent, type StrategyChoice } from "./PoolStrategy";
 import { RangePositions, useRangePool, type RangeReader } from "./PoolsRange";
 import type { RangePosition } from "@/lib/xstocks/range-liquidity";
 
@@ -380,7 +380,7 @@ function LiquidityPanel({ provider, chain, owner, reader, v4, range, onBusy, amo
   const rangeAccount = rangeSnapshot && owner && rangeSnapshot.owner === owner ? rangeSnapshot.account : null;
   const rangeFresh = !range || (rangeSnapshot !== null && rangeSnapshot.pool.block >= range.watermark);
   const own = range && RANGE_POOL_DEPLOYMENT ? ownRangeOf(strategy) : null;
-  const rangePlan = own ? planRange(dollarsOnly ?? 0n, nav, own.sides) : null;
+  const rangePlan = own ? planRange(dollarsOnly ?? 0n, nav, own.sides, ownAboveShare(own)) : null;
   // A strategy with part at the NAV: one investment, then each pool's part.
   const percent = v4 && V4_POOL_DEPLOYMENT && !own ? strategyPercent(strategy) : 0;
   const mixed = percent > 0;
@@ -397,14 +397,15 @@ function LiquidityPanel({ provider, chain, owner, reader, v4, range, onBusy, amo
     : dollarsOnly;
   const rangeNavGap = rangePool && rangePool.navMicros ? Number(rangePool.priceMicros - rangePool.navMicros) / Number(rangePool.navMicros) : null;
   const rangeProblem = !own || !account || !pool ? null
-    : !fresh || !rangeFresh ? "Updating your balances…"
+    : drawingProblem(own)
+    ?? (!fresh || !rangeFresh ? "Updating your balances…"
     : !rangePool || !rangeAccount ? "Reading the range pool on X Layer Testnet…"
     : rangePool.navMicros === null ? rangePool.navReason ?? "The range pool cannot use the NAV right now."
     : dollarsOnly === null || dollarsOnly === 0n ? "Enter an amount in demo dollars."
     : (dollarsNeeded ?? 0n) > account.dollarsMicros ? "That is more than your demo dollars."
     : !rangePlan ? "That amount is too small: the part bought at the NAV must come to at least $10."
     : rangeNavGap !== null && Math.abs(rangeNavGap) > 0.0095 ? "The range pool’s price is more than 1% from the NAV right now. The keeper brings it back within five minutes."
-    : null;
+    : null);
   const rangeConfirmations = !rangePlan || !account || !rangeAccount ? 0
     : (rangePlan.investMicros > 0n ? (reuse ? 0 : Number(account.fundAllowanceMicros < rangePlan.investMicros) + 1) + Number(rangeAccount.assetAllowanceMicros < rangePlan.sharesMicros * 101n / 100n) : 0)
       + (rangePlan.dollarsMicros > 0n ? Number(rangeAccount.dollarAllowanceMicros < rangePlan.dollarsMicros) : 0) + 1;
@@ -536,11 +537,16 @@ function LiquidityPanel({ provider, chain, owner, reader, v4, range, onBusy, amo
       if (parts.dollarsMicros > 0n && mineRange.dollarAllowanceMicros < parts.dollarsMicros) plan.push({ key: "approveRangeDollars", label: "Approve demo dollars for your position", approval: true, request: async () => calls.approveDollars(parts.dollarsMicros) });
       if (parts.investMicros > 0n) plan.push({ key: "approveRangeShares", label: "Approve USTX for your position", approval: true, request: async () => mineRange.assetAllowanceMicros >= shares() ? null : calls.approveShares(shares()) });
       const binTicks = binTicksFor(shape.rangePercent, shape.bins);
+      // A preset is spread by the hook's own rule; a drawing sends the weight of every bin.
+      const layout = ownBins(shape), preset = shape.shape === "drawn" ? null : shape.shape;
       plan.push({
-        key: "open", label: `Open your ${shape.shape === "bid-ask" ? "Bid-Ask" : shape.shape === "curve" ? "Curve" : "Spot"} position`, approval: false,
+        key: "open", label: preset ? `Open your ${SHAPE_LABELS[preset]} position` : "Open the position you drew", approval: false,
         request: async (progress) => {
           await assertRangePriceNear(deployment, seenTick, { minBlock: progress.block });
-          return calls.open(shape.shape, binTicks, shape.sides === "above" ? 0 : shape.bins, shape.sides === "below" ? 0 : shape.bins, { sharesMicros: shares(), dollarsMicros: parts.dollarsMicros }, await orderDeadline(), limits);
+          const amounts = { sharesMicros: shares(), dollarsMicros: parts.dollarsMicros }, deadline = await orderDeadline();
+          return preset
+            ? calls.open(preset, binTicks, layout.binsBelow, layout.binsAbove, amounts, deadline, limits)
+            : calls.openCustom(binTicks, layout.binsBelow, layout.binsAbove, layout.weights, amounts, deadline, limits);
         },
         read: receipt => { const fill = rangeFill(receipt, deployment, from); if (!fill.opened) throw new Error("The position did not open on X Layer Testnet."); result.opened = fill.opened; },
       });
@@ -797,7 +803,7 @@ function LiquidityPanel({ provider, chain, owner, reader, v4, range, onBusy, amo
       {failureLine}
       <button type="button" className="gmd-button" disabled={tab !== "add" || Boolean(addProblem) || !ready} onClick={() => void run()}>Add liquidity{mixed || own ? `: ${strategyById(strategy.id).name}` : ""} <Icon name="arrow" size={17} /></button>
       {(account.lpMicros > 0n || v4Lp > 0n || Boolean(v4Account?.waiting) || ownPositions.length > 0) && <button type="button" className="gmd-button is-secondary" disabled={!fresh} onClick={() => { setFailure(null); void run(true); }}>Withdraw all as demo dollars</button>}
-      <p className="gmd-caption">{own ? `${own.sides === "below" ? "Your demo dollars go into bins below the price, buying USTX if it falls." : own.sides === "above" ? "Your demo dollars buy USTX at the NAV for bins above the price, sold if it rises." : "Half your demo dollars buy USTX at the NAV for the bins above the price; the other half fills the bins below."} The position is yours alone: close it any time for its tokens and fees.` : mixed ? `Part of your demo dollars buys USTX at the NAV, then ${percent === 100 ? "both go into the v4 pool, which holds them near the NAV" : `${percent}% goes into the v4 pool at the NAV and the rest into the constant-product pool`}. The v4 pool's part becomes LP tokens at the next NAV record.` : "Part of your demo dollars buys USTX at the NAV, then both go into the pool."} Your wallet asks you to confirm each step. Demo dollars and USTX have no value.</p>
+      <p className="gmd-caption">{own ? `${own.sides === "below" ? "Your demo dollars go into bins below the price, buying USTX if it falls." : own.sides === "above" ? "Your demo dollars buy USTX at the NAV for bins above the price, sold if it rises." : own.shape === "drawn" ? `${Math.round(ownAboveShare(own) * 100)}% of your demo dollars buy USTX at the NAV for the bins above the price, as you drew them; the rest fills the bins below.` : "Half your demo dollars buy USTX at the NAV for the bins above the price; the other half fills the bins below."} The position is yours alone: close it any time for its tokens and fees.` : mixed ? `Part of your demo dollars buys USTX at the NAV, then ${percent === 100 ? "both go into the v4 pool, which holds them near the NAV" : `${percent}% goes into the v4 pool at the NAV and the rest into the constant-product pool`}. The v4 pool's part becomes LP tokens at the next NAV record.` : "Part of your demo dollars buys USTX at the NAV, then both go into the pool."} Your wallet asks you to confirm each step. Demo dollars and USTX have no value.</p>
       <button type="button" className="gmd-text-button" onClick={() => { setExpert(true); setFailure(null); }}>More options: both tokens, or part of your liquidity</button>
     </>);
   }

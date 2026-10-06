@@ -8,12 +8,13 @@ import { hookRevert, tickToUsd, v4PriceMicros, type V4Amounts, type V4Deployment
 // The USTX/dUSD pool where every liquidity provider holds positions of their own
 // (contracts/GanymedeRangeLiquidityHook.sol), on the same Uniswap v4 PoolManager as the pool held
 // at the NAV: a position is a run of bins either side of the price, demo dollars below it and USTX
-// above, spread evenly (Spot), heaviest next to the price (Curve) or heaviest at the far ends
-// (Bid-Ask). Swaps need a NAV under an hour old, and none may leave the price more than 5% from
-// it; GanymedeRangeArbitrage, which the keeper runs, brings the price back to the NAV. Closing a
-// position pays its tokens and fees at any NAV, and opens only within the caller's tick limits.
-// RANGE_POOL_DEPLOYMENT pins the deployment `npm run deploy:range` recorded on 6 October 2026 with
-// the user's approval, when it replaced the hook of 4 October with one that takes those limits;
+// above, spread evenly (Spot), heaviest next to the price (Curve), heaviest at the far ends
+// (Bid-Ask), or bin by bin as the provider draws it (Custom, openCustom). Swaps need a NAV under an
+// hour old, and none may leave the price more than 5% from it; GanymedeRangeArbitrage, which the
+// keeper runs, brings the price back to the NAV. Closing a position pays its tokens and fees at any
+// NAV, and opens only within the caller's tick limits. RANGE_POOL_DEPLOYMENT pins the deployment
+// `npm run deploy:range` recorded on 6 October 2026 with the user's approval, when it replaced the
+// hook of that morning (the first to take those limits) with one that takes drawn shapes;
 // onchain/test/AppRangeClient.test.ts checks the pin against the record. Demo dollars and USTX have no value.
 
 export type RangeDeployment = V4Deployment & { arbitrage: string };
@@ -21,25 +22,27 @@ export type RangeDeployment = V4Deployment & { arbitrage: string };
 /** The pool on X Layer Testnet, as `npm run deploy:range` recorded it in onchain/deployments/xlayer-testnet.json. */
 export const RANGE_POOL_DEPLOYMENT: RangeDeployment | null = {
   poolManager: "0xe83eee508ce92832488dd9f574ad329a1203641c",
-  hook: "0x79b7985e025dbab36cffbfd82863b4f2f50128c0",
+  hook: "0x8e489d68cf8cbb9199105e3f0c32fc08936e28c0",
   router: "0xbd899115e3c6926d109a5bd39bf12646fae3862b",
   asset: "0x77eaeba1366bde7818da12d3cbdbea0a2ee97596",
   dollar: "0xf07535080f74e8b0f571e58dfa600f47e72ea9bf",
   assetIsCurrency0: true,
-  poolId: "0x3fff3b1249469f8cf04040da6608c6b2501f4f1eb607f3ccea0029c37dff9f7e",
-  stateSlot: "0xa5898aef90ba0b680c0012f761e869bda74617f9e28a31325cb810add587291b",
-  arbitrage: "0xf76fa2ff202613556e6f30e3dda130a2fa10c593",
+  poolId: "0xcdf2037d5744c2bc575bc595e109ac0cb942bcdec8d229c3cf0517edb9bb2942",
+  stateSlot: "0x82e0159c7e66a997561511741bdb0118e92b14965af4fd7e84f15ce23d8a0791",
+  arbitrage: "0xaee2ffbb9b3c3dbb5bda350d5df7314978b045dc",
 };
 
 /**
- * Every GanymedeRangeArbitrage: the one pinned above, for the hook of 6 October; the third, for the
- * hook it replaced, which the caller topped up to the fund's minimum (6 October); the second, replaced
- * that day; and the first, replaced on 4 October (docs/PRODUCT_RELEASE.md). The fund's events name
+ * Every GanymedeRangeArbitrage: the one pinned above, for the hook of the afternoon of 6 October; the
+ * one for the hook it replaced, of that morning; the third, for the first hook, which the caller
+ * topped up to the fund's minimum (6 October); the second, replaced that day; and the first, replaced
+ * on 4 October (docs/PRODUCT_RELEASE.md). The fund's events name
  * the contract as the investor in its orders, so the market activity folds each into the arbitrage it
  * was part of (lib/xstocks/activity.ts).
  */
 export const RANGE_ARBITRAGES: readonly string[] = [
   ...(RANGE_POOL_DEPLOYMENT ? [RANGE_POOL_DEPLOYMENT.arbitrage] : []),
+  "0xf76fa2ff202613556e6f30e3dda130a2fa10c593",
   "0x58571aa0519a82f1d3839cae5392dfb060c5d572",
   "0xa4cc0d50eb9fa78b8615ec264b034006e051cbb4",
   "0xbe0624ee3d949352498a767f1edbe235de38ca4d",
@@ -47,6 +50,7 @@ export const RANGE_ARBITRAGES: readonly string[] = [
 
 export const RANGE_SELECTORS = {
   open: "0x0dd51d63",
+  openCustom: "0xa69e99b6",
   close: "0x37043fda",
   positions: "0x99fbab88",
   positionsOf: "0xf867d46b",
@@ -64,7 +68,7 @@ export const RANGE_EVENTS = {
 
 export const RANGE_ERRORS: Record<string, string> = {
   "0xa4fc736e": "The pool’s price is more than 1% from the NAV right now. A position opens once the keeper brings it back, within five minutes.",
-  "0x5a9168be": "That shape is not one the pool takes: bins of 0.1% to 5%, up to 20 each side.",
+  "0x5a9168be": "That shape is not one the pool takes: bins of 0.1% to 5%, up to 20 each side, with some weight on each side it fills.",
   "0x2c5211c6": "That amount is too small for the bins. Try a larger one.",
   "0x30cd7471": "That position belongs to another wallet.",
   "0x8d39f450": "That position is already closed.",
@@ -76,9 +80,28 @@ export const RANGE_ERRORS: Record<string, string> = {
   "0x203d82d8": "This took too long to confirm. Try again.",
 };
 
-export const SHAPES = ["spot", "curve", "bid-ask"] as const;
+export const SHAPES = ["spot", "curve", "bid-ask", "custom"] as const;
 export type RangeShape = (typeof SHAPES)[number];
-export const SHAPE_NAMES: Record<RangeShape, string> = { spot: "Spot", curve: "Curve", "bid-ask": "Bid-Ask" };
+/** The shapes the hook spreads by its own rule; a custom position's bins are weighed one by one (openCustom). */
+export type PresetShape = Exclude<RangeShape, "custom">;
+export const SHAPE_NAMES: Record<RangeShape, string> = { spot: "Spot", curve: "Curve", "bid-ask": "Bid-Ask", custom: "Custom" };
+
+const OPEN_CUSTOM_ABI = parseAbi(["function openCustom(int24 binTicks, uint8 binsBelow, uint8 binsAbove, uint16[] weights, uint256 amount0, uint256 amount1, int24 minTick, int24 maxTick, uint256 deadline)"]);
+/** The most a custom bin may weigh in openCustom's uint16. */
+export const MAX_BIN_WEIGHT = 65_535;
+
+/**
+ * A preset shape's weight for every bin, lowest price first, as the hook's _presetWeights gives it:
+ * 1 each for Spot, the bin next to the price heaviest for Curve, the farthest heaviest for Bid-Ask.
+ */
+export function shapeWeights(shape: PresetShape, binsBelow: number, binsAbove: number): number[] {
+  return Array.from({ length: binsBelow + binsAbove }, (_, index) => {
+    const below = index < binsBelow;
+    const count = below ? binsBelow : binsAbove;
+    const distance = below ? binsBelow - index : index - binsBelow + 1;
+    return shape === "spot" ? 1 : shape === "curve" ? count + 1 - distance : distance;
+  });
+}
 
 const NAV_UNIT = 100_000_000n;
 const ONE = 1_000_000n;
@@ -270,12 +293,24 @@ export function rangeCalls(deployment: RangeDeployment) {
     approveShares: (micros: bigint) => approve(deployment.asset, micros),
     approveDollars: (micros: bigint) => approve(deployment.dollar, micros),
     /** `dollars` go in the bins below the price, `shares` in the bins above, if the pool's tick is within `limits`. */
-    open: (shape: RangeShape, binTicks: number, binsBelow: number, binsAbove: number, amounts: V4Amounts, deadline: number, limits: { minTick: number; maxTick: number }): TransactionCall => {
+    open: (shape: PresetShape, binTicks: number, binsBelow: number, binsAbove: number, amounts: V4Amounts, deadline: number, limits: { minTick: number; maxTick: number }): TransactionCall => {
       // Bins below the price hold currency1 and bins above it currency0.
       const [amount0, amount1] = deployment.assetIsCurrency0 ? [amounts.sharesMicros, amounts.dollarsMicros] : [amounts.dollarsMicros, amounts.sharesMicros];
       return {
         to: deployment.hook,
         data: `${RANGE_SELECTORS.open}${word(BigInt(SHAPES.indexOf(shape)))}${word(BigInt(binTicks))}${word(BigInt(binsBelow))}${word(BigInt(binsAbove))}${word(amount0)}${word(amount1)}${tickWord(limits.minTick)}${tickWord(limits.maxTick)}${word(BigInt(deadline))}`,
+      };
+    },
+    /**
+     * A position whose bins are weighed one by one: `weights` has one entry per bin, lowest price
+     * first (the bins below, then the bins above), and each side's amount is shared by them.
+     */
+    openCustom: (binTicks: number, binsBelow: number, binsAbove: number, weights: readonly number[], amounts: V4Amounts, deadline: number, limits: { minTick: number; maxTick: number }): TransactionCall => {
+      if (weights.length !== binsBelow + binsAbove || weights.some(weight => !Number.isInteger(weight) || weight < 0 || weight > MAX_BIN_WEIGHT)) throw new Error("Each bin needs a whole weight from 0 to 65,535.");
+      const [amount0, amount1] = deployment.assetIsCurrency0 ? [amounts.sharesMicros, amounts.dollarsMicros] : [amounts.dollarsMicros, amounts.sharesMicros];
+      return {
+        to: deployment.hook,
+        data: encodeFunctionData({ abi: OPEN_CUSTOM_ABI, functionName: "openCustom", args: [binTicks, binsBelow, binsAbove, weights, amount0, amount1, limits.minTick, limits.maxTick, BigInt(deadline)] }),
       };
     },
     close: (id: bigint, minima: V4Amounts, deadline: number): TransactionCall => {
@@ -317,25 +352,31 @@ export function rangeErrorMessage(error: unknown): string {
 /** A position's value at the NAV, in demo-dollar micros. */
 export const rangeValueMicros = (amounts: V4Amounts, navMicros: bigint) => amounts.sharesMicros * navMicros / ONE + amounts.dollarsMicros;
 
+export type PreviewBin = { fromUsd: number; toUsd: number; side: "dollars" | "shares"; value: number };
+
 /**
  * Where a position's dollars would sit by price before it opens, as the hook spreads them: each
- * side's amount shared by the shape's weights (1 each for Spot; nearest heaviest for Curve; farthest
- * heaviest for Bid-Ask), in bins of `binTicks` ticks either side of the price, skipping the interval
- * the price is in. Prices in dollars per USTX; values in dollars.
+ * side's amount shared by its bins' weights (lowest price first, as openCustom takes them), in bins
+ * of `binTicks` ticks either side of the price, skipping the interval the price is in. Prices in
+ * dollars per USTX; values in dollars.
  */
-export function previewShape(shape: RangeShape, binTicks: number, binsBelow: number, binsAbove: number, dollars: number, sharesValue: number, priceUsd: number): { fromUsd: number; toUsd: number; side: "dollars" | "shares"; value: number }[] {
-  const weight = (distance: number, count: number) => shape === "spot" ? 1 : shape === "curve" ? count + 1 - distance : distance;
-  const total = (count: number) => shape === "spot" ? count : count * (count + 1) / 2;
+export function previewWeights(weights: readonly number[], binTicks: number, binsBelow: number, binsAbove: number, dollars: number, sharesValue: number, priceUsd: number): PreviewBin[] {
+  const below = weights.slice(0, binsBelow), above = weights.slice(binsBelow, binsBelow + binsAbove);
+  const sum = (side: readonly number[]) => side.reduce((total, weight) => total + weight, 0);
   const step = Math.pow(1.0001, binTicks);
   const gap = Math.pow(1.0001, 10);
-  const bins: { fromUsd: number; toUsd: number; side: "dollars" | "shares"; value: number }[] = [];
+  const bins: PreviewBin[] = [];
   for (let distance = binsBelow; distance >= 1; distance -= 1) {
     const upper = priceUsd / Math.pow(step, distance - 1), lower = upper / step;
-    bins.push({ fromUsd: lower, toUsd: upper, side: "dollars", value: dollars * weight(distance, binsBelow) / total(binsBelow) });
+    bins.push({ fromUsd: lower, toUsd: upper, side: "dollars", value: sum(below) > 0 ? dollars * below[binsBelow - distance] / sum(below) : 0 });
   }
   for (let distance = 1; distance <= binsAbove; distance += 1) {
     const lower = priceUsd * gap * Math.pow(step, distance - 1), upper = lower * step;
-    bins.push({ fromUsd: lower, toUsd: upper, side: "shares", value: sharesValue * weight(distance, binsAbove) / total(binsAbove) });
+    bins.push({ fromUsd: lower, toUsd: upper, side: "shares", value: sum(above) > 0 ? sharesValue * above[distance - 1] / sum(above) : 0 });
   }
   return bins;
 }
+
+/** previewWeights for a preset shape. */
+export const previewShape = (shape: PresetShape, binTicks: number, binsBelow: number, binsAbove: number, dollars: number, sharesValue: number, priceUsd: number) =>
+  previewWeights(shapeWeights(shape, binsBelow, binsAbove), binTicks, binsBelow, binsAbove, dollars, sharesValue, priceUsd);

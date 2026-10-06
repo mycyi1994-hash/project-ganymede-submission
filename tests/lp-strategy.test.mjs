@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { allocateShares, binTicksFor, constantProductRange, LP_STRATEGIES, planRange, planStrategy, strategyShape, strategyYear, workingNearNav } from "../lib/xstocks/lp-strategy.ts";
-import { MULTICALL3, RangePriceMoved, assertRangePriceNear, openLimits, previewShape, rangeCalls, rangeErrorMessage, rangeFill, readAll, readRangeTick } from "../lib/xstocks/range-liquidity.ts";
+import { DRAWN_MAX, allocateShares, binTicksFor, constantProductRange, drawingFrom, drawingProblem, fitDrawing, LP_STRATEGIES, ownAboveShare, ownBins, planRange, planStrategy, strategyShape, strategyYear, workingNearNav } from "../lib/xstocks/lp-strategy.ts";
+import { MULTICALL3, RangePriceMoved, assertRangePriceNear, openLimits, previewShape, previewWeights, rangeCalls, rangeErrorMessage, rangeFill, readAll, readRangeTick, shapeWeights } from "../lib/xstocks/range-liquidity.ts";
 import { decodeFunctionData, encodeFunctionResult, parseAbi } from "viem";
 
 const NAV = 100_000_000n; // $100
@@ -80,6 +80,81 @@ test("a position of one's own: its bins, its deposit and the hook's spread, Bid-
   assert.ok(bins[9].toUsd <= 100 && bins[10].fromUsd > 100.09);
   const curve = previewShape("curve", 30, 10, 0, 500, 0, 100);
   assert.ok(curve[9].value > curve[0].value * 9.9);
+});
+
+test("a preset's weights, lowest price first, are the hook's: even, nearest heaviest, or farthest heaviest", () => {
+  // Three bins below the price, then two above it.
+  assert.deepEqual(shapeWeights("spot", 3, 2), [1, 1, 1, 1, 1]);
+  assert.deepEqual(shapeWeights("curve", 3, 2), [1, 2, 3, 2, 1]);
+  assert.deepEqual(shapeWeights("bid-ask", 3, 2), [3, 2, 1, 1, 2]);
+  assert.deepEqual(shapeWeights("curve", 0, 3), [3, 2, 1]);
+  // previewShape is the preset's weights through previewWeights.
+  assert.deepEqual(previewShape("curve", 30, 3, 2, 600, 300, 100), previewWeights([1, 2, 3, 2, 1], 30, 3, 2, 600, 300, 100));
+});
+
+test("a drawn shape: each bar is the dollars its bin holds, and the deposit splits by the bars", () => {
+  const own = { shape: "drawn", rangePercent: 3, bins: 5, sides: "both", drawn: [10, 20, 30, 40, 100, 60, 0, 30, 30, 0] };
+  assert.deepEqual(ownBins(own), { binsBelow: 5, binsAbove: 5, weights: [10, 20, 30, 40, 100, 60, 0, 30, 30, 0] });
+  // 120 of the 320 drawn are above the price: that share of the deposit buys USTX at the NAV.
+  assert.equal(ownAboveShare(own), 120 / 320);
+  assert.deepEqual(planRange(1_000_000_000n, NAV, "both", ownAboveShare(own)), { investMicros: 375_000_000n, sharesMicros: 3_750_000n, dollarsMicros: 625_000_000n });
+  const bins = previewWeights(ownBins(own).weights, 30, 5, 5, 625, 375, 100);
+  // Below the price the farthest bin comes first; each bin's dollars are its bar's share of its side.
+  assert.deepEqual(bins.map(bin => Math.round(bin.value * 1e6) / 1e6), [31.25, 62.5, 93.75, 125, 312.5, 187.5, 0, 93.75, 93.75, 0]);
+  assert.equal(bins[6].side, "shares");
+  // One side only sends that side's bars, and takes the whole deposit.
+  assert.deepEqual(ownBins({ ...own, sides: "below" }), { binsBelow: 5, binsAbove: 0, weights: [10, 20, 30, 40, 100] });
+  assert.deepEqual(ownBins({ ...own, sides: "above" }), { binsBelow: 0, binsAbove: 5, weights: [60, 0, 30, 30, 0] });
+  assert.equal(ownAboveShare({ ...own, sides: "above" }), 1);
+  assert.equal(ownAboveShare({ ...own, sides: "below" }), 0);
+  // A preset keeps half each, whatever bars were drawn before it.
+  assert.equal(ownAboveShare({ ...own, shape: "curve" }), 0.5);
+  assert.deepEqual(ownBins({ ...own, shape: "curve" }).weights, shapeWeights("curve", 5, 5));
+  // A side it fills needs a bar above zero.
+  assert.equal(drawingProblem(own), null);
+  assert.equal(drawingProblem({ ...own, drawn: [10, 20, 30, 40, 100, 0, 0, 0, 0, 0] }), "Draw a bar above the price too, or fill only the side below.");
+  assert.equal(drawingProblem({ ...own, sides: "below", drawn: [10, 20, 30, 40, 100, 0, 0, 0, 0, 0] }), null);
+  assert.equal(drawingProblem({ ...own, sides: "above", drawn: [10, 20, 30, 40, 100, 0, 0, 0, 0, 0] }), "Draw at least one bar above the price.");
+  assert.equal(drawingProblem({ ...own, drawn: Array(10).fill(0) }), "Draw at least one bar.");
+  assert.equal(drawingProblem({ ...own, shape: "spot", drawn: Array(10).fill(0) }), null);
+  // A drawing whose bars above are few may leave the part bought at the NAV under the fund's $10.
+  assert.equal(planRange(100_000_000n, NAV, "both", 0.05), null);
+  assert.ok(planRange(100_000_000n, NAV, "both", 0.1));
+});
+
+test("a drawing keeps its picture when the bins change, and starts from a preset", () => {
+  // Bars are whole numbers from 0 to DRAWN_MAX; a drawing of the right length is kept as it is.
+  assert.deepEqual(fitDrawing([0, 50.4, 120, -3, 7, 8], 3), [0, 50, DRAWN_MAX, 0, 7, 8]);
+  // Five bars a side stretched to ten and back: each side resampled along its length.
+  const drawn = [0, 25, 50, 75, 100, 100, 75, 50, 25, 0];
+  const ten = fitDrawing(drawn, 10);
+  assert.equal(ten.length, 20);
+  assert.deepEqual([ten[0], ten[9], ten[10], ten[19]], [0, 100, 100, 0]);
+  assert.ok(ten.slice(0, 10).every((bar, index, side) => index === 0 || bar >= side[index - 1]), "the left side still rises");
+  assert.deepEqual(fitDrawing(ten, 5), drawn);
+  // Nothing drawn yet is a flat half.
+  assert.deepEqual(fitDrawing(undefined, 2), [50, 50, 50, 50]);
+  // A preset as bars: Curve's tallest next to the price.
+  assert.deepEqual(drawingFrom("curve", 4), [25, 50, 75, 100, 100, 75, 50, 25]);
+  assert.deepEqual(drawingFrom("spot", 2), [100, 100, 100, 100]);
+});
+
+test("a drawn position goes to the hook's openCustom with a weight for every bin", () => {
+  const deployment = { poolManager: "0x" + "1".repeat(40), hook: "0x" + "2".repeat(40), router: "0x" + "3".repeat(40), asset: "0x" + "4".repeat(40), dollar: "0x" + "5".repeat(40), assetIsCurrency0: true, poolId: "0x" + "6".repeat(64), stateSlot: "0x" + "7".repeat(64), arbitrage: "0x" + "8".repeat(40) };
+  const abi = parseAbi(["function openCustom(int24 binTicks, uint8 binsBelow, uint8 binsAbove, uint16[] weights, uint256 amount0, uint256 amount1, int24 minTick, int24 maxTick, uint256 deadline)"]);
+  const call = rangeCalls(deployment).openCustom(30, 3, 2, [10, 0, 100, 40, 5], { sharesMicros: 5_000_000n, dollarsMicros: 500_000_000n }, 1_800_000_000, openLimits(-46_050));
+  assert.equal(call.to, deployment.hook);
+  assert.ok(call.data.startsWith("0xa69e99b6"));
+  const { functionName, args } = decodeFunctionData({ abi, data: call.data });
+  assert.equal(functionName, "openCustom");
+  // USTX is currency0 here: it goes in as amount0, for the bins above the price.
+  assert.deepEqual(args, [30, 3, 2, [10, 0, 100, 40, 5], 5_000_000n, 500_000_000n, -46_080, -46_020, 1_800_000_000n]);
+  const flipped = rangeCalls({ ...deployment, assetIsCurrency0: false }).openCustom(30, 0, 2, [1, 2], { sharesMicros: 5_000_000n, dollarsMicros: 0n }, 1_800_000_000, openLimits(0));
+  assert.deepEqual(decodeFunctionData({ abi, data: flipped.data }).args.slice(4, 6), [0n, 5_000_000n]);
+  // A weight for every bin, each a whole number the hook's uint16 holds.
+  for (const weights of [[1, 2, 3, 4], [1, 2, 3, 4, 5, 6], [1, 2, -1, 4, 5], [1, 2, 3.5, 4, 5], [1, 2, 3, 4, 65_536]]) {
+    assert.throws(() => rangeCalls(deployment).openCustom(30, 3, 2, weights, { sharesMicros: 1n, dollarsMicros: 1n }, 1_800_000_000, openLimits(0)), /whole weight/);
+  }
 });
 
 test("the range pool's calls and events: open, close and what they paid, by token", () => {

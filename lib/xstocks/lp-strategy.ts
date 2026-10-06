@@ -5,24 +5,32 @@
  * Uniswap v4 pool's hook keeps it within about 2% of the NAV and moves it to each NAV record (Curve).
  * Bid-Ask and Custom open a position of one's own in the range pool
  * (contracts/GanymedeRangeLiquidityHook.sol, lib/xstocks/range-liquidity.ts): bins either side of the
- * price, shaped Spot, Curve or Bid-Ask, over a range and on the sides one chooses.
+ * price, shaped Spot, Curve or Bid-Ask, or drawn bin by bin as on Meteora's DLMM Pro, over a range
+ * and on the sides one chooses.
  */
 import { FUND_MIN_INVESTMENT_MICROS } from "./fund";
+import { shapeWeights, type PresetShape } from "./range-liquidity";
 
 const ONE = 1_000_000n;
 
 export type StrategyId = "spot" | "curve" | "spot-curve" | "bid-ask" | "custom";
 export type Strategy = { id: StrategyId; name: string; label: string; pool: "pooled" | "range"; v4Percent: number; summary: string };
 export type RangeSides = "both" | "below" | "above";
-/** One's own position: its shape, how far either side of the price it reaches, its bins per side and which sides it fills. */
-export type OwnRange = { shape: "spot" | "curve" | "bid-ask"; rangePercent: number; bins: number; sides: RangeSides };
+/**
+ * One's own position: its shape, how far either side of the price it reaches, its bins per side and
+ * which sides it fills. A drawn shape keeps a bar for every bin on both sides, lowest price first
+ * (`bins` below, then `bins` above), each from 0 to DRAWN_MAX, whichever sides it fills.
+ */
+export type OwnRange = { shape: PresetShape | "drawn"; rangePercent: number; bins: number; sides: RangeSides; drawn?: number[] };
+/** The tallest bar of a drawn shape. */
+export const DRAWN_MAX = 100;
 
 export const LP_STRATEGIES: Strategy[] = [
   { id: "spot", name: "Spot", label: "Even at every price", pool: "pooled", v4Percent: 0, summary: "All of it in the constant-product pool: liquidity at every price, so it earns on any trade and never leaves its range, but little of it works near the NAV." },
   { id: "curve", name: "Curve", label: "Concentrated at the NAV", pool: "pooled", v4Percent: 100, summary: "All of it in the v4 pool: the hook keeps it within about 2% of the NAV and moves it to each NAV record, so far more of each dollar meets trades near the NAV." },
   { id: "spot-curve", name: "Spot + Curve", label: "Half in each", pool: "pooled", v4Percent: 50, summary: "Half in each pool: a peak at the NAV from the v4 pool on a low, even base from the constant-product pool." },
   { id: "bid-ask", name: "Bid-Ask", label: "Heaviest at the ends", pool: "range", v4Percent: 0, summary: "A position of your own: demo dollars below the price and USTX above it, more in each bin the farther it is from the price, out to 3% either side. It buys more as the price falls and sells more as it rises, earning most from large moves that come back." },
-  { id: "custom", name: "Custom", label: "Your own range", pool: "range", v4Percent: 0, summary: "A position of your own, set as you like: its shape, how far it reaches either side of the price, how many bins, and whether it fills both sides or only one." },
+  { id: "custom", name: "Custom", label: "Your own range", pool: "range", v4Percent: 0, summary: "A position of your own, set as you like: its shape, a preset or drawn bar by bar, how far it reaches either side of the price, how many bins, and whether it fills both sides or only one." },
 ];
 
 export const BID_ASK_RANGE: OwnRange = { shape: "bid-ask", rangePercent: 3, bins: 10, sides: "both" };
@@ -34,13 +42,75 @@ export function binTicksFor(rangePercent: number, bins: number): number {
 }
 
 /**
- * A deposit of demo dollars for a position of one's own: the part invested at the fund for the USTX
- * above the price and the demo dollars kept for the bins below it. Both sides take half each. Null
- * without a NAV, or when the part invested is under the fund's $10 minimum.
+ * A drawing fitted to `bins` bars a side: kept as it is when it has 2 × `bins` bars, otherwise each
+ * side resampled along its length, so changing the bins keeps the picture. Bars are whole numbers
+ * from 0 to DRAWN_MAX.
  */
-export function planRange(dollarsMicros: bigint, navMicros: bigint | null, sides: RangeSides): { investMicros: bigint; sharesMicros: bigint; dollarsMicros: bigint } | null {
+export function fitDrawing(drawn: readonly number[] | undefined, bins: number): number[] {
+  const clamp = (value: number) => Math.max(0, Math.min(DRAWN_MAX, Math.round(Number.isFinite(value) ? value : 0)));
+  if (drawn && drawn.length === 2 * bins) return drawn.map(clamp);
+  if (!drawn || drawn.length < 2 || drawn.length % 2) return Array.from({ length: 2 * bins }, () => DRAWN_MAX / 2);
+  const half = drawn.length / 2;
+  const resample = (side: readonly number[]) => Array.from({ length: bins }, (_, index) => {
+    const at = bins === 1 ? (half - 1) / 2 : index * (half - 1) / (bins - 1);
+    const low = Math.floor(at), high = Math.min(half - 1, low + 1);
+    return clamp(side[low] + (side[high] - side[low]) * (at - low));
+  });
+  return [...resample(drawn.slice(0, half)), ...resample(drawn.slice(half))];
+}
+
+/** A preset shape as bars to draw from: its weights on both sides, scaled to DRAWN_MAX. */
+export function drawingFrom(shape: PresetShape, bins: number): number[] {
+  const weights = shapeWeights(shape, bins, bins);
+  const most = Math.max(...weights);
+  return weights.map(weight => Math.round(weight / most * DRAWN_MAX));
+}
+
+/**
+ * The bins a position of one's own opens and each one's weight, lowest price first, as the hook
+ * takes them: a preset's own weights, or the drawn bars of the sides it fills.
+ */
+export function ownBins(own: OwnRange): { binsBelow: number; binsAbove: number; weights: number[] } {
+  const binsBelow = own.sides === "above" ? 0 : own.bins, binsAbove = own.sides === "below" ? 0 : own.bins;
+  if (own.shape !== "drawn") return { binsBelow, binsAbove, weights: shapeWeights(own.shape, binsBelow, binsAbove) };
+  const drawn = fitDrawing(own.drawn, own.bins);
+  return { binsBelow, binsAbove, weights: [...(binsBelow ? drawn.slice(0, own.bins) : []), ...(binsAbove ? drawn.slice(own.bins) : [])] };
+}
+
+/**
+ * The share of the deposit for the bins above the price: half for a preset on both sides, and for a
+ * drawing the bars above over all the bars, since a bar's height is the dollars it holds.
+ */
+export function ownAboveShare(own: OwnRange): number {
+  if (own.sides !== "both") return own.sides === "above" ? 1 : 0;
+  if (own.shape !== "drawn") return 0.5;
+  const { binsBelow, weights } = ownBins(own);
+  const below = weights.slice(0, binsBelow).reduce((total, weight) => total + weight, 0);
+  const above = weights.slice(binsBelow).reduce((total, weight) => total + weight, 0);
+  return below + above > 0 ? above / (below + above) : 0.5;
+}
+
+/** Why a drawing cannot open, or null: each side it fills needs a bar above zero. */
+export function drawingProblem(own: OwnRange): string | null {
+  if (own.shape !== "drawn") return null;
+  const { binsBelow, binsAbove, weights } = ownBins(own);
+  const below = weights.slice(0, binsBelow).some(weight => weight > 0), above = weights.slice(binsBelow).some(weight => weight > 0);
+  if (binsBelow && binsAbove && !below && !above) return "Draw at least one bar.";
+  if (binsBelow && !below) return binsAbove ? "Draw a bar below the price too, or fill only the side above." : "Draw at least one bar below the price.";
+  if (binsAbove && !above) return binsBelow ? "Draw a bar above the price too, or fill only the side below." : "Draw at least one bar above the price.";
+  return null;
+}
+
+/**
+ * A deposit of demo dollars for a position of one's own: the part invested at the fund for the USTX
+ * above the price and the demo dollars kept for the bins below it, split by `aboveShare` (half each
+ * unless a drawing says otherwise, ownAboveShare). Null without a NAV, or when the part invested is
+ * under the fund's $10 minimum.
+ */
+export function planRange(dollarsMicros: bigint, navMicros: bigint | null, sides: RangeSides, aboveShare = 0.5): { investMicros: bigint; sharesMicros: bigint; dollarsMicros: bigint } | null {
   if (navMicros === null || navMicros <= 0n || dollarsMicros <= 0n) return null;
-  const investMicros = sides === "below" ? 0n : sides === "above" ? dollarsMicros : dollarsMicros / 2n;
+  const share = BigInt(Math.round(Math.max(0, Math.min(1, aboveShare)) * 1_000_000));
+  const investMicros = sides === "below" ? 0n : sides === "above" ? dollarsMicros : dollarsMicros * share / ONE;
   if (investMicros > 0n && investMicros < FUND_MIN_INVESTMENT_MICROS) return null;
   return { investMicros, sharesMicros: investMicros * ONE / navMicros, dollarsMicros: dollarsMicros - investMicros };
 }

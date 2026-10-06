@@ -8,7 +8,7 @@ import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { RANGE_ARBITRAGES, RANGE_ERRORS, RANGE_EVENTS, RANGE_POOL_DEPLOYMENT, RANGE_SELECTORS, RangePriceMoved, assertRangePriceNear, openLimits, rangeCalls, rangeErrorMessage, rangeFill, readRangePool, readRangeTick, type RangeDeployment } from "../../lib/xstocks/range-liquidity";
 import { ACTIVITY_EVENTS } from "../../lib/xstocks/activity";
-import { binTicksFor, planRange } from "../../lib/xstocks/lp-strategy";
+import { binTicksFor, ownAboveShare, ownBins, planRange, type OwnRange } from "../../lib/xstocks/lp-strategy";
 import { CREATE2_PROXY, CREATE2_PROXY_CODE, DYNAMIC_FEE_FLAG, deployRangeLiquidity, deployRwaLiquidity, poolIdOf, poolStateSlot } from "../scripts/_v4";
 
 // lib/xstocks/range-liquidity.ts hard-codes the range hook's selectors, events and errors. These
@@ -165,6 +165,45 @@ describe("App range pool client", () => {
     } catch (error) {
       expect(rangeErrorMessage(error)).to.match(/price moved before your position opened/);
     }
+  });
+
+  it("opens a shape drawn bar by bar with the app's openCustom and reads it back as Custom", async () => {
+    const { provider, dollar, fund, deployment, send, deadline } = await setup();
+    await dollar.write.claim({ account: provider.account });
+    await dollar.write.approve([fund.address, maxUint256], { account: provider.account });
+    // As Pools does it: the deposit splits by the bars drawn on each side, 170 below and 130 above.
+    const own: OwnRange = { shape: "drawn", rangePercent: 3, bins: 5, sides: "both", drawn: [10, 20, 0, 40, 100, 60, 0, 30, 30, 10] };
+    const layout = ownBins(own);
+    const plan = planRange(1_000n * USD, 100n * USD, "both", ownAboveShare(own))!;
+    expect(plan.investMicros).to.equal(1_000n * USD * 433_333n / 1_000_000n);
+    await fund.write.invest([plan.investMicros, 0n], { account: provider.account });
+    const calls = rangeCalls(deployment);
+    await send(calls.approveDollars(plan.dollarsMicros));
+    await send(calls.approveShares(plan.sharesMicros));
+    const { pool } = await readRangePool(deployment, provider.account.address, { rpc: appRpc });
+    const amounts = { sharesMicros: plan.sharesMicros, dollarsMicros: plan.dollarsMicros };
+    // A side with bins but no weight is refused, in words, before anything moves.
+    try {
+      await send(calls.openCustom(binTicksFor(3, 5), 5, 5, [0, 0, 0, 0, 0, 1, 1, 1, 1, 1], amounts, await deadline(), openLimits(pool.tick)));
+      expect.fail("opened a side with no weight");
+    } catch (error) {
+      expect(rangeErrorMessage(error)).to.match(/some weight on each side/);
+    }
+    const opened = rangeFill(await send(calls.openCustom(binTicksFor(3, 5), layout.binsBelow, layout.binsAbove, layout.weights, amounts, await deadline(), openLimits(pool.tick))), deployment, provider.account.address);
+    expect(opened.opened?.id).to.equal(1n);
+    expect(opened.opened!.amounts.sharesMicros <= plan.sharesMicros && opened.opened!.amounts.sharesMicros > plan.sharesMicros - 30n).to.equal(true);
+    expect(opened.opened!.amounts.dollarsMicros <= plan.dollarsMicros && opened.opened!.amounts.dollarsMicros > plan.dollarsMicros - 30n).to.equal(true);
+
+    const [position] = (await readRangePool(deployment, provider.account.address, { rpc: appRpc })).account!.positions;
+    expect(position).to.include({ id: 1n, shape: "custom", binTicks: 60, binsBelow: 5, binsAbove: 5, open: true });
+    // The bins in the hook's order, lowest tick first, as the weights went in: a bar of 0 is left
+    // empty, and each bin's liquidity follows its bar within its side.
+    const byTick = deployment.assetIsCurrency0 ? position.bins : [...position.bins].reverse();
+    expect(byTick.map(bin => bin.liquidity === 0n)).to.deep.equal(layout.weights.map(weight => weight === 0));
+    expect(Number(byTick[4].liquidity) / Number(byTick[1].liquidity)).to.be.closeTo(5, 0.1);
+    expect(Number(byTick[5].liquidity) / Number(byTick[9].liquidity)).to.be.closeTo(6, 0.15);
+    const closed = rangeFill(await send(calls.close(1n, { sharesMicros: position.amounts.sharesMicros * 99n / 100n, dollarsMicros: position.amounts.dollarsMicros * 99n / 100n }, await deadline())), deployment, provider.account.address);
+    expect(closed.closed!.amounts.dollarsMicros + 2n >= position.amounts.dollarsMicros).to.equal(true);
   });
 
   it("points at the recorded deployment", () => {

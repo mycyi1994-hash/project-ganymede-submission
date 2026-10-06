@@ -56,7 +56,9 @@ contract GanymedeRangeLiquidityHook is IHooks, IUnlockCallback {
     enum Shape {
         Spot,
         Curve,
-        BidAsk
+        BidAsk,
+        /// @notice Every bin's share set by the provider (openCustom).
+        Custom
     }
 
     struct Position {
@@ -225,17 +227,68 @@ contract GanymedeRangeLiquidityHook is IHooks, IUnlockCallback {
         int24 maxTick,
         uint256 deadline
     ) external nonReentrant beforeDeadline(deadline) returns (uint256 id) {
+        if (shape == Shape.Custom) revert InvalidShape();
         _checkShape(binTicks, binsBelow, binsAbove, amount0, amount1);
+        Position memory position = Position(msg.sender, shape, 0, binTicks, binsBelow, binsAbove, true);
+        id = _openWith(position, _presetWeights(shape, binsBelow, binsAbove), amount0, amount1, minTick, maxTick);
+    }
+
+    /// @notice Opens a position whose bins the caller weighs one by one: `weights` holds a weight for
+    ///         every bin, lowest first (the `binsBelow` bins below the price, then the `binsAbove`
+    ///         above it), and each side's amount is shared in proportion to them. A bin of weight 0 is
+    ///         left empty, and each side with bins needs some weight. Otherwise as open().
+    function openCustom(
+        int24 binTicks,
+        uint8 binsBelow,
+        uint8 binsAbove,
+        uint16[] calldata weights,
+        uint256 amount0,
+        uint256 amount1,
+        int24 minTick,
+        int24 maxTick,
+        uint256 deadline
+    ) external nonReentrant beforeDeadline(deadline) returns (uint256 id) {
+        _checkShape(binTicks, binsBelow, binsAbove, amount0, amount1);
+        if (weights.length != uint256(binsBelow) + binsAbove) revert InvalidShape();
+        Position memory position = Position(msg.sender, Shape.Custom, 0, binTicks, binsBelow, binsAbove, true);
+        id = _openWith(position, weights, amount0, amount1, minTick, maxTick);
+    }
+
+    function _openWith(Position memory position, uint16[] memory weights, uint256 amount0, uint256 amount1, int24 minTick, int24 maxTick)
+        private
+        returns (uint256 id)
+    {
+        (uint256 below, uint256 above) = _sides(weights, position.binsBelow);
+        if ((position.binsBelow > 0 && below == 0) || (position.binsAbove > 0 && above == 0)) revert InvalidShape();
         (, int24 tick, , ) = poolManager.getSlot0(poolId);
         if (tick < minTick || tick > maxTick) revert PriceOutsideLimit(tick, minTick, maxTick);
-        Position memory position = Position(msg.sender, shape, 0, binTicks, binsBelow, binsAbove, true);
-        id = abi.decode(poolManager.unlock(abi.encode(Action.Open, abi.encode(position, amount0, amount1))), (uint256));
+        id = abi.decode(poolManager.unlock(abi.encode(Action.Open, abi.encode(position, amount0, amount1, weights))), (uint256));
     }
 
     function _checkShape(int24 binTicks, uint8 binsBelow, uint8 binsAbove, uint256 amount0, uint256 amount1) private pure {
         if (binTicks < TICK_SPACING || binTicks > MAX_BIN_TICKS || binTicks % TICK_SPACING != 0) revert InvalidShape();
         if (binsBelow > MAX_BINS || binsAbove > MAX_BINS || (binsBelow == 0 && binsAbove == 0)) revert InvalidShape();
         if ((binsBelow > 0) != (amount1 > 0) || (binsAbove > 0) != (amount0 > 0)) revert InvalidAmount();
+    }
+
+    /// @dev A preset shape's weight for every bin, lowest first, by its distance from the price (1 for
+    ///      the nearest): 1 each for Spot, the nearest heaviest for Curve, the farthest for Bid-Ask.
+    function _presetWeights(Shape shape, uint8 binsBelow, uint8 binsAbove) private pure returns (uint16[] memory weights) {
+        weights = new uint16[](uint256(binsBelow) + binsAbove);
+        for (uint256 index = 0; index < weights.length; index++) {
+            bool below = index < binsBelow;
+            uint256 count = below ? binsBelow : binsAbove;
+            uint256 distance = below ? binsBelow - index : index - binsBelow + 1;
+            weights[index] = uint16(shape == Shape.Spot ? 1 : shape == Shape.Curve ? count + 1 - distance : distance);
+        }
+    }
+
+    /// @dev Each side's total weight: the first `binsBelow` weights, then the rest.
+    function _sides(uint16[] memory weights, uint8 binsBelow) private pure returns (uint256 below, uint256 above) {
+        for (uint256 index = 0; index < weights.length; index++) {
+            if (index < binsBelow) below += weights[index];
+            else above += weights[index];
+        }
     }
 
     /// @notice Closes the caller's position `id`: removes every bin's liquidity and pays its tokens and
@@ -406,12 +459,12 @@ contract GanymedeRangeLiquidityHook is IHooks, IUnlockCallback {
     // ---- Inside the pool manager's unlock ----
 
     function _open(bytes memory body) private returns (bytes memory) {
-        (Position memory position, uint256 amount0, uint256 amount1) = abi.decode(body, (Position, uint256, uint256));
+        (Position memory position, uint256 amount0, uint256 amount1, uint16[] memory weights) = abi.decode(body, (Position, uint256, uint256, uint16[]));
         position.center = _openingCenter(position);
         uint256 id = nextPositionId++;
         positions[id] = position;
         _positionsOf[position.owner].push(id);
-        (uint256 owed0, uint256 owed1) = _addBins(id, position, amount0, amount1);
+        (uint256 owed0, uint256 owed1) = _addBins(id, position, amount0, amount1, weights);
         if (owed0 == 0 && owed1 == 0) revert InvalidAmount();
         _receive(currency0, position.owner, owed0);
         _receive(currency1, position.owner, owed1);
@@ -433,32 +486,34 @@ contract GanymedeRangeLiquidityHook is IHooks, IUnlockCallback {
         ) revert InvalidShape();
     }
 
-    /// @dev Adds every bin of a new position, each side spread by its shape, and returns what it owes.
-    function _addBins(uint256 id, Position memory position, uint256 amount0, uint256 amount1) private returns (uint256 owed0, uint256 owed1) {
-        uint256 total = uint256(position.binsBelow) + position.binsAbove;
-        for (uint256 index = 0; index < total; index++) {
-            (uint256 bin0, uint256 bin1) = _addBin(id, position, index, amount0, amount1);
+    /// @dev Adds every bin of a new position, each side's amount shared by the bins' weights, and
+    ///      returns what it owes.
+    function _addBins(uint256 id, Position memory position, uint256 amount0, uint256 amount1, uint16[] memory weights)
+        private
+        returns (uint256 owed0, uint256 owed1)
+    {
+        (uint256 below, uint256 above) = _sides(weights, position.binsBelow);
+        for (uint256 index = 0; index < weights.length; index++) {
+            bool isBelow = index < position.binsBelow;
+            uint256 part = FullMath.mulDiv(isBelow ? amount1 : amount0, weights[index], isBelow ? below : above);
+            (uint256 bin0, uint256 bin1) = _addBin(id, position, index, part);
             owed0 += bin0;
             owed1 += bin1;
         }
     }
 
-    function _addBin(uint256 id, Position memory position, uint256 index, uint256 amount0, uint256 amount1) private returns (uint256 owed0, uint256 owed1) {
+    function _addBin(uint256 id, Position memory position, uint256 index, uint256 part) private returns (uint256 owed0, uint256 owed1) {
         (int24 lower, int24 upper) = _bin(position, index);
-        uint128 amount = _binLiquidity(position, index, lower, upper, index < position.binsBelow ? amount1 : amount0);
+        uint128 amount = _binLiquidity(index < position.binsBelow, lower, upper, part);
         _liquidity[id].push(amount);
         if (amount == 0) return (0, 0);
         (BalanceDelta delta, ) = poolManager.modifyLiquidity(poolKey(), ModifyLiquidityParams(lower, upper, int256(uint256(amount)), bytes32(id)), "");
         return (uint256(uint128(-delta.amount0())), uint256(uint128(-delta.amount1())));
     }
 
-    /// @dev A bin's liquidity for its side's `amount`: its share by the shape's weight, currency1
-    ///      below the price and currency0 above it. Distance 1 is the bin next to the price.
-    function _binLiquidity(Position memory position, uint256 index, int24 lower, int24 upper, uint256 amount) private pure returns (uint128) {
-        bool below = index < position.binsBelow;
-        uint256 count = below ? position.binsBelow : position.binsAbove;
-        uint256 distance = below ? position.binsBelow - index : index - position.binsBelow + 1;
-        uint256 part = FullMath.mulDiv(amount, _weight(position.shape, distance, count), _weights(position.shape, count));
+    /// @dev A bin's liquidity for its `part` of its side's amount: currency1 below the price and
+    ///      currency0 above it.
+    function _binLiquidity(bool below, int24 lower, int24 upper, uint256 part) private pure returns (uint128) {
         uint160 sqrtLower = TickMath.getSqrtPriceAtTick(lower);
         uint160 sqrtUpper = TickMath.getSqrtPriceAtTick(upper);
         return below ? _liquidityForAmount1(sqrtLower, sqrtUpper, part) : _liquidityForAmount0(sqrtLower, sqrtUpper, part);
@@ -494,17 +549,6 @@ contract GanymedeRangeLiquidityHook is IHooks, IUnlockCallback {
             lower = position.center + TICK_SPACING + steps * position.binTicks;
             upper = lower + position.binTicks;
         }
-    }
-
-    /// @dev A bin's weight by its distance from the price, 1 for the nearest, out of `count`.
-    function _weight(Shape shape, uint256 distance, uint256 count) private pure returns (uint256) {
-        if (shape == Shape.Spot) return 1;
-        if (shape == Shape.Curve) return count + 1 - distance;
-        return distance;
-    }
-
-    function _weights(Shape shape, uint256 count) private pure returns (uint256) {
-        return shape == Shape.Spot ? count : count * (count + 1) / 2;
     }
 
     function _floor(int24 tick) private pure returns (int24) {

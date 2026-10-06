@@ -24,7 +24,7 @@ const USD = 1_000_000n;
 const SHARE = 1_000_000n;
 const NAV = 100n * USD;
 const HOUR = 3_600n;
-const SPOT = 0, CURVE = 1, BID_ASK = 2;
+const SPOT = 0, CURVE = 1, BID_ASK = 2, CUSTOM = 3;
 /** Ticks that bound no price: TickMath's limits, for opens that do not test the caller's limit. */
 const ANY_TICK = [-887_272, 887_272] as const;
 
@@ -167,6 +167,47 @@ describe("GanymedeRangeLiquidityHook", () => {
       expect(position[6]).to.equal(true);
     }
     expect((await hook.read.positionsOf([lp.account.address])).length).to.equal(3);
+  });
+
+  it("opens a shape the provider draws bin by bin: each side shared by the weights, a bin of weight 0 left empty", async () => {
+    const { hook, lp, prepare, assetIsCurrency0, publicClient } = await deploy();
+    await prepare(lp, 3_000n * USD);
+    // Five bins below the price and five above, lowest first: a ramp up to the price, then a gap and a tail.
+    const weights = [1, 2, 3, 4, 10, 6, 0, 3, 3, 1];
+    const [amount0, amount1] = assetIsCurrency0 ? [5n * SHARE, 1_000n * USD] : [1_000n * USD, 5n * SHARE];
+    const hash = await hook.write.openCustom([50, 5, 5, weights, amount0, amount1, ...ANY_TICK, await deadline()], { account: lp.account });
+    const receipt = await publicClient.waitForTransactionReceipt({ hash });
+    const opened = parseEventLogs({ abi: hook.abi, logs: receipt.logs, eventName: "PositionOpened" })[0];
+    expect(opened.args.shape).to.equal(CUSTOM);
+    const [lowers, uppers, liquidity] = await hook.read.binsOf([opened.args.id]);
+    expect(lowers.length).to.equal(10);
+    for (let index = 0; index < 10; index++) expect(uppers[index] - lowers[index]).to.equal(50);
+    // Each bin's liquidity follows its weight on its side, give or take the bins' prices; weight 0 stays empty.
+    expect(liquidity[6]).to.equal(0n);
+    expect(Number(liquidity[4]) / Number(liquidity[0])).to.be.closeTo(10, 0.4);
+    expect(Number(liquidity[1]) / Number(liquidity[0])).to.be.closeTo(2, 0.1);
+    expect(Number(liquidity[5]) / Number(liquidity[9])).to.be.closeTo(6, 0.3);
+    expect(Number(liquidity[7]) / Number(liquidity[8])).to.be.closeTo(1, 0.03);
+    // It takes at most what was given, and all but rounding.
+    const [usedUstx, usedDollars] = assetIsCurrency0 ? [opened.args.amount0, opened.args.amount1] : [opened.args.amount1, opened.args.amount0];
+    expect(usedUstx <= 5n * SHARE && usedUstx > 5n * SHARE - 20n).to.equal(true);
+    expect(usedDollars <= 1_000n * USD && usedDollars > 1_000n * USD - 20n).to.equal(true);
+    expect((await hook.read.positions([opened.args.id]))[1]).to.equal(CUSTOM);
+    // It closes like any other position, the empty bin included.
+    await hook.write.close([opened.args.id, 0n, 0n, await deadline()], { account: lp.account });
+    expect((await hook.read.positions([opened.args.id]))[6]).to.equal(false);
+  });
+
+  it("refuses a drawing that does not fit: a weight per bin, some weight on each side with bins, and Custom only through openCustom", async () => {
+    const { hook, lp, prepare, pair } = await deploy();
+    await prepare(lp, 3_000n * USD);
+    const [amount0, amount1] = pair(1n * SHARE, 100n * USD);
+    await expectRevert(hook.write.openCustom([50, 2, 2, [1, 1, 1], amount0, amount1, ...ANY_TICK, await deadline()], { account: lp.account }), "InvalidShape");
+    await expectRevert(hook.write.openCustom([50, 2, 2, [0, 0, 1, 1], amount0, amount1, ...ANY_TICK, await deadline()], { account: lp.account }), "InvalidShape");
+    await expectRevert(hook.write.openCustom([50, 21, 0, Array(21).fill(1), 0n, 100n * USD, ...ANY_TICK, await deadline()], { account: lp.account }), "InvalidShape");
+    await expectRevert(hook.write.open([CUSTOM, 50, 2, 2, amount0, amount1, ...ANY_TICK, await deadline()], { account: lp.account }), "InvalidShape");
+    // A drawing within the caller's price limits is still held to them.
+    await expectRevert(hook.write.openCustom([50, 2, 2, [1, 2, 2, 1], amount0, amount1, -887_272, -887_271, await deadline()], { account: lp.account }), "PriceOutsideLimit(int24,int24,int24)");
   });
 
   it("earns fees on the bins trades cross and pays them with the tokens to the owner only", async () => {

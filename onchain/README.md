@@ -181,18 +181,20 @@ a second account, which redeems them for 4/10 of the holdings; and redeems the r
 amount. It uses no key and broadcasts nothing. The run on 25 September 2026 is recorded in
 `../docs/IN_KIND_VAULT.md`.
 
-## Positions of one's own: Spot, Curve and Bid-Ask (fork of X Layer Testnet)
+## Positions of one's own: Spot, Curve, Bid-Ask and drawn (fork of X Layer Testnet)
 
 `GanymedeRangeLiquidityHook` opens a second USTX/dUSD pool on the same PoolManager in which every
 liquidity provider holds a position of their own: a run of equal-width bins either side of the price,
 demo dollars below it and USTX above, spread evenly (Spot), heaviest next to the price (Curve) or
-heaviest at the far ends (Bid-Ask), with up to 20 bins of 0.1% to 5% on each side. Positions open only
+heaviest at the far ends (Bid-Ask), or as the provider draws it (`openCustom`, a `uint16` weight for
+every bin, lowest first: each side's amount is shared by its bins' weights, a bin of weight 0 stays
+empty, and each side with bins needs some weight), with up to 20 bins of 0.1% to 5% on each side. Positions open only
 with the price within 1% of a fresh NAV; swaps need a NAV under an hour old, pay 0.30% rising to 1.00%
 as it ages, and may not leave the price more than 5% from it. Each position's liquidity sits under its
 own salt, so its fees are its owner's alone, and closing pays tokens and fees at any NAV.
 `GanymedeRangeArbitrage` brings the pool back to the NAV through the fund in one transaction with no
 money of the caller's: it swaps in the pool up to the NAV less the fee and redeems (or invests and
-sells), keeping the difference. 5 tests in `test/GanymedeRangeLiquidityHook.test.ts`. Rehearse it:
+sells), keeping the difference. 10 tests in `test/GanymedeRangeLiquidityHook.test.ts`. Rehearse it:
 
 ```bash
 npm run fork:range
@@ -200,7 +202,8 @@ npm run fork:range
 
 forks X Layer Testnet, impersonates the administrator, deploys both contracts on the recorded
 PoolManager, opens one position of each shape, buys $200 of USTX through the router, records a NAV 1%
-higher and runs the arbitrage, then closes the Bid-Ask position with its fees. `npm run deploy:range`
+higher and runs the arbitrage, closes the Bid-Ask position with its fees, then opens and closes a drawn
+position. `npm run deploy:range`
 did the same deployment and seeding on X Layer Testnet on 4 October 2026, with the user's approval, and
 recorded both contracts in `deployments/xlayer-testnet.json`; the app pins the pool in
 `../lib/xstocks/range-liquidity.ts` (checked by `test/AppRangeClient.test.ts`) and the keeper runs the
@@ -210,7 +213,11 @@ price limit (hook `0x79b7985e025dbab36cffbfd82863b4f2f50128c0`, arbitrage
 `0xf76fa2ff202613556e6f30e3dda130a2fa10c593`): it deployed and seeded the new pair, closed the
 administrator's seed positions in the old hook, and kept the old hook under `replaced` in the record. It
 refuses to replace a hook in which another wallet holds an open position, since the app reads only the
-recorded one; `npm run fork:range` with the same variable rehearses it.
+recorded one; `npm run fork:range` with the same variable rehearses it. That afternoon, again with the
+user's approval, the same command replaced it with a hook that also takes drawn shapes (`openCustom`;
+hook `0x8e489d68cf8cbb9199105e3f0c32fc08936e28c0`, arbitrage `0xaee2ffbb9b3c3dbb5bda350d5df7314978b045dc`,
+pool `0xcdf2037d…`); Pools draws them bar by bar and sends one weight per bin
+(`test/AppRangeClient.test.ts` opens one with the app's own calldata).
 
 Known limits, from the 4 October audit: `open()` took no expected price, so a position opened around
 wherever the price was within 1% of the NAV (the app refuses to send one when the pool is more than
@@ -227,8 +234,9 @@ that arbitrage reverted (`Unprofitable(0)`). The third arbitrage, deployed on 6 
 user's approval (`0x58571aa0519a82f1d3839cae5392dfb060c5d572`), draws what the pool pays short of the
 fund's need from the caller's approved demo dollars instead: the rest of the $10 minimum when
 selling, repaid in USTX worth more at the NAV, or a rounding remainder of up to a cent when buying.
-The keeper approves its demo dollars to it once. The arbitrage deployed with the 6 October hook
-(`0xf76fa2ff202613556e6f30e3dda130a2fa10c593`) is the same contract for the new pool.
+The keeper approves its demo dollars to it once. The arbitrages deployed with the 6 October hooks
+(`0xf76fa2ff202613556e6f30e3dda130a2fa10c593` in the morning, `0xaee2ffbb9b3c3dbb5bda350d5df7314978b045dc`
+in the afternoon) are the same contract for each new pool.
 
 ## Uniswap v4 liquidity for USTX (fork of X Layer Testnet)
 

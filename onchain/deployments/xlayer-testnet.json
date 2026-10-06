@@ -122,12 +122,12 @@
       ]
     },
     "GanymedeRangeLiquidityHook": {
-      "address": "0x79b7985e025dbAB36cFFbFd82863b4F2F50128C0",
-      "deployedAt": "2026-10-06T12:40:40.940Z",
-      "deploymentTransaction": "0x41a868c93763c41f386952995bef51097c3525a4a9190711abb9c3926929ceed",
+      "address": "0x8E489d68cf8CbB9199105e3f0C32FC08936E28c0",
+      "deployedAt": "2026-10-06T14:17:49.982Z",
+      "deploymentTransaction": "0x340de1a89e6dcf9baf15cc2361501d5078255f957dbc3a36adb8fadec10b9715",
       "create2Deployer": "0x4e59b44847b379578588920ca78fbf26c0b4956c",
-      "salt": "0x0000000000000000000000000000000000000000000000000000000000001257",
-      "poolId": "0x3fff3b1249469f8cf04040da6608c6b2501f4f1eb607f3ccea0029c37dff9f7e",
+      "salt": "0x00000000000000000000000000000000000000000000000000000000000015a9",
+      "poolId": "0xcdf2037d5744c2bc575bc595e109ac0cb942bcdec8d229c3cf0517edb9bb2942",
       "constructorArgs": [
         "0xe83eee508ce92832488dd9f574ad329a1203641c",
         "0x77eaeba1366bde7818da12d3cbdbea0a2ee97596",
@@ -147,16 +147,29 @@
             "0x7c798657fcb235a324a8ef8d802afaa5b9d16d18d97ee814e91cf60c20164fa7",
             "0x6f5116df056b8f03e8b639b0665526b78a0a2add95b82c4a6cb4fde44d49f891"
           ]
+        },
+        {
+          "address": "0x79b7985e025dbAB36cFFbFd82863b4F2F50128C0",
+          "poolId": "0x3fff3b1249469f8cf04040da6608c6b2501f4f1eb607f3ccea0029c37dff9f7e",
+          "deployedAt": "2026-10-06T12:40:40.940Z",
+          "seedTransaction": "0x45d027a041bd0cbd327f3e278a11bb7951e400c4d4cbd60a8913c2e481685fdd",
+          "arbitrage": "0xf76fa2ff202613556e6f30e3dda130a2fa10c593",
+          "replacedAt": "2026-10-06T14:17:49.982Z",
+          "closeTransactions": [
+            "0x1ef9986cba7e6f9a6bd8b349906683163f817ce0b840af57c01ca6643a2a4394",
+            "0xfa719024e7375696e5ebc406ab093ac4faf244e7b61637b3eafe5ae5e128d5f3",
+            "0x02a3427a387e8dbb280bfc0ce389c4e2fb925db86cedea66b5ee1664dd1940f8"
+          ]
         }
       ],
-      "seedTransaction": "0x45d027a041bd0cbd327f3e278a11bb7951e400c4d4cbd60a8913c2e481685fdd"
+      "seedTransaction": "0xbc0207581b61cd25e8994754e4ea38afb11306de2bb0b4870127d6bf7cd6535b"
     },
     "GanymedeRangeArbitrage": {
-      "address": "0xf76fa2ff202613556e6f30e3dda130a2fa10c593",
-      "deployedAt": "2026-10-06T12:40:40.940Z",
-      "deploymentTransaction": "0xdd07129b3682aea33959a38fb03b25bfe2a02a761fbf3069df2f5d0b8271589b",
+      "address": "0xaee2ffbb9b3c3dbb5bda350d5df7314978b045dc",
+      "deployedAt": "2026-10-06T14:17:49.982Z",
+      "deploymentTransaction": "0xf46fa9f371ca136c9de8eee095a42d1bf7289762814028ef6e9cc0cea862b874",
       "constructorArgs": [
-        "0x79b7985e025dbAB36cFFbFd82863b4F2F50128C0",
+        "0x8E489d68cf8CbB9199105e3f0C32FC08936E28c0",
         "0x77eaeba1366bde7818da12d3cbdbea0a2ee97596"
       ]
     }

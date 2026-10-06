@@ -1975,6 +1975,30 @@ a.gmd-pool-pair:hover b { text-decoration: underline; text-underline-offset: 3px
 .gmd-strategy-row .gmd-segmented button { min-height: 32px; padding: 4px 8px; font-size: 12px; }
 .gmd-strategy-row input[type="range"] { width: 100%; accent-color: var(--gmd-ustx); }
 .gmd-strategy-custom .gmd-caption { margin: 0; }
+/* Where Custom's box is narrow, in the side panel or on a phone, each setting's label sits above its buttons, which share the width. */
+.gmd-strategy-custom { container-type: inline-size; }
+.gmd-strategy-row .gmd-segmented button { white-space: nowrap; }
+@container (max-width: 440px) {
+  .gmd-strategy-row { grid-template-columns: minmax(0,1fr); gap: 4px; }
+  .gmd-strategy-row .gmd-segmented button { flex: 1 1 0; min-width: 0; }
+}
+/* Custom's drawn shape: a bar per bin to paint, the presets to start from and the shapes kept in this browser. */
+.gmd-shape-editor { display: grid; gap: 8px; min-width: 0; }
+.gmd-shape-plot { min-width: 0; padding: 6px 6px 2px; border: 1px solid var(--gmd-line); border-radius: 8px; background: #fff; }
+.gmd-shape-plot svg { display: block; width: 100%; height: auto; touch-action: none; cursor: crosshair; user-select: none; -webkit-user-select: none; }
+.gmd-shape-bar.is-dollars { fill: var(--gmd-dusd); }
+.gmd-shape-bar.is-shares { fill: var(--gmd-ustx); }
+.gmd-shape-bar.is-unused { opacity: .18; }
+.gmd-shape-bar:focus { outline: none; }
+.gmd-shape-bar:focus-visible { stroke: var(--gmd-ink); stroke-width: 2; }
+.gmd-shape-price { stroke: var(--gmd-ink); stroke-width: 1; stroke-dasharray: 3 3; }
+.gmd-shape-tools, .gmd-shape-saved { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; font-size: 12px; color: var(--gmd-copy); }
+.gmd-shape-tools .gmd-small-button, .gmd-shape-saved .gmd-small-button { min-height: 30px; padding: 4px 10px; font-size: 12px; }
+.gmd-shape-saved input { flex: 1 1 140px; min-width: 0; min-height: 30px; padding: 4px 8px; border: 1px solid var(--gmd-line); border-radius: 6px; background: #fff; color: var(--gmd-ink); font-size: 12px; }
+.gmd-shape-chip { display: inline-flex; align-items: center; overflow: hidden; border: 1px solid var(--gmd-line); border-radius: 999px; background: #fff; }
+.gmd-shape-chip button { min-height: 28px; padding: 2px 8px; font-size: 12px; color: var(--gmd-ink); }
+.gmd-shape-chip button + button { padding-inline: 4px 9px; color: var(--gmd-copy); }
+.gmd-shape-chip button:hover { background: #edf3f1; }
 .gmd-range-positions ul { list-style: none; margin: 6px 0 0; padding: 0; display: grid; gap: 8px; }
 .gmd-range-positions li { display: grid; grid-template-columns: minmax(0,1fr) auto auto; align-items: center; gap: 10px; padding-top: 8px; border-top: 1px solid #e3eaec; }
 .gmd-range-positions li > div { display: grid; min-width: 0; }

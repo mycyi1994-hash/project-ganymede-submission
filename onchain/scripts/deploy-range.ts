@@ -3,24 +3,26 @@
  * Uniswap v4 PoolManager already recorded for X Layer Testnet:
  *
  *   GanymedeRangeLiquidityHook  the pool, opened at the NAV of the recorded GanymedeNavFeed; positions
- *                               shaped Spot, Curve or Bid-Ask; deployed through the deterministic
- *                               deployment proxy at a CREATE2 address carrying its permissions
+ *                               shaped Spot, Curve or Bid-Ask, or weighed bin by bin (openCustom);
+ *                               deployed through the deterministic deployment proxy at a CREATE2
+ *                               address carrying its permissions
  *   GanymedeRangeArbitrage      brings the pool back to the NAV through the fund, for the keeper
  *
  * Then it seeds the pool from the administrator wallet with one position of each shape, so Pools
  * has liquidity to show and trades have liquidity to meet. Demo dollars and USTX have no value. The
  * user approved this deployment on 4 October 2026 (AGENTS.md asks for approval).
  *
- * With RANGE_REPLACE set to the recorded hook's address it replaces that hook, as on 6 October 2026
- * with the user's approval, when positions began to open only within the caller's tick limits: a new
- * hook and arbitrage, seeded the same way, then the administrator's seed positions in the replaced
- * hook closed. The record keeps the replaced hook under `replaced`. It refuses while another wallet
+ * With RANGE_REPLACE set to the recorded hook's address it replaces that hook, as twice on 6 October
+ * 2026 with the user's approval, when positions began to open only within the caller's tick limits
+ * and then when a provider could draw a position's shape bin by bin: a new hook and arbitrage, seeded
+ * the same way, then the administrator's seed positions in the replaced hook closed. The record keeps the replaced hook under `replaced`. It refuses while another wallet
  * holds an open position in the replaced hook, since Pools reads only the recorded one; on chain, any
  * position there can still be closed at any NAV.
  *
  * On the in-process `hardhat` network it runs the same routine on a fork of X Layer Testnet with
  * the administrator impersonated, then rehearses a trade, a NAV move with the keeper's arbitrage,
- * and closing a position; nothing is broadcast and the record is not written.
+ * closing a position, and opening and closing a drawn one; nothing is broadcast and the record is
+ * not written.
  *
  * Run: npm run fork:range, then npm run deploy:range (each with RANGE_REPLACE=<recorded hook> to replace it)
  */
@@ -216,6 +218,19 @@ async function main() {
     const [a0, a1, f0, f1] = await hook.read.positionAmounts([ids[2]]);
     console.log(`  Bid-Ask position: ${formatUnits(assetIsCurrency0 ? a0 : a1, 6)} USTX and ${formatUnits(assetIsCurrency0 ? a1 : a0, 6)} dUSD, fees ${formatUnits(assetIsCurrency0 ? f0 : f1, 6)} / ${formatUnits(assetIsCurrency0 ? f1 : f0, 6)}`);
     await send("close Bid-Ask", options => hook.write.close([ids[2], 0n, 0n, deadline], options), 3_000_000n);
+    // A shape drawn bin by bin, as Pools sends it: a weight for every bin, lowest first, one left empty.
+    const drawn = [1, 2, 3, 5, 8, 13, 21, 34, 55, 89, 89, 55, 34, 21, 13, 8, 5, 3, 2, 0];
+    const held = await fund.read.balanceOf([adminAddress]);
+    const [drawn0, drawn1] = assetIsCurrency0 ? [held / 2n, 100_000_000n] : [100_000_000n, held / 2n];
+    const { tick: drawnTick } = await readSlot0(publicClient, managerAddress, poolId);
+    const drawnDeadline = (await publicClient.getBlock()).timestamp + 900n;
+    await send("open a drawn shape", options => hook.write.openCustom([SEED_BIN_TICKS, SEED_BINS, SEED_BINS, drawn, drawn0, drawn1, drawnTick - SEED_TICK_SLACK, drawnTick + SEED_TICK_SLACK, drawnDeadline], options), 4_500_000n);
+    const drawnId = (await hook.read.nextPositionId()) - 1n;
+    const [drawnOwner, drawnShape] = await hook.read.positions([drawnId]);
+    if (drawnOwner.toLowerCase() !== adminAddress.toLowerCase() || drawnShape !== 3) throw new Error(`Position ${drawnId} reads as shape ${drawnShape} of ${drawnOwner}, not the drawn one.`);
+    const [d0, d1] = await hook.read.positionAmounts([drawnId]);
+    console.log(`  drawn position: ${formatUnits(assetIsCurrency0 ? d0 : d1, 6)} USTX and ${formatUnits(assetIsCurrency0 ? d1 : d0, 6)} dUSD`);
+    await send("close the drawn shape", options => hook.write.close([drawnId, 0n, 0n, drawnDeadline], options), 3_000_000n);
     console.log("\nfork rehearsal passed; nothing was broadcast.");
     return;
   }

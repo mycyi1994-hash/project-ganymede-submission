@@ -144,6 +144,26 @@ test("the fund API reads only and carries no demo totals", async () => {
     const detail = await (await fundsGET(request("/api/v1/funds?id=us-core"))).json();
     assert.deepEqual(detail.fund.holdings.map((holding) => holding.symbol), ["SPYx", "QQQx"]);
     assert.equal(detail.fund.demo, undefined);
+    // USTX's records live under the first product's keys; its detail reads them, without the document.
+    db.readOnly = false;
+    const record = { asOf: "2026-10-06T14:20:44.000Z", navPerShareMicros: "101570295", status: "confirmed", txHash: `0x${"c".repeat(64)}` };
+    sql.prepare("INSERT INTO engine_state (key, value, updated_at) VALUES (?, ?, CURRENT_TIMESTAMP)").run("xstocks:history", JSON.stringify([record]));
+    sql.prepare("INSERT INTO engine_state (key, value, updated_at) VALUES (?, ?, CURRENT_TIMESTAMP)").run("xstocks:latest", JSON.stringify({ evaluatedAt: record.asOf, status: "published", blockers: [], warnings: [], composition: null, canonical: "{}", holdingsHash: null, publication: record }));
+    db.readOnly = true;
+    const ustx = (await (await fundsGET(request("/api/v1/funds?id=us-tech-x"))).json()).fund;
+    assert.deepEqual(ustx.history.map((entry) => entry.navPerShareMicros), ["101570295"]);
+    assert.equal(ustx.latest.publication.txHash, record.txHash);
+    assert.equal(ustx.latest.canonical, undefined);
+    // While newer records wait for X Layer, the last confirmed one stays listed with its document for the browser's check.
+    db.readOnly = false;
+    const waiting = Array.from({ length: 12 }, (_, index) => ({ asOf: new Date(Date.parse("2026-10-06T14:25:00.000Z") + index * 300_000).toISOString(), navPerShareMicros: "100000000", holdingsHash: `0x${String(index).padStart(64, "0")}`, canonical: "{}", status: "submitted", txHash: null, error: null }));
+    const confirmedRecord = { asOf: "2026-10-06T14:20:44.000Z", navPerShareMicros: "100500000", holdingsHash: `0x${"d".repeat(64)}`, canonical: "{}", status: "confirmed", txHash: `0x${"e".repeat(64)}`, error: null };
+    sql.prepare("INSERT INTO engine_state (key, value, updated_at) VALUES (?, ?, CURRENT_TIMESTAMP)").run("fund:magnificent-7:history", JSON.stringify(waiting));
+    sql.prepare("INSERT INTO engine_state (key, value, updated_at) VALUES (?, ?, CURRENT_TIMESTAMP)").run("fund:magnificent-7:confirmed", JSON.stringify(confirmedRecord));
+    db.readOnly = true;
+    const m7x = (await (await fundsGET(request("/api/v1/funds?id=magnificent-7"))).json()).fund;
+    assert.equal(m7x.history.length, 13);
+    assert.deepEqual(m7x.history.at(-1), confirmedRecord);
   } finally { delete env.DB; delete env.NAV_REGISTRY_ADDRESS; sql.close(); }
 });
 
@@ -163,6 +183,11 @@ test("Ask USTX and MCP agents read every product: the list, a basket's weights, 
       ["SPYC", "covered-call", false], ["QQQC", "covered-call", false], ["ELS1", "autocall", false],
     ]);
     assert.ok(Math.abs(Number(listed.funds.find((fund) => fund.ticker === "M7X").navUsd) - 100) < 0.001, "a new fund starts at US$100");
+    // Only USTX takes orders, and it says whether it does now; here its NAV cannot be read, so it does not claim it.
+    const ustxListed = listed.funds.find((fund) => fund.ticker === "USTX");
+    assert.notEqual(ustxListed.ordersOpen, true);
+    assert.match(ustxListed.ordersNote, /could not be read|over an hour old/);
+    assert.equal("ordersOpen" in listed.funds.find((fund) => fund.ticker === "M7X"), false);
     const basket = await run("get_fund", { id: "M7X" });
     assert.equal(basket.holdings.length, 7);
     assert.ok(Math.abs(basket.holdings.reduce((sum, holding) => sum + holding.weightPercent, 0) - 100) < 0.1);
@@ -204,6 +229,7 @@ test("Ask USTX and MCP agents read every product: the list, a basket's weights, 
     assert.equal((await run("get_fund", { id: "SPYC" })).documentConsistent, false);
     const ustx = await run("get_fund", { id: "USTX" });
     assert.match(ustx.seeAlso, /get_ustx_holdings/);
+    assert.notEqual(ustx.ordersOpen, true);
     await assert.rejects(run("get_fund", { id: "nope" }), /id must be one of/);
   } finally { delete env.DB; sql.close(); }
 });

@@ -13,6 +13,7 @@ import { PROOF_DEPLOYMENT } from "@/lib/xstocks/proof";
 import { useMarket } from "./MarketProvider";
 import { CATEGORY_EVENT } from "./AskUstx";
 import { Icon } from "./Icons";
+import { delayText, useNavDelay } from "./NavDelay";
 import { designLink } from "./ProductShell";
 import MarketChart from "./MarketChart";
 import { InvestPanel } from "./InvestPanel";
@@ -56,6 +57,7 @@ function useNextRecord(effectiveAt: string | null) {
 }
 
 function NavValue() {
+  const delay = useNavDelay();
   const { data, now, error, loading } = useMarket();
   const { checks } = useRecordCheck(data, error);
   const read = checks?.record?.effectiveAt ? checks.record : null;
@@ -76,8 +78,8 @@ function NavValue() {
     if (seen) { const change = BigInt(record.navPerShareMicros) - BigInt(seen.nav); setFlash({ at: record.effectiveAt, tone: change > 0n ? "up" : change < 0n ? "down" : "same" }); }
   }
   // Customers see when the price was recorded; an older record reads "last recorded", not an error.
-  const state = !data && loading ? "Loading…" : !record ? "Confirming the price…" : record === unconfirmed ? "Price confirmation unavailable" : status.tone === "ready" ? "Recorded on X Layer" : "Last recorded on X Layer";
-  return <div className="gmd-nav-summary"><div><span className="gmd-label">NAV per share <span>/ USD</span></span>{!data && loading ? <strong className="gmd-value"><i className="gmd-skeleton is-hero" aria-hidden="true" /><span className="gmd-sr-only">Loading</span></strong> : <strong key={flash?.at ?? "value"} className={`gmd-value${flash ? ` is-${flash.tone}` : ""}`}>{record ? formatUsdMicros(record.navPerShareMicros, 4) : "—"}</strong>}</div><div className="gmd-nav-meta"><OkxSource>Priced by OKX OnchainOS</OkxSource><span className={`gmd-status ${status.tone === "ready" && record !== unconfirmed ? "is-neutral" : "is-waiting"}`}><i />{state}</span><time dateTime={record?.effectiveAt ?? undefined}>{record ? shortTime(record.effectiveAt) : ""}</time>{next && <span className="gmd-live"><i aria-hidden="true" />{next}</span>}</div></div>;
+  const state = !data && loading ? "Loading…" : !record ? "Confirming the price…" : record === unconfirmed ? "Price confirmation unavailable" : status.tone === "ready" ? "Recorded on X Layer" : delay ? `Delayed ${delayText(delay.lateMs)}: last recorded on X Layer` : "Last recorded on X Layer";
+  return <div className="gmd-nav-summary"><div><span className="gmd-label"><abbr title="Net asset value: what the xStocks behind one share are worth">NAV</abbr> per share <span>/ USD</span></span>{!data && loading ? <strong className="gmd-value"><i className="gmd-skeleton is-hero" aria-hidden="true" /><span className="gmd-sr-only">Loading</span></strong> : <strong key={flash?.at ?? "value"} className={`gmd-value${flash ? ` is-${flash.tone}` : ""}`}>{record ? formatUsdMicros(record.navPerShareMicros, 4) : "—"}</strong>}</div><div className="gmd-nav-meta"><OkxSource>Priced by OKX OnchainOS</OkxSource><span className={`gmd-status ${status.tone === "ready" && record !== unconfirmed ? "is-neutral" : "is-waiting"}`}><i />{state}</span><time dateTime={record?.effectiveAt ?? undefined}>{record ? shortTime(record.effectiveAt) : ""}</time>{next && <span className="gmd-live"><i aria-hidden="true" />{next}</span>}</div></div>;
 }
 
 function ProductIdentity({ compact = false }: { compact?: boolean }) {
@@ -87,9 +89,9 @@ function ProductIdentity({ compact = false }: { compact?: boolean }) {
 type Category = "all" | "basket" | "income" | "structured";
 const CATEGORIES: { id: Category; label: string; note: string }[] = [
   { id: "all", label: "All", note: "9 products" },
-  { id: "basket", label: "RWA baskets", note: "6 equity ETFs" },
+  { id: "basket", label: "RWA baskets", note: "6 equity baskets" },
   { id: "income", label: "Income", note: "Covered calls" },
-  { id: "structured", label: "Structured", note: "ELS notes" },
+  { id: "structured", label: "Structured", note: "Autocallable notes" },
 ];
 
 export function MarketScreen({ preview = false }: { preview?: boolean }) {

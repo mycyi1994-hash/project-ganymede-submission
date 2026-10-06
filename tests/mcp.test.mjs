@@ -1,11 +1,12 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { MCP_PROTOCOL_VERSIONS, MCP_SERVER_INFO, ToolInputError, handleMcp } from "../lib/mcp/server.ts";
+import { MCP_PROTOCOL_VERSIONS, MCP_SERVER_INFO, MCP_TOOL_CALLS_PER_MINUTE, ToolInputError, handleMcp, takeToolCall } from "../lib/mcp/server.ts";
 import { ustxTools } from "../app/mcp/tools.ts";
 import { POST, GET, OPTIONS } from "../app/mcp/route.ts";
 import { FUND_DEPLOYMENT, FUND_SELECTORS, POOL_SELECTORS } from "../lib/xstocks/fund.ts";
 import { LIQUIDITY_SELECTORS } from "../lib/xstocks/liquidity.ts";
 import { V4_POOL_DEPLOYMENT, V4_SELECTORS } from "../lib/xstocks/v4-liquidity.ts";
+import { RANGE_POOL_DEPLOYMENT } from "../lib/xstocks/range-liquidity.ts";
 
 const USD = 1_000_000n;
 const word = (value) => (BigInt(value) & ((1n << 256n) - 1n)).toString(16).padStart(64, "0");
@@ -82,9 +83,9 @@ test("malformed requests are refused, GET offers no stream, and any origin may c
   assert.match(preflight.headers.get("access-control-allow-headers"), /Mcp-Protocol-Version/);
 });
 
-test("the server offers its eight tools, all reads: six for USTX and two for every product", async () => {
+test("the server offers its nine tools, all reads: seven for USTX and two for every product", async () => {
   const listed = await (await POST(post(rpc("tools/list")))).json();
-  assert.deepEqual(listed.result.tools.map(tool => tool.name), ["get_ustx_nav", "verify_ustx_nav", "get_ustx_holdings", "quote_ustx_order", "get_ustx_pools", "get_ustx_market_activity", "list_funds", "get_fund"]);
+  assert.deepEqual(listed.result.tools.map(tool => tool.name), ["get_ustx_nav", "verify_ustx_nav", "get_ustx_holdings", "quote_ustx_order", "prepare_ustx_order", "get_ustx_pools", "get_ustx_market_activity", "list_funds", "get_fund"]);
   assert.ok(listed.result.tools.every(tool => tool.annotations.readOnlyHint && tool.inputSchema.type === "object" && tool.description.length > 40));
 });
 
@@ -141,4 +142,80 @@ test("a stale v4 pool quotes nothing and says why, and wrong arguments are expla
   await assert.rejects(quote.run({ side: "buy", amount: 5 }), /between 10\.000000/);
   await assert.rejects(quote.run({ side: "buy", amount: "1.1234567" }), /at most six decimals/);
   await assert.rejects(quote.run({ side: "buy", amount: -3 }), /positive number/);
+});
+
+test("a batch holds at most four messages, and each address makes a limited number of tool calls a minute", async () => {
+  const many = await handleMcp(post([1, 2, 3, 4, 5].map(id => rpc("ping", null, id))), ECHO);
+  assert.equal(many.status, 400);
+  assert.match((await many.json()).error.message, /at most 4/);
+  const start = Date.now();
+  for (let call = 0; call < MCP_TOOL_CALLS_PER_MINUTE; call++) assert.equal(takeToolCall("203.0.113.9", start), true);
+  assert.equal(takeToolCall("203.0.113.9", start + 1_000), false, "the next call in the same minute is refused");
+  assert.equal(takeToolCall("203.0.113.10", start + 1_000), true, "another address is counted apart");
+  assert.equal(takeToolCall("203.0.113.9", start + 61_000), true, "a minute later it may call again");
+  const flooded = new Request(`${ORIGIN}/mcp`, { method: "POST", headers: { "Content-Type": "application/json", "CF-Connecting-IP": "198.51.100.7" }, body: JSON.stringify(rpc("tools/call", { name: "echo", arguments: { text: "hi" } })) });
+  for (let call = 0; call < MCP_TOOL_CALLS_PER_MINUTE; call++) takeToolCall("198.51.100.7");
+  const refused = await handleMcp(flooded, ECHO);
+  assert.equal(refused.status, 429);
+  assert.equal((await refused.json()).error.code, -32000);
+});
+
+/** A wallet on X Layer Testnet with $1,000 of demo dollars and nothing approved, beside the chain() pools. */
+function walletChain({ staleFund = false } = {}) {
+  const base = chain();
+  return async (url, init) => {
+    const body = JSON.parse(init.body);
+    const answer = (result) => Response.json({ jsonrpc: "2.0", id: body.id, result });
+    const [first] = body.params ?? [];
+    if (body.method === "eth_getBalance") return answer(hex(10n ** 18n));
+    if (body.method === "eth_getBlockByNumber") return answer({ number: hex(100), timestamp: hex(1_790_000_000) });
+    if (body.method === "eth_call") {
+      const selector = first.data.slice(0, 10);
+      if (staleFund && first.to === FUND_DEPLOYMENT.fund && selector === FUND_SELECTORS.currentNav) return Response.json({ jsonrpc: "2.0", id: body.id, error: { code: 3, message: "execution reverted", data: "0x12345678" } });
+      if (first.to === FUND_DEPLOYMENT.dollar && selector === FUND_SELECTORS.balanceOf) return answer(`0x${word(1_000n * USD)}`);
+      if (first.to === FUND_DEPLOYMENT.fund && selector === FUND_SELECTORS.balanceOf) return answer(`0x${word(0n)}`);
+      if (first.to === FUND_DEPLOYMENT.dollar && selector === FUND_SELECTORS.nextClaimAt) return answer(`0x${word(2_000_000_000n)}`);
+      if (RANGE_POOL_DEPLOYMENT && first.to === RANGE_POOL_DEPLOYMENT.router && selector === V4_SELECTORS.quoteExactInput && first.data.includes(RANGE_POOL_DEPLOYMENT.hook.slice(2))) return answer(`0x${word(4_990_000n)}`);
+      if (RANGE_POOL_DEPLOYMENT && first.to === RANGE_POOL_DEPLOYMENT.hook && selector === V4_SELECTORS.currentFee) return answer(`0x${word(3_000n)}`);
+    }
+    return base(url, init);
+  };
+}
+
+const prepare = ustxTools(ORIGIN).find(tool => tool.name === "prepare_ustx_order");
+const WALLET = `0x${"ab".repeat(20)}`;
+
+test("an order is prepared as unsigned transactions for the wallet: the approval it lacks, then the order at the best venue", async (t) => {
+  t.mock.method(globalThis, "fetch", walletChain());
+  const result = await prepare.run({ side: "buy", amount: 500, wallet: WALLET });
+  // $500 at $100 a share: the fund gives 5 USTX, more than the pools; nothing is approved yet.
+  assert.equal(result.venue, "fund");
+  assert.deepEqual(result.chain.chainId, "0x7a0");
+  assert.equal(result.from, WALLET);
+  assert.deepEqual(result.transactions.map(({ to, value }) => [to, value]), [[FUND_DEPLOYMENT.dollar, "0x0"], [FUND_DEPLOYMENT.fund, "0x0"]]);
+  assert.equal(result.transactions[0].data, `${FUND_SELECTORS.approve}${word(BigInt(FUND_DEPLOYMENT.fund))}${word(500n * USD)}`);
+  assert.equal(result.transactions[1].data, `${FUND_SELECTORS.invest}${word(500n * USD)}${word(4_950_000n)}`, "the minimum is the quote less 1%");
+  assert.deepEqual([result.receive, result.minimumReceive, result.enough], ["5.000000 USTX", "4.950000 USTX", true]);
+  assert.match(result.howToSign, /eth_sendTransaction/);
+  // A pool named takes a deadline and its own approval; the range pool is quoted through the same router.
+  const range = await prepare.run({ side: "buy", amount: 500, wallet: WALLET, venue: "range" });
+  assert.equal(range.venue, "range");
+  assert.equal(range.receive, "4.990000 USTX");
+  assert.equal(range.transactions.at(-1).to, RANGE_POOL_DEPLOYMENT.router);
+  assert.ok(Date.parse(range.deadline) > Date.now());
+  await assert.rejects(prepare.run({ side: "buy", amount: 500, wallet: "0x123" }), /wallet must be/);
+  await assert.rejects(prepare.run({ side: "buy", amount: 500, wallet: WALLET, venue: "moon" }), /venue must be/);
+});
+
+test("while the fund refuses a stale NAV, the best venue is not prepared, and a pool only when named", async (t) => {
+  t.mock.method(globalThis, "fetch", walletChain({ staleFund: true }));
+  const best = await prepare.run({ side: "buy", amount: 500, wallet: WALLET });
+  assert.deepEqual(best.transactions, []);
+  assert.match(best.unavailable, /over an hour old/);
+  assert.match(best.unavailable, /Name venue "pool"/);
+  const pool = await prepare.run({ side: "buy", amount: 500, wallet: WALLET, venue: "pool" });
+  assert.equal(pool.venue, "pool");
+  assert.equal(pool.transactions.at(-1).to, FUND_DEPLOYMENT.pool);
+  const quoted = await quote.run({ side: "buy", amount: 500 });
+  assert.match(quoted.venues.fund.unavailable, /over an hour old/);
 });

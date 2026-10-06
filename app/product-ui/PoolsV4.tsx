@@ -106,7 +106,7 @@ export function V4PoolOverview({ deployment, reader }: { deployment: V4Deploymen
       </dl>
     </div>}
     <dl className="gmd-fund-facts">
-      <div><dt>Value per LP token</dt><dd>{pool && answer !== null && pool.supply > 0n ? `${formatUsdMicros(v4ValueMicros(pool, answer) * ONE / pool.supply, 4)} at the NAV` : "—"}</dd></div>
+      <div><dt>Value per LP token</dt><dd>{pool && answer !== null && pool.supply > 0n ? `${formatUsdMicros(v4ValueMicros(pool, answer) * ONE / pool.supply, 4)} at the NAV` : pool && answer === null ? "Waiting for the next NAV record" : "—"}</dd></div>
       <div><dt>LP tokens issued</dt><dd>{pool ? `${formatSharesShort(pool.supply, 4)} USTX-V4LP` : "—"}</dd></div>
       <div><dt>Centred on</dt><dd>{pool && pool.peggedAt > 0 ? `The record of ${shortTime(new Date(pool.peggedAt * 1000).toISOString())}` : "—"}</dd></div>
       <div><dt>Deposits</dt><dd>Become LP tokens when the pool moves to the next NAV record</dd></div>

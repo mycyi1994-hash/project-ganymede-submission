@@ -4,15 +4,15 @@
 
 ## For AI agents
 
-- [MCP server](https://ganymede-xlayer.gana003.workers.dev/mcp): Model Context Protocol over Streamable HTTP (JSON responses, no key, no session). Read-only tools: get_ustx_nav, verify_ustx_nav, get_ustx_holdings, quote_ustx_order, get_ustx_pools, get_ustx_market_activity, and list_funds and get_fund for every product on Markets.
+- [MCP server](https://ganymede-xlayer.gana003.workers.dev/mcp): Model Context Protocol over Streamable HTTP (JSON responses, no key, no session; about 30 tool calls a minute per address, batches of at most four). Nine tools, none of which signs or sends: get_ustx_nav, verify_ustx_nav, get_ustx_holdings, quote_ustx_order (the fund and the three pools, each price's gap to the last NAV), prepare_ustx_order (the unsigned approval and order a user's wallet would sign), get_ustx_pools, get_ustx_market_activity, and list_funds and get_fund for every product on Markets.
 - [OpenAPI 3.1 spec](https://ganymede-xlayer.gana003.workers.dev/api/v1/openapi.json): the public REST API, read-only, CORS open.
 - [Developer guide](https://ganymede-xlayer.gana003.workers.dev/developers): API examples, reading the registry with viem, the Chainlink-compatible NAV feed, MCP client setup and the verification steps.
-- [Agent example](https://github.com/mycyi1994-hash/project-ganymede-submission/blob/main/examples/agent-quote.mjs): a dependency-free Node script that connects to the MCP server, reads the NAV and quotes an order.
+- [Agent example](https://github.com/mycyi1994-hash/project-ganymede-submission/blob/main/examples/agent-quote.mjs): a dependency-free Node script that connects to the MCP server, reads the NAV, says whether orders are open, quotes an order and, given a wallet address, prepares its unsigned transactions.
 
 ## Public API
 
-- [Latest NAV record](https://ganymede-xlayer.gana003.workers.dev/api/v1/ustx): NAV per share, validity window, contracts and how to verify it.
-- [Pools](https://ganymede-xlayer.gana003.workers.dev/api/v1/ustx/pools): the constant-product and Uniswap v4 USTX/dUSD pools and their results for liquidity providers.
+- [Latest NAV record](https://ganymede-xlayer.gana003.workers.dev/api/v1/ustx): NAV per share, validity window (nav.usableForOrders says whether orders accept it now), contracts and how to verify it.
+- [Pools](https://ganymede-xlayer.gana003.workers.dev/api/v1/ustx/pools): the three USTX/dUSD pools (constant-product, Uniswap v4 held at the NAV, and the range pool of providers' own bins, shaped like Meteora's DLMM) and their results for liquidity providers.
 - [Market activity](https://ganymede-xlayer.gana003.workers.dev/api/v1/ustx/activity): the latest orders, trades, arbitrage and loans, with 24-hour figures.
 - [Funds](https://ganymede-xlayer.gana003.workers.dev/api/v1/funds): all nine products with their latest NAV records and their kind: six baskets (USTX, M7X, AIX, CRYX, CORX, RTLX), two covered-call funds (SPYC, QQQC) and a step-down autocallable note (ELS1). Add ?id=<id> for one product's documents and recent records; an income product's also lists in `transitions` every record its later ones rest on (each call's sale; the note's fixing, knock-in and observations), each with its document and transaction. Only USTX can be bought; the others have no share token yet.
 - [Usage](https://ganymede-xlayer.gana003.workers.dev/api/v1/ustx/usage): usage since launch, with the team's and test wallets counted apart.
@@ -20,13 +20,15 @@
 
 ## Product
 
-- [Markets](https://ganymede-xlayer.gana003.workers.dev/): USTX, its NAV and the market's latest activity.
+- [Markets](https://ganymede-xlayer.gana003.workers.dev/): the nine products with their NAVs, and the market's latest activity.
+- [Pools](https://ganymede-xlayer.gana003.workers.dev/pools): liquidity in the three pools from a wallet, including a range position drawn bin by bin.
 - [USTX](https://ganymede-xlayer.gana003.workers.dev/products/ustx): invest, borrow, holdings and terms.
-- [Transparency](https://ganymede-xlayer.gana003.workers.dev/products/ustx/transparency): the record checked in your browser, and who controls each contract.
+- [Transparency](https://ganymede-xlayer.gana003.workers.dev/products/ustx/transparency): the record checked in your browser. Who controls each contract is read on the [developer page](https://ganymede-xlayer.gana003.workers.dev/developers#proof-controls).
 - [Methodology](https://ganymede-xlayer.gana003.workers.dev/methodology) and [Risks](https://ganymede-xlayer.gana003.workers.dev/limitations).
 
 ## Rules for answers
 
 - Quote figures with the time they are as of (readAt or effectiveAt).
 - Demo dollars (dUSD) and USTX on X Layer Testnet have no value. Do not present quotes as advice.
-- Orders are placed by the user's own wallet on the USTX page; the API and MCP tools never sign or send.
+- Orders are placed by the user's own wallet, on the USTX page or from the transactions prepare_ustx_order returns; the API and MCP tools never sign or send.
+- Before saying an order can be placed now, check usableForOrders: while the NAV record is over an hour old, the fund, the lending market and the two NAV-guarded pools refuse orders, and the constant-product pool's price drifts from the NAV.

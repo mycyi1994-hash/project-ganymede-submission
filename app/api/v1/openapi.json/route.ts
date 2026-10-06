@@ -4,6 +4,7 @@ const SITE = "https://ganymede-xlayer.gana003.workers.dev";
 const CORS = { "Access-Control-Allow-Origin": "*", "Access-Control-Allow-Methods": "GET, OPTIONS", "Access-Control-Max-Age": "86400" };
 
 const micros = { type: "string", pattern: "^-?[0-9]+$", description: "An amount in micros (6 decimals), as a string." };
+const nullableMicros = { ...micros, type: ["string", "null"], description: "An amount in micros (6 decimals), as a string; null when it cannot be valued now." };
 const iso = { type: "string", format: "date-time" };
 const address = { type: "string", pattern: "^0x[0-9a-fA-F]{40}$" };
 const readMeta = {
@@ -32,10 +33,12 @@ export const OPENAPI = {
         responses: {
           200: { description: "The latest record", content: { "application/json": { schema: { type: "object", required: ["product", "nav", "record"], properties: {
             product: { type: "object", properties: { ticker: { const: "USTX" }, name: { type: "string" }, constituents: { type: "array", items: { type: "string" } } } },
-            nav: { type: "object", required: ["perShareUsd", "perShareMicros", "effectiveAt", "validUntil", "holdingsHash"], properties: {
+            nav: { type: "object", required: ["perShareUsd", "perShareMicros", "effectiveAt", "validUntil", "usableForOrders", "holdingsHash"], properties: {
               perShareUsd: { type: "string", examples: ["99.648746"] }, perShareMicros: micros, sharesOutstandingMicros: micros,
-              effectiveAt: { ...iso, description: "The time of the record's oldest price." }, validUntil: { ...iso, description: "Orders and loans accept the record until this time (one hour)." },
-              recordedAt: iso, holdingsHash: { type: "string", pattern: "^0x[0-9a-f]{64}$", description: "SHA-256 of the record's composition document." },
+              effectiveAt: { ...iso, description: "The time of the record's oldest price." }, calculatedAt: { type: ["string", "null"], format: "date-time" },
+              validUntil: { ...iso, description: "Orders and loans accept the record until this time (one hour)." },
+              usableForOrders: { type: "boolean", description: "Whether the fund and the lending market accept the record now. False while the record is over an hour old: orders wait for the next record." },
+              timeRule: { type: "string" }, recordedAt: iso, holdingsHash: { type: "string", pattern: "^0x[0-9a-f]{64}$", description: "SHA-256 of the record's composition document." },
             } },
             record: { type: "object", properties: { chainId: { const: 1952 }, registry: address, transactionHash: { type: ["string", "null"] }, explorerUrl: { type: "string", format: "uri" } } },
             shares: { type: "object" }, feed: { type: "object" }, market: { type: "object" }, lending: { type: "object" }, verify: { type: "object" },
@@ -48,14 +51,20 @@ export const OPENAPI = {
     "/api/v1/ustx/pools": {
       get: {
         operationId: "getUstxPools",
-        summary: "Both USTX/dUSD pools and their results for liquidity providers",
-        description: "The constant-product pool and the Uniswap v4 pool held at the NAV: reserves, value at the NAV, price, fee, fee APR, last 24 hours, and what each pool's trades made or lost for its providers over the same NAV records.",
+        summary: "The USTX/dUSD pools and their results for liquidity providers",
+        description: "The constant-product pool, the Uniswap v4 pool held at the NAV and the range pool of providers' own bins: price, fee and, for the first two, reserves or holdings, value at the NAV, fee APR, last 24 hours, and what each pool's trades made or lost for its providers over the same NAV records. Values at the NAV are null while the record is over an hour old.",
         responses: {
           200: { description: "The pools", content: { "application/json": { schema: { type: "object", required: ["pools"], properties: {
             pools: { type: "array", items: { type: "object", required: ["id", "type"], properties: {
-              id: { enum: ["ustx-dusd", "ustx-dusd-v4"] }, type: { enum: ["constant-product", "uniswap-v4-nav-pegged"] },
-              priceMicros: micros, navMicros: micros, valueMicros: micros,
-              lpResult: { type: ["object", "null"], properties: { trades: { type: "integer" }, resultMicros: micros, arbitrages: { type: "integer" }, arbitrageResultMicros: micros } },
+              id: { enum: ["ustx-dusd", "ustx-dusd-v4", "ustx-dusd-range"] }, type: { enum: ["constant-product", "uniswap-v4-nav-pegged", "uniswap-v4-range"] },
+              address, hook: address, poolManager: address, router: address, poolId: { type: "string", pattern: "^0x[0-9a-f]{64}$" }, block: { type: "integer" },
+              priceMicros: nullableMicros, navMicros: nullableMicros, valueMicros: nullableMicros, lpTokenValueMicros: nullableMicros,
+              feeBps: { type: "integer", description: "The constant-product pool's fee in basis points." },
+              feePips: { type: ["integer", "null"], description: "A v4 pool's swap fee now, in hundredths of a basis point." },
+              tick: { type: "integer", description: "The range pool's tick." },
+              navUnavailable: { type: ["string", "null"], description: "Why the range pool's NAV cannot be used now; its swaps stop meanwhile." },
+              last24h: { type: ["object", "null"] }, feeApr: { type: ["object", "null"] },
+              lpResult: { type: ["object", "null"], properties: { trades: { type: "integer" }, volumeMicros: micros, resultMicros: micros, arbitrages: { type: "integer" }, arbitrageResultMicros: micros, per10kYearMicros: nullableMicros, repegs: { type: "integer" } } },
             } } },
             lpResults: { type: ["object", "null"] }, rule: { type: "string" }, ...readMeta,
           } } } } },

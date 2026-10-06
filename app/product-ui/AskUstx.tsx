@@ -235,12 +235,17 @@ const dollars = (value: number, digits = 2) => `$${value.toLocaleString("en-US",
 const signed = (ratio: number) => Math.abs(ratio) < 0.00005 ? "0.00%" : `${ratio > 0 ? "+" : "−"}${Math.abs(ratio * 100).toFixed(2)}%`;
 function ago(iso: string, now: number) {
   const minutes = Math.max(0, Math.round((now - Date.parse(iso)) / 60_000));
-  return minutes === 0 ? "just now" : minutes === 1 ? "1 minute ago" : `${minutes} minutes ago`;
+  if (minutes < 60) return minutes === 0 ? "just now" : minutes === 1 ? "1 minute ago" : `${minutes} minutes ago`;
+  return `${Math.floor(minutes / 60)}\u00a0h ${minutes % 60}\u00a0min ago`;
 }
+/** Past the hour the fund accepts a record, orders wait for the next one. */
+const delayed = (iso: string | null | undefined, now: number) => Boolean(iso && now - Date.parse(iso) > 3_600_000);
 
 /** What is happening now, in one line of figures for the screen. */
 function insight(screen: Screen, facts: Facts | null, now: number): string {
-  const nav = facts?.navUsd != null ? `USTX NAV ${dollars(facts.navUsd, 4)}${facts.recordedAt ? `, recorded ${ago(facts.recordedAt, now)} on X Layer` : ""}.` : null;
+  // Cut to four decimals, as the price is shown everywhere else.
+  const late = delayed(facts?.recordedAt, now);
+  const nav = facts?.navUsd != null ? `USTX NAV ${dollars(Math.floor(facts.navUsd * 10_000) / 10_000, 4)}${facts.recordedAt ? `, recorded ${ago(facts.recordedAt, now)} on X Layer` : ""}${late ? ": delayed, so orders at the fund wait for the next record" : ""}.` : null;
   const pools = facts && (facts.premium !== null || facts.v4Premium !== null)
     ? `Against the NAV: ${[facts.premium !== null ? `classic pool ${signed(facts.premium)}` : null, facts.v4Premium !== null ? `v4 pool ${signed(facts.v4Premium)}` : null].filter(Boolean).join(", ")}.` : null;
   switch (screen) {
@@ -253,7 +258,7 @@ function insight(screen: Screen, facts: Facts | null, now: number): string {
     case "structured": return "A step-down note on the worse of SPYx and QQQx: 7% a year if both hold up, paid back early at six-monthly observations; capital at risk only after a 50% fall.";
     case "portfolio": return "Everything here is on chain: connect OKX Wallet to see the USTX in your wallet on X Layer Testnet, with any you posted as collateral or put in a pool, and your xStocks on X Layer mainnet.";
     case "verify": return [nav, "Every check below runs again in your browser, against X Layer."].filter(Boolean).join(" ");
-    case "fund": return [nav, "Each fund's NAV is recorded on X Layer every five minutes; investing in them is not open yet, and USTX is investable from your wallet now."].filter(Boolean).join(" ");
+    case "fund": return [nav, `Each fund's NAV is normally recorded on X Layer every five minutes; investing in them is not open yet, and USTX is investable from your wallet${late ? " once the next record lands" : " now"}.`].filter(Boolean).join(" ");
     default: return [nav, pools].filter(Boolean).join(" ") || "Ask about USTX's NAV, what a share holds and where an order fills best.";
   }
 }
@@ -278,12 +283,24 @@ export function AskGuide() {
     const timer = window.setInterval(() => setNow(Date.now()), 30_000);
     return () => { window.clearTimeout(first); window.clearInterval(timer); };
   }, []);
+  // On a phone the line is cut to three lines; "More" shows the rest when it is cut.
+  const intro = useRef<HTMLParagraphElement>(null);
+  const [cut, setCut] = useState(false);
+  const [full, setFull] = useState(false);
+  const text = now ? insight(screen, facts, now) : "Reading the latest record…";
+  useEffect(() => {
+    const measure = () => { const line = intro.current; if (line) setCut(line.scrollHeight > line.clientHeight + 1); };
+    measure();
+    window.addEventListener("resize", measure);
+    return () => window.removeEventListener("resize", measure);
+  }, [text, full]);
   if (!context) return null;
   const guide = GUIDE[screen];
   return <section className="gmd-ask-guide" aria-labelledby="gmd-ask-guide-title">
     <div className="gmd-ask-guide-head">
       <span className="gmd-ask-guide-mark" aria-hidden="true"><Icon name="spark" size={18} /></span>
-      <div><h2 id="gmd-ask-guide-title">Ask USTX <small>AI</small></h2><p aria-live="polite">{now ? insight(screen, facts, now) : "Reading the latest record…"}</p></div>
+      <div><h2 id="gmd-ask-guide-title">Ask USTX <small>AI</small></h2><p ref={intro} className={full ? "is-open" : undefined} aria-live="polite">{text}</p>
+        {(cut || full) && <button type="button" className="gmd-text-button gmd-ask-guide-more" aria-expanded={full} onClick={() => setFull(value => !value)}>{full ? "Less" : "More"}</button>}</div>
     </div>
     <div className="gmd-ask-guide-actions">
       {guide.questions.map(question => <button type="button" key={question} onClick={() => context.ask(question)}>{question}</button>)}

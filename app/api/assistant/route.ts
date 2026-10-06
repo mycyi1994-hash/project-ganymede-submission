@@ -21,7 +21,8 @@ export async function POST(request: Request) {
     const conversation = parseConversation(body);
     const visitor = visitorOf(request);
     await takeQuestion(env.DB, visitor, new Date());
-    const tools = ustxTools(new URL(request.url).origin);
+    // The assistant talks to customers, who order from their own wallet on the page: it has no use for unsigned transactions.
+    const tools = ustxTools(new URL(request.url).origin).filter(tool => tool.name !== "prepare_ustx_order");
     const options = { apiKey: env.OPENAI_API_KEY, model: env.OPENAI_MODEL };
     if (!(request.headers.get("accept") ?? "").includes("application/x-ndjson")) return noStoreJson(await askUstx(conversation, tools, options));
     // Streamed: one JSON event per line as the answer is read and written. The first event is awaited

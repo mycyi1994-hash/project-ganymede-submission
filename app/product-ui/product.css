@@ -364,6 +364,8 @@
 .gmd-wallet-form input { flex: 1; }
 .gmd-app .gmd-wallet-message { flex-basis: 100%; font-size: 13px; }
 .gmd-wallet-message:empty { display: none; }
+.gmd-wallet-get { flex-basis: 100%; display: flex; flex-wrap: wrap; gap: 8px; }
+.gmd-wallet-get .gmd-small-button { display: inline-flex; align-items: center; gap: 6px; text-decoration: none; }
 .gmd-wallet-address { display: grid; gap: 4px; flex: 1 1 320px; min-width: 0; }
 .gmd-wallet-address code { font-size: 14px; overflow-wrap: anywhere; }
 .gmd-wallet-inline { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 10px; margin: -6px 0 0; font-size: 13px; color: var(--gmd-copy); }
@@ -409,6 +411,7 @@
 .gmd-record-hash > span { display: block; font-size: 12px; color: var(--gmd-copy); }
 .gmd-record-hash code { display: block; overflow-wrap: anywhere; font-size: 12px; padding: 12px; border-radius: 5px; background: #e7edef; margin-top: 8px; }
 .gmd-inline-link { display: inline-flex; align-items: center; gap: 7px; font-size: 13px; color: var(--gmd-accent) !important; }
+.gmd-app button.gmd-inline-link { padding: 0; text-decoration: underline; text-underline-offset: 3px; }
 .gmd-record-condition { border-top: 1px solid var(--gmd-line); padding-top: 20px; margin-top: 22px; }
 .gmd-record-condition span { display: block; font-size: 12px; color: var(--gmd-copy); }
 .gmd-record-condition b { display: block; margin-top: 6px; font-size: 14px; }
@@ -1239,6 +1242,7 @@ a.gmd-pool-pair:hover b { text-decoration: underline; text-underline-offset: 3px
 .gmd-ask-guide h2 { margin: 0; font-size: 16px; display: flex; align-items: center; gap: 8px; }
 .gmd-ask-guide h2 small { font-size: 11px; font-weight: 700; letter-spacing: .04em; padding: 2px 6px; border-radius: 999px; background: #d9efea; color: #1f5a50; }
 .gmd-ask-guide-head p { margin: 4px 0 0; font-size: 14px; color: var(--gmd-copy); overflow-wrap: anywhere; }
+.gmd-app .gmd-ask-guide-more { width: auto; min-height: 24px; margin-top: 2px; padding: 0; text-align: start; font-size: 13px; }
 .gmd-ask-guide-actions { display: flex; flex-wrap: wrap; gap: 8px; min-width: 0; }
 .gmd-ask-guide-actions button { padding: 7px 12px; min-height: 36px; border: 1px solid #cfe0e4 !important; border-radius: 999px; background: #fff !important; color: var(--gmd-ink); font-size: 13px; text-align: start; }
 .gmd-ask-guide-actions button:hover { border-color: var(--gmd-accent) !important; }
@@ -1251,6 +1255,7 @@ a.gmd-pool-pair:hover b { text-decoration: underline; text-underline-offset: 3px
 @media (max-width:600px) {
   .gmd-ask-guide { padding: 12px; gap: 10px; margin-bottom: 16px; }
   .gmd-ask-guide-head p { display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
+  .gmd-ask-guide-head p.is-open { display: block; overflow: visible; }
   .gmd-ask-guide-actions { flex-wrap: nowrap; overflow-x: auto; scrollbar-width: none; margin-inline: -12px; padding-inline: 12px; }
   .gmd-ask-guide-actions > * { flex: 0 0 auto; white-space: nowrap; }
 }
@@ -1914,7 +1919,8 @@ a.gmd-pool-pair:hover b { text-decoration: underline; text-underline-offset: 3px
 .gmd-strategy-options button b { font-size: 13px; color: var(--gmd-ink); }
 .gmd-strategy-options button small { font-size: 11px; line-height: 1.25; }
 .gmd-strategy-options button[aria-checked="true"] { border-color: var(--gmd-ustx) !important; box-shadow: 0 0 0 1px var(--gmd-ustx) inset; background: #f1faf8; }
-.gmd-strategy-options button[aria-checked="true"] b { color: var(--gmd-ustx); }
+/* The chosen strategy's name in a darker teal than the chart's USTX, for 4.5:1 on its tinted card. */
+.gmd-strategy-options button[aria-checked="true"] b { color: #0b6b63; }
 .gmd-strategy-icon { width: 54px; height: 24px; }
 .gmd-strategy-icon rect.is-dollars { fill: var(--gmd-dusd); opacity: .8; }
 .gmd-strategy-icon rect.is-shares { fill: var(--gmd-ustx); opacity: .8; }
@@ -2032,3 +2038,32 @@ a.gmd-pool-pair:hover b { text-decoration: underline; text-underline-offset: 3px
 .gmd-range-positions li > div:nth-child(2) { text-align: end; }
 @media (max-width:860px) { .gmd-strategy-options.is-5 { grid-template-columns: repeat(3, minmax(0,1fr)); } }
 @media (max-width:600px) { .gmd-strategy-options.is-5 { grid-template-columns: repeat(2, minmax(0,1fr)); } .gmd-strategy-options.is-5 .is-custom { grid-column: 1 / -1; } .gmd-range-positions li { grid-template-columns: minmax(0,1fr) auto; } .gmd-range-positions li button { grid-column: 1 / -1; } }
+
+/* While the NAV record is past its hour: one notice on every screen, in words as well as colour. */
+.gmd-app .gmd-delay-notice { margin: 0 0 18px; padding: 12px 16px; border: 1px solid #f0c36d; border-left: 4px solid #c27c0e; border-radius: 10px; background: #fff7e8; color: #4d3200; font-size: 14px; line-height: 1.5; }
+.gmd-delay-notice b { margin-right: 6px; color: #3d2800; }
+@media (max-width:600px) { .gmd-app .gmd-delay-notice { margin-bottom: 12px; padding: 10px 12px; font-size: 13px; line-height: 1.45; } }
+
+/* The header's connect button without a wallet in the browser: how to get one, in place. */
+.gmd-wallet-connect-box { position: relative; }
+.gmd-wallet-help { position: absolute; right: 0; top: calc(100% + 10px); z-index: 70; display: grid; gap: 10px; width: min(320px, calc(100vw - 32px)); padding: 16px; border-radius: 12px; background: #fff; color: var(--gmd-ink); box-shadow: 0 18px 40px rgba(6, 28, 33, 0.22); text-align: left; }
+.gmd-wallet-help p { margin: 0; font-size: 14px; line-height: 1.5; color: var(--gmd-ink); }
+.gmd-wallet-help .gmd-button { justify-content: center; }
+.gmd-wallet-help .gmd-inline-link { justify-self: start; }
+
+/* Phones: the holdings table's cells and marks shrink so its weight column fits (390, 375 and 360px wide). */
+@media (max-width: 420px) {
+  .gmd-basket-table .gmd-table :is(th,td) { padding-inline: 4px; }
+  .gmd-basket-table .gmd-basket-asset { gap: 8px; }
+  .gmd-basket-table .gmd-asset-mark { width: 26px; height: 26px; }
+  .gmd-basket-table .gmd-asset-mark img { width: 18px; height: 18px; }
+}
+@media (max-width: 370px) { .gmd-basket-table .gmd-table { font-size: 12px; } }
+
+/* Phones: the constituent rows' fixed columns shrink so the weight is not cut off. */
+@media (max-width: 420px) {
+  .gmd-constituents-head, .gmd-holdings.is-compact .gmd-constituents-head { grid-template-columns: minmax(0,1fr) 84px 72px 12px; gap: 8px; }
+  .gmd-app .gmd-constituent, .gmd-holdings.is-compact .gmd-constituent { grid-template-columns: 30px minmax(0,1fr) 84px 72px 12px; gap: 8px; }
+  .gmd-constituent-price b, .gmd-constituent-weight b, .gmd-holdings.is-compact .gmd-constituent-price b, .gmd-holdings.is-compact .gmd-constituent-weight b { font-size: 14px; }
+}
+.gmd-label abbr[title] { text-decoration: underline dotted; text-underline-offset: 3px; cursor: help; }

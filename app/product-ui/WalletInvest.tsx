@@ -18,6 +18,7 @@ import { OkxAppLink } from "./OkxApp";
 import { useMarket } from "./MarketProvider";
 import { BasketList, useRecordComposition } from "./Basket";
 import { useWalletAccount } from "./WalletAccount";
+import { delayText, useNavDelay } from "./NavDelay";
 
 // Investing from the visitor's own wallet on X Layer Testnet: demo dollars (no value) buy USTX
 // from the fund contract at the NAV recorded on X Layer, on the USTX/dUSD constant-product pool or
@@ -124,6 +125,7 @@ export function TxLink({ hash, children = "OKX Explorer" }: { hash: string; chil
 }
 
 export function WalletInvest() {
+  const delay = useNavDelay();
   const provider = useInjectedWallet();
   const { address, source, busy: connecting, message, connect } = useWalletAccount();
   const connected = source === "wallet" && Boolean(address);
@@ -211,6 +213,10 @@ export function WalletInvest() {
   const choose = (next: Side) => { setSide(next); setAmount(next === "buy" ? "1,000" : ""); setVenueChoice(null); setPhase("form"); setFailure(null); };
   /** The price per share an order gets: the NAV at the fund, the average price after the fee and its impact in the pool. */
   const priceOf = (at: Place, out: bigint) => at === "fund" ? nav ?? 0n : side === "buy" ? pricePerShare(amountIn ?? 0n, out) : pricePerShare(out, amountIn ?? 0n);
+  // While the fund waits for a NAV record, the pools' prices drift from the last one: how far the best is, in percent.
+  const lastNav = composition ? BigInt(composition.navPerShareMicros) : null;
+  const drift = nav === null && lastNav !== null && lastNav > 0n && route?.best && route[route.best] !== null
+    ? Number((priceOf(route.best, route[route.best]!) - lastNav) * 10_000n / lastNav) / 100 : null;
   const outText = (out: bigint) => side === "buy" ? `${formatShares(out)} USTX` : `${formatUsdMicros(out, 2)} dUSD`;
 
   async function switchNetwork() {
@@ -296,12 +302,14 @@ export function WalletInvest() {
 
   const heading = phase === "filled" ? "Order filled" : phase === "working" ? "Confirm in your wallet" : phase === "review" && venue ? REVIEW_HEADINGS[side][venue] : "Invest in USTX";
   const head = <div className="gmd-order-heading"><h2 id="invest-title">{heading}</h2><Icon name="wallet" /></div>;
+  // Before a wallet is connected, the panel already says when orders at the fund are waiting for a record.
+  const paused = delay && <p className="gmd-inline-error" role="status">{`The NAV record is ${delayText(delay.lateMs)} old, so orders at the fund wait for the next one; only the constant-product pool trades meanwhile.`}</p>;
 
-  if (!provider) return <>{head}<div className="gmd-wallet-gate">
+  if (!provider) return <>{head}{paused}<div className="gmd-wallet-gate">
     <p>Invest from your own wallet on X Layer Testnet. Install the OKX Wallet extension, or open this page in the OKX app’s browser.</p>
     <div className="gmd-wallet-gate-actions"><OkxAppLink className="gmd-button" /><a className="gmd-button is-secondary" href="https://www.okx.com/web3" target="_blank" rel="noreferrer">Get OKX Wallet <Icon name="external" size={16} /><span className="gmd-sr-only"> (opens in a new tab)</span></a></div>
   </div></>;
-  if (!connected) return <>{head}<div className="gmd-wallet-gate">
+  if (!connected) return <>{head}{paused}<div className="gmd-wallet-gate">
     <p>Connect OKX Wallet to invest on X Layer Testnet. You pay with demo dollars, which have no value, and your USTX goes straight to your wallet.</p>
     <button type="button" className="gmd-button" disabled={connecting} onClick={() => void connect()}><Icon name="wallet" size={17} />{connecting ? "Connecting…" : "Connect OKX Wallet"}</button>
     {message && <p className="gmd-caption" role="status">{message}</p>}
@@ -418,6 +426,7 @@ export function WalletInvest() {
         </label>;
       })}
     </fieldset>}
+    {route?.best && drift !== null && Math.abs(drift) > 2 && lastNav !== null && <p className="gmd-inline-error" role="status">{`${VENUE_NAMES[side][route.best]}: ${Math.abs(drift).toFixed(1)}% ${drift > 0 ? "above" : "below"} the last NAV of ${formatUsdMicros(lastNav, 2)}. Prices drift while the fund waits for the next record.`}</p>}
     <dl className="gmd-facts">
       <div><dt>NAV per share</dt><dd>{nav === null ? "—" : formatUsdMicros(nav, 4)}</dd></div>
       <div><dt>Recorded on X Layer</dt><dd>{navAt ? shortTime(navAt) : "—"}</dd></div>

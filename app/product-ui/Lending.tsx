@@ -13,6 +13,7 @@ import { OkxAppLink } from "./OkxApp";
 import { Icon, Skeleton } from "./Icons";
 import GasNotice from "./GasNotice";
 import { useWalletAccount } from "./WalletAccount";
+import { useNavDelay } from "./NavDelay";
 import { TxLink, sendFromWallet, switchToTestnet, useInjectedWallet, useWalletChain } from "./WalletInvest";
 
 // Borrowing against USTX on X Layer Testnet: post USTX as collateral in GanymedeLendingMarket and
@@ -64,6 +65,7 @@ export const plain = (micros: bigint) => {
 };
 
 export function LendingSection() {
+  const delay = useNavDelay();
   const provider = useInjectedWallet();
   const { address, source, busy: connecting, message, connect } = useWalletAccount();
   const connected = source === "wallet" && Boolean(address);
@@ -220,7 +222,7 @@ export function LendingSection() {
 
   const usd = (micros: bigint) => formatUsdMicros(micros, 2);
   const wait = (width: number) => readFailure ? "—" : <Skeleton width={width} />;
-  const status = !market ? "Loading…" : market.paused ? "Paused" : "Live on X Layer Testnet";
+  const status = !market ? "Loading…" : market.paused ? "Paused" : delay ? "New loans wait for the next NAV record" : "Live on X Layer Testnet";
 
   let wallet;
   if (!provider) {

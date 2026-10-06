@@ -198,6 +198,8 @@ function BlockGrid({ own, priceUsd, onStroke, onPaint }: {
   const tickX = (column: number) => column === half ? priceX : column >= count ? W : left(column);
   const tickPrice = (column: number) => !prices ? 0 : column === half ? priceUsd! : column >= count ? prices[count - 1].toUsd : prices[column].fromUsd;
   const focused = usable(focus) ? focus : columns.findIndex((_, index) => usable(index));
+  // Each column's part of the deposit, for the words a screen reader gives it.
+  const total = columns.reduce((sum, value, index) => sum + (usable(index) ? value : 0), 0);
   return <div className="gmd-grid-plot" ref={plotRef}>
     <svg ref={svgRef} viewBox={`0 0 ${W} ${H}`} role="group" aria-labelledby={`${id}-title`}
       onPointerDown={event => { if (event.button !== 0) return; onStroke(); stroke.current = null; event.currentTarget.setPointerCapture(event.pointerId); paint(event, true); }}
@@ -211,8 +213,8 @@ function BlockGrid({ own, priceUsd, onStroke, onPaint }: {
             x={left(index) + (pitch - cellWidth) / 2} y={bottom - (row + 1) * rowPitch + 1.25} width={cellWidth} height={cellHeight} rx={Math.min(3, cellWidth / 3)} />)}
           <rect ref={element => { keys.current[index] = element; }} className="gmd-grid-key" x={left(index)} y={top} width={pitch} height={gridHeight}
             tabIndex={usable(index) ? (index === focused ? 0 : -1) : undefined} role={usable(index) ? "slider" : undefined}
-            aria-valuemin={0} aria-valuemax={DRAWN_LEVELS} aria-valuenow={level} aria-valuetext={`${level} of ${DRAWN_LEVELS} blocks`}
-            aria-label={usable(index) ? `Bin ${index < half ? half - index : index - half + 1} ${index < half ? "below" : "above"} the price${prices ? `, $${prices[index].fromUsd.toFixed(2)} to $${prices[index].toUsd.toFixed(2)}` : ""}` : undefined}
+            aria-valuemin={0} aria-valuemax={DRAWN_LEVELS} aria-valuenow={level} aria-valuetext={`${level} of ${DRAWN_LEVELS} blocks${total > 0 ? `, ${Math.round(value / total * 100)}% of the deposit` : ""}`}
+            aria-label={usable(index) ? `Bin ${index < half ? half - index : index - half + 1} ${index < half ? "below" : "above"} the price, ${index < half ? "demo dollars" : "USTX"}${prices ? `, $${prices[index].fromUsd.toFixed(2)} to $${prices[index].toUsd.toFixed(2)}` : ""}` : undefined}
             onFocus={() => setFocus(index)} onKeyDown={event => key(event, index)} />
         </g>;
       })}
@@ -321,8 +323,18 @@ export function StrategyPicker({ value, onChange, range, priceUsd = null }: { va
   const own = value.own;
   return <div className="gmd-strategy">
     <span className="gmd-strategy-label" id={id}>Strategy</span>
-    <div className={`gmd-strategy-options is-${options.length}`} role="radiogroup" aria-labelledby={id}>
-      {options.map(item => <button type="button" role="radio" key={item.id} aria-checked={value.id === item.id} className={item.id === "custom" ? "is-custom" : undefined} onClick={() => onChange({ ...value, id: item.id })}>
+    <div className={`gmd-strategy-options is-${options.length}`} role="radiogroup" aria-labelledby={id} onKeyDown={event => {
+      // Arrow keys move the choice along the group, as in any radio group; the chosen one takes the focus.
+      const step = event.key === "ArrowRight" || event.key === "ArrowDown" ? 1 : event.key === "ArrowLeft" || event.key === "ArrowUp" ? -1 : 0;
+      if (!step) return;
+      event.preventDefault();
+      const at = Math.max(0, options.findIndex(item => item.id === value.id));
+      const next = options[(at + step + options.length) % options.length];
+      onChange({ ...value, id: next.id });
+      const buttons = event.currentTarget.querySelectorAll<HTMLButtonElement>("button[role=radio]");
+      buttons[(at + step + options.length) % options.length]?.focus();
+    }}>
+      {options.map(item => <button type="button" role="radio" key={item.id} aria-checked={value.id === item.id} tabIndex={value.id === item.id ? 0 : -1} className={item.id === "custom" ? "is-custom" : undefined} onClick={() => onChange({ ...value, id: item.id })}>
         <ShapeIcon id={item.id} own={own} />
         <b>{item.name}</b><small>{item.label}</small>
       </button>)}
@@ -371,10 +383,12 @@ export function StrategyChart({ choice, amountMicros, pool, v4, deployment, rang
   const own = ownRangeOf(choice);
   const { nav: recordedNav, center: nav, constantProduct, v4: pegged } = poolRanges(pool, v4, deployment);
   if (nav === null) return <div className="gmd-lq is-loading" aria-busy="true"><i className="gmd-skeleton gmd-lq-skeleton" aria-hidden="true" /></div>;
-  const navPrice = Number(nav) / 1e6;
-  // While the NAV record is over an hour old, the chart centres on the pool's own price and says so.
+  // While the NAV record is over an hour old, the chart centres on a pool's own price and says so:
+  // the range pool's for a position of one's own, which opens there, else the constant-product pool's.
   const stale = recordedNav === null;
-  const mark = stale ? "the pool price" : "the NAV";
+  const rangeCentre = stale && own && view === "mine" && range ? Number(range.priceMicros) / 1e6 : null;
+  const navPrice = rangeCentre ?? Number(nav) / 1e6;
+  const mark = !stale ? "the NAV" : rangeCentre !== null ? "the range pool's price" : "the pool price";
   const deposit = Number(amountMicros) / 1e6;
   const pooledV4 = own ? 0n : amountMicros * BigInt(strategy.v4Percent) / 100n;
   const pooledCp = own ? 0n : amountMicros - pooledV4;
@@ -437,7 +451,7 @@ export function StrategyChart({ choice, amountMicros, pool, v4, deployment, rang
     return <g key={index} className={`gmd-strategy-bar is-${bin.side}${hover === index ? " is-active" : ""}`} style={{ ["--gmd-delay" as string]: `${Math.round(distance * (priced ? 12 : 26))}ms` }}>
       <rect className="is-v4" x={left} y={base - Math.max(all, 1.5)} width={width} height={Math.max(all, 1.5)} rx={Math.min(4, width / 3)} />
       {layered && heightCp > 0.5 && <rect className="is-cp" x={left} y={base - heightCp} width={width} height={heightCp} rx={Math.min(4, width / 3)} />}
-      <rect className="gmd-lq-hit" x={hitLeft} y={top} width={hitWidth} height={plot} tabIndex={0} aria-label={`${money(bin.from)} to ${money(bin.to)}: ${money(value(bin))}`}
+      <rect className="gmd-lq-hit" x={hitLeft} y={top} width={hitWidth} height={plot} tabIndex={0} role="img" aria-label={`${money(bin.from)} to ${money(bin.to)}: ${money(value(bin))}`}
         onPointerEnter={() => setHover(index)} onPointerLeave={() => setHover(null)} onFocus={() => setHover(index)} onBlur={() => setHover(null)} />
     </g>;
   };
@@ -476,7 +490,7 @@ export function StrategyChart({ choice, amountMicros, pool, v4, deployment, rang
         <line className="gmd-lq-base" x1={0} x2={W} y1={H - bottom} y2={H - bottom} />
         <g key={`${choice.id}-${view}-${span}-${own ? `${own.shape}${own.rangePercent}${own.bins}${own.sides}${own.shape === "drawn" ? "-drawn" : ""}` : ""}`}>{bins.map(drawBar)}</g>
         <line className="gmd-strategy-nav" x1={W / 2} x2={W / 2} y1={top - 4} y2={H - bottom} />
-        {ticks.map(move => <text key={move} className="gmd-lq-tick" x={x(move)} y={H - 9} textAnchor={move === -span ? "start" : move === span ? "end" : "middle"}>{move === 0 ? `${stale ? "Pool" : "NAV"} ${money(navPrice)}` : signed(move)}</text>)}
+        {ticks.map(move => <text key={move} className="gmd-lq-tick" x={x(move)} y={H - 9} textAnchor={move === -span ? "start" : move === span ? "end" : "middle"}>{move === 0 ? `${!stale ? "NAV" : rangeCentre !== null ? "Range pool" : "Pool"} ${money(navPrice)}` : signed(move)}</text>)}
       </svg>
       {active && <div className={`gmd-chart-tip is-below${center(hover!) > 0.5 ? " is-left" : ""}`} style={{ left: `${center(hover!) * 100}%`, top: "3%" }} role="status">
         <b>{money(value(active), value(active) < 1 ? 4 : 2)}</b>
@@ -489,7 +503,7 @@ export function StrategyChart({ choice, amountMicros, pool, v4, deployment, rang
     {mine && <>
       <dl className="gmd-strategy-facts">
         <div><dt>Within 2% of {mark}</dt><dd>{money(nearTotal)}<small>{deposit > 0 ? `${Math.round(nearTotal / deposit * 100)}% of your deposit meets the trades there` : "—"}</small></dd></div>
-        {own ? <div><dt>Your position</dt><dd>{own.shape === "drawn" ? "Your drawing" : SHAPE_LABELS[own.shape]} · ±{own.rangePercent}%<small>{own.bins} bins of {(binTicksFor(own.rangePercent, own.bins) / 100).toFixed(1)}% · {SIDE_LABELS[ownSides(own)].toLowerCase()}</small></dd></div>
+        {own ? <div><dt>Your position</dt><dd>{own.shape === "drawn" ? "Your drawing" : `${SHAPE_LABELS[own.shape]} shape`} · ±{own.rangePercent}%<small>{own.bins} bins of {(binTicksFor(own.rangePercent, own.bins) / 100).toFixed(1)}% · {SIDE_LABELS[ownSides(own)].toLowerCase()}</small></dd></div>
           : <div><dt>Split</dt><dd>{strategy.v4Percent}% at the NAV<small>{100 - strategy.v4Percent}% even, in the constant-product pool</small></dd></div>}
         <div><dt>{own ? "Fees" : "A year at the measured results"}</dt><dd>{own ? "Yours alone" : year === null ? "—" : `${year < 0n ? "−" : "+"}${formatUsdMicros(year < 0n ? -year : year, 2)}`}<small>{own ? "Only trades that cross your bins pay you" : "Each pool’s result for providers so far, per dollar; not a forecast"}</small></dd></div>
       </dl>

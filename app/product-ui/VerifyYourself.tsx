@@ -11,11 +11,13 @@ import { PoolCheckDetails, usePoolCheck } from "./PoolCheck";
 import VerificationFlow from "./VerificationFlow";
 import ContractControls from "./ContractControls";
 import { Icon } from "./Icons";
+import { delayText, useNavDelay } from "./NavDelay";
 
 // The technical checks behind the Transparency page, for developers and reviewers: the three
 // checks one by one, the tamper experiment, the evidence file and the original document.
 
 export default function VerifyYourself() {
+  const delay = useNavDelay();
   const { data, error } = useMarket();
   const { checks, state } = useRecordCheck(data, error);
   const record = checks?.record ?? data?.onchain;
@@ -37,7 +39,7 @@ export default function VerifyYourself() {
   if (checks?.canonical) { try { document = JSON.stringify(JSON.parse(checks.canonical), null, 2); } catch { /* Preserve original text for inspection. */ } }
   const status = { matched: "All three checks pass in this browser.", failed: "A check failed in this browser.", unavailable: "This browser could not read X Layer.", waiting: "Waiting for a matching document.", loading: "Reading the published record…" }[state];
   return <div className="gmd-verify-yourself" aria-live="polite">
-    <p className="gmd-verify-status"><b>Live result:</b> {status} {record?.effectiveAt ? `Record of ${shortTime(record.effectiveAt)}, NAV ${formatUsdMicros(record.navPerShareMicros, 4)}.` : ""}</p>
+    <p className="gmd-verify-status"><b>Live result:</b> {status} {record?.effectiveAt ? `Record of ${shortTime(record.effectiveAt)}, NAV ${formatUsdMicros(record.navPerShareMicros, 4)}.` : ""}{delay ? ` The checks prove what was recorded, not that it is recent: the record is ${delayText(delay.lateMs)} old, past the hour orders accept it.` : ""}</p>
     <VerificationFlow checks={checks} state={state} pools={poolCheck} detailed />
     <TokenContractsCheck canonical={checks?.canonical ?? null} />
     <PoolCheckDetails check={poolCheck} detailed />

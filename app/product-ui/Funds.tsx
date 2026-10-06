@@ -12,6 +12,7 @@ import { useFundResource } from "./useFundResource";
 import type { SeriesPoint } from "@/lib/xstocks/series";
 import { AssetMark, Icon, assetStyle } from "./Icons";
 import { OkxSource } from "./OkxSource";
+import { delayText, useNavDelay } from "./NavDelay";
 import MarketChart from "./MarketChart";
 import { WeightMeter } from "./ConstituentDrawer";
 
@@ -52,10 +53,11 @@ export const KIND_LABELS: Record<FundKind, string> = { basket: "Equity basket", 
 
 /** The products on Markets, or those of one kind. */
 export function FundList({ selectedId, onSelect, controls, kinds, selectable = false }: { selectedId: string; onSelect: (id: string) => void; controls: string; kinds?: FundKind[]; selectable?: boolean }) {
+  const delay = useNavDelay();
   const { data, error: failed } = useFundResource<{ funds: FundSummary[] }>("/api/v1/funds");
   const funds = data?.funds?.filter(fund => !kinds || kinds.includes(fundKind(fund.id)));
   return <section className="gmd-fund-list" aria-labelledby="funds-title">
-    <header className="gmd-section-heading"><div><h2 id="funds-title">{kinds?.length === 1 ? { basket: "RWA baskets", "covered-call": "Covered-call funds", autocall: "Structured notes" }[kinds[0]] : "All products"}</h2><p>Each priced from xStocks by OKX OnchainOS and recorded on X Layer every five minutes.</p></div><span className="gmd-count">{funds ? `${funds.length} ${funds.length === 1 ? "product" : "products"}` : ""}</span></header>
+    <header className="gmd-section-heading"><div><h2 id="funds-title">{kinds?.length === 1 ? { basket: "RWA baskets", "covered-call": "Covered-call funds", autocall: "Structured notes" }[kinds[0]] : "All products"}</h2><p>{delay ? "Each priced from xStocks by OKX OnchainOS and normally recorded on X Layer every five minutes; new records are delayed now." : "Each priced from xStocks by OKX OnchainOS and recorded on X Layer every five minutes."}</p></div><span className="gmd-count">{funds ? `${funds.length} ${funds.length === 1 ? "product" : "products"}` : ""}</span></header>
     {failed && <p className="gmd-inline-error" role="status">The funds could not be read just now. Reload the page in a moment.</p>}
     <ul>{(funds ?? []).map(fund => <li key={fund.id} className={selectedId === fund.id ? "is-selected" : undefined}><div className="gmd-fund-row">
       {selectable || fundKind(fund.id) === "basket"
@@ -97,13 +99,13 @@ export function FundMarketPreview({ definition }: { definition: FundDefinition }
   const composition = check.composition ?? null;
   const record = check.record ?? null;
   const loading = !fund && !error;
-  const status = error ? "Price unavailable" : { matched: "NAV checked on X Layer", checking: "Confirming the price…", failed: "Price needs attention", unavailable: "Price confirmation unavailable" }[check.result];
+  const status = error ? "Price unavailable" : check.stale ? "Last NAV checked · delayed" : { matched: "NAV checked on X Layer", checking: "Confirming the price…", failed: "Price needs attention", unavailable: "Price confirmation unavailable" }[check.result];
   const points = (fund?.series ?? []).map(([at, micros]) => ({ at: new Date(at * 1_000).toISOString(), micros, hash: "" }));
   const weights = new Map(composition?.holdings.map(row => [row.symbol, Number(BigInt(row.valueMicros) * 1_000_000n / BigInt(composition.navPerShareMicros)) / 10_000]));
   return <>
     <div className="gmd-market-primary">
       <div className="gmd-feature-title"><div className="gmd-product-identity is-compact"><div className="gmd-product-monogram" aria-hidden="true"><i /><i /><i /><i /><i /><i /></div><div><span className="gmd-ticker">{definition.ticker} <span>Equity basket</span></span><h2>{definition.name}</h2><p>{definition.description}</p></div></div><Link prefetch={false} className="gmd-button" href={definition.href}>View fund <Icon name="arrow" size={18} /></Link></div>
-      <div className="gmd-nav-summary"><div><span className="gmd-label">NAV per share <span>/ USD</span></span><strong className="gmd-value">{record ? formatUsdMicros(record.navPerShareMicros, 4) : loading ? <><i className="gmd-skeleton is-hero" aria-hidden="true" /><span className="gmd-sr-only">Loading</span></> : "—"}</strong></div><div className="gmd-nav-meta"><OkxSource>Priced by OKX OnchainOS</OkxSource><span role="status" className={`gmd-status ${check.result === "matched" ? "is-positive" : "is-waiting"}`}><i />{status}</span>{record && <time dateTime={record.effectiveAt ?? undefined}>{shortTime(record.effectiveAt)}</time>}</div></div>
+      <div className="gmd-nav-summary"><div><span className="gmd-label">NAV per share <span>/ USD</span></span><strong className="gmd-value">{record ? formatUsdMicros(record.navPerShareMicros, 4) : loading ? <><i className="gmd-skeleton is-hero" aria-hidden="true" /><span className="gmd-sr-only">Loading</span></> : "—"}</strong></div><div className="gmd-nav-meta"><OkxSource>Priced by OKX OnchainOS</OkxSource><span role="status" className={`gmd-status ${check.result === "matched" && !check.stale ? "is-positive" : "is-waiting"}`}><i />{status}</span>{record && <time dateTime={record.effectiveAt ?? undefined}>{shortTime(record.effectiveAt)}</time>}</div></div>
       {error && <div className="gmd-data-notice" role="status"><span>This fund could not be loaded just now.</span><button type="button" onClick={() => void reload()}>Try again</button></div>}
       <dl className="gmd-fund-stats" aria-label={`${definition.ticker} fund figures`} aria-busy={loading}><div><dt>Assets</dt><dd>{definition.constituents.length}</dd></div><div><dt>Recorded on X Layer</dt><dd>Every 5 minutes</dd></div><div><dt>Investing</dt><dd>Not open yet</dd></div></dl>
       <MarketChart points={points} loading={loading} showActivity={false} historyLabel="Past 7 days" />
@@ -127,18 +129,20 @@ export function FundMarketPreview({ definition }: { definition: FundDefinition }
  * dollars (dUSD) in a visitor's own wallet on X Layer Testnet, and only USTX has its share token so far.
  */
 export function FundClosed({ ticker, note }: { ticker: string; note?: string | null }) {
+  const delay = useNavDelay();
   return <aside id="investment" className="gmd-fund-order" aria-labelledby="fund-order-title">
     <h2 id="fund-order-title">Invest in {ticker}</h2>
     <p>{note ?? `Investing in ${ticker} is not open yet. Its value is recorded on X Layer every five minutes, so you can follow it and check it here.`}</p>
-    <p className="gmd-caption">Investing runs only on X Layer Testnet, with demo dollars (dUSD) in your own wallet. USTX is open now: invest from OKX Wallet, trade it in two pools and borrow against it.</p>
+    <p className="gmd-caption">Investing runs only on X Layer Testnet, with demo dollars (dUSD) in your own wallet. {delay ? "USTX opens again with the next NAV record; meanwhile only its constant-product pool trades." : "USTX is open now: invest from OKX Wallet, trade it in three pools and borrow against it."}</p>
     <Link className="gmd-button" prefetch={false} href="/products/ustx#investment">Invest in USTX <Icon name="arrow" size={17} /></Link>
   </aside>;
 }
 
 /** One fund's page: its NAV and record, its holdings, the browser's check, and investing not open yet. */
 export function FundScreen({ id }: { id: string }) {
+  const delay = useNavDelay();
   const definition = otherFund(id);
-  const { data, error: failed } = useFundResource<{ fund: FundDetail }>(`/api/v1/funds?id=${encodeURIComponent(id)}`);
+  const { data, error: failed, reload } = useFundResource<{ fund: FundDetail }>(`/api/v1/funds?id=${encodeURIComponent(id)}`);
   const fund = data?.fund ?? null;
   const check = useFundCheck(fund, id);
   useEffect(() => { if (definition) document.title = `${definition.name} (${definition.ticker}) · Ganymede`; }, [definition]);
@@ -153,13 +157,13 @@ export function FundScreen({ id }: { id: string }) {
     <div className="gmd-fund-layout">
       <div className="gmd-fund-main">
         <section className="gmd-fund-hero" aria-label={`${definition.name} NAV`}>
-          <div><span>NAV per share / USD</span><strong>{nav ? formatUsdMicros(nav, 4) : "—"}</strong><small className={tone(fund?.changePercent ?? null)}>{check.record ? `Recorded ${shortTime(check.record.effectiveAt)}` : "Waiting for a verified record"}</small></div>
+          <div><span>NAV per share / USD</span><strong>{nav ? formatUsdMicros(nav, 4) : "—"}</strong><small className={tone(fund?.changePercent ?? null)}>{check.record ? `Recorded ${shortTime(check.record.effectiveAt)}${check.stale ? " · delayed" : ""}` : "Waiting for a verified record"}</small></div>
           <div className="gmd-fund-hero-side"><OkxSource>Priced by OKX OnchainOS</OkxSource>{txUrl(fund?.nav?.txHash) && <a className="gmd-inline-tx" href={txUrl(fund?.nav?.txHash)!} target="_blank" rel="noreferrer">Recorded on X Layer<Icon name="external" size={12} /><span className="gmd-sr-only"> (opens in a new tab)</span></a>}</div>
           <NavLine series={fund?.series ?? []} label={`${definition.name} NAV over the last seven days`} />
         </section>
-        <section className={`gmd-evidence-summary is-${check.result === "matched" ? "matched" : check.result === "failed" ? "failed" : "waiting"}`} aria-live="polite">
+        <section className={`gmd-evidence-summary is-${check.result === "matched" && !check.stale ? "matched" : check.result === "failed" ? "failed" : "waiting"}`} aria-live="polite">
           <div className="gmd-evidence-icon"><Icon name={check.result === "matched" ? "check" : "info"} size={24} /></div>
-          <div><h2>{{ matched: "NAV verified on X Layer", failed: "This NAV could not be verified", unavailable: "Verification unavailable", checking: "Checking the latest NAV…" }[check.result]}</h2><p>{{ matched: "The price and holdings match the published X Layer record.", failed: "The price could not be confirmed. Wait for an updated price before investing.", unavailable: "Price confirmation is temporarily unavailable. Please try again.", checking: "Confirming the latest price and holdings…" }[check.result]}</p>
+          <div><h2>{check.stale ? "Last NAV verified on X Layer" : { matched: "NAV verified on X Layer", failed: "This NAV could not be verified", unavailable: "Verification unavailable", checking: "Checking the latest NAV…" }[check.result]}</h2><p>{{ matched: check.stale ? check.detail : "The price and holdings match the published X Layer record.", failed: "The price could not be confirmed. Wait for an updated price before investing.", unavailable: check.detail || "Price confirmation is temporarily unavailable.", checking: "Confirming the latest price and holdings…" }[check.result]}{check.result === "unavailable" && <> <button type="button" className="gmd-inline-link" onClick={() => void reload()}>Try again</button></>}</p>
             {poolCheck && <p className="gmd-caption">{poolCheck.state === "agrees" ? "Pool comparison at publication: within 1% of the basket value." : "A complete pool price comparison was unavailable at publication."}</p>}</div>
         </section>
         <section className="gmd-proof-history" aria-labelledby="fund-holdings-title"><header className="gmd-section-heading"><h2 id="fund-holdings-title">Holdings</h2><span>{definition.constituents.length} xStocks · equal weight each quarter</span></header>
@@ -171,7 +175,7 @@ export function FundScreen({ id }: { id: string }) {
             })}
           </tbody></table></div>
         </section>
-        <section className="gmd-proof-history" aria-labelledby="fund-records-title"><header className="gmd-section-heading"><h2 id="fund-records-title">Recent records</h2><span>A new record every five minutes</span></header>
+        <section className="gmd-proof-history" aria-labelledby="fund-records-title"><header className="gmd-section-heading"><h2 id="fund-records-title">Recent records</h2><span>{delay ? `Normally every five minutes; the latest is ${delayText(delay.lateMs)} old` : "A new record every five minutes"}</span></header>
           <div className="gmd-data-table-scroll"><table className="gmd-table"><thead><tr><th>Time</th><th>NAV per share</th><th>Transaction</th></tr></thead><tbody>
             {(fund?.history ?? []).filter(entry => entry.status === "confirmed").slice(0, 8).map(entry => { const link = txUrl(entry.txHash); return <tr key={entry.holdingsHash}><th scope="row">{shortTime(entry.asOf)}</th><td>{formatUsdMicros(entry.navPerShareMicros, 4)}</td><td>{link ? <a className="gmd-inline-tx" href={link} target="_blank" rel="noreferrer">OKX Explorer<Icon name="external" size={12} /><span className="gmd-sr-only"> (opens in a new tab)</span></a> : "—"}</td></tr>; })}
           </tbody></table>{fund && !fund.history.some(entry => entry.status === "confirmed") && <p className="gmd-caption">No record yet: the first one is written within five minutes of the fund&rsquo;s launch.</p>}</div>

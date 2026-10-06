@@ -81,7 +81,7 @@ export function PoolResults() {
           note={value.v4?.repegs !== undefined ? `Moved to the NAV before trading, ${value.v4.repegs.toLocaleString("en-US")} times` : "Moved to the NAV before trading"} />
       </div>
       <p className="gmd-caption">
-        {value.window.navRecords.toLocaleString("en-US")} NAV records from {when(value.window.from)} to {when(value.window.to)} UTC, included in this comparison.
+        From {when(value.window.from)} to {when(value.window.to)} UTC, with the {value.window.navRecords.toLocaleString("en-US")} NAV records published in that time.
         Each trade counts what the pool took in less what it paid out, USTX at the NAV of the moment: the fee, less what the trader gained from a stale price.
         After a record the constant-product pool still quotes the old NAV until arbitrage moves it; the v4 pool moves first. Demo dollars, no value.
       </p>

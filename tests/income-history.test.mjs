@@ -180,6 +180,11 @@ test("a covered call's record is traced through each roll to its start, each rec
   const options = { fetcher: chain.fetcher, now: Date.parse("2026-12-04T13:21:00.000Z") };
   const check = await verifyIncomeSnapshot(fund, SPYC, options);
   assert.equal(check.result, "matched", check.detail);
+  assert.equal(check.stale, undefined);
+  // An hour later with no new record, the same record is the last known value, marked delayed.
+  const delayed = await verifyIncomeSnapshot(fund, SPYC, { ...options, now: options.now + 3_600_000 });
+  assert.deepEqual([delayed.result, delayed.stale], ["matched", true]);
+  assert.match(delayed.detail, /over an hour old: new records are delayed/);
   assert.match(check.detail, /It rests on the sale of its call at 2026-12-03 13:30 UTC, the roll at 2026-11-03 13:25 UTC and the first call's sale at 2026-10-04 13:20 UTC, each checked against its own transaction on X Layer\./);
 
   // Codex's case: a rolled record with its units doubled, its cash the premium on them and its NAV

@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { FUND_DEPLOYMENT, fundRpc } from "@/lib/xstocks/fund";
 import { KNOWN_ADDRESSES, readControls, type ContractControl } from "@/lib/xstocks/permissions";
 import { Icon } from "./Icons";
+import { useNavDelay } from "./NavDelay";
 
 // Who can do what to each USTX contract, read by this browser from X Layer Testnet, so a customer
 // does not have to take the page's word for it.
@@ -17,6 +18,7 @@ function Holder({ holder }: { holder: string | null }) {
 }
 
 export default function ContractControls() {
+  const delay = useNavDelay();
   const [controls, setControls] = useState<ContractControl[] | null>(null);
   const [failed, setFailed] = useState(false);
   useEffect(() => {
@@ -27,7 +29,7 @@ export default function ContractControls() {
   const paused = controls?.filter(control => control.paused).map(control => control.name) ?? [];
   return <section className="gmd-proof-history gmd-controls" id="proof-controls" aria-labelledby="controls-title">
     <header className="gmd-section-heading"><h2 id="controls-title">Who controls the contracts</h2><span>{failed ? "X Layer Testnet could not be read" : controls ? "Read from X Layer Testnet by your browser" : "Reading X Layer Testnet…"}</span></header>
-    <p className="gmd-caption">No one can issue USTX except by investing at the recorded NAV, and no one can move a holder’s USTX. {controls && (paused.length ? `Paused now: ${paused.join(", ")}.` : "Nothing is paused now.")}</p>
+    <p className="gmd-caption">No one can issue USTX except by investing at the recorded NAV, and no one can move a holder’s USTX. {controls && (paused.length ? `Paused now: ${paused.join(", ")}.` : delay ? "No contract is paused; orders and new loans wait only for the next NAV record." : "Nothing is paused now.")}</p>
     <div className="gmd-data-table-scroll"><table className="gmd-table"><thead><tr><th>Contract</th><th>Roles</th><th>Status</th><th>What the roles can and cannot do</th></tr></thead><tbody>
       {(controls ?? []).map(control => <tr key={control.address}>
         <th scope="row"><a className="gmd-inline-tx" href={addressUrl(control.address)} target="_blank" rel="noreferrer">{control.name}<Icon name="external" size={12} /><span className="gmd-sr-only"> (opens in a new tab)</span></a></th>

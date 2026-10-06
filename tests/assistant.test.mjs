@@ -108,6 +108,9 @@ test("the model answers from the USTX tools it chose, and the answer names them"
   assert.equal(first.body.reasoning_effort, "low");
   assert.deepEqual(first.body.messages[0], { role: "system", content: ASSISTANT_SYSTEM_PROMPT });
   assert.match(ASSISTANT_SYSTEM_PROMPT, /no value/);
+  // It checks that orders are open before saying the visitor can invest.
+  assert.match(ASSISTANT_SYSTEM_PROMPT, /usableForOrders/);
+  assert.match(ASSISTANT_SYSTEM_PROMPT, /over an hour old/);
   assert.match(ASSISTANT_SYSTEM_PROMPT, /investment advice/);
   assert.deepEqual(first.body.tools.map((tool) => tool.function.name), ["get_ustx_nav", "quote_ustx_order"]);
   // The tools' results go back to the model, a wrong argument as text it can correct.

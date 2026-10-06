@@ -8,6 +8,8 @@ import { Icon } from "./Icons";
 import { AskGuide, AskProvider } from "./AskUstx";
 import { MarketProvider } from "./MarketProvider";
 import { WalletAccountProvider, useWalletAccount } from "./WalletAccount";
+import { NavDelayNotice } from "./NavDelay";
+import { OkxAppLink } from "./OkxApp";
 
 export type ProductSection = "markets" | "pools" | "verify" | "portfolio" | "activity";
 export type DesignScreen = "markets" | "product" | "order" | "portfolio" | "holding" | "activity" | "transaction";
@@ -37,14 +39,31 @@ function AccountControl() {
 
 /** The wallet button in the header: connects OKX Wallet (or any browser wallet); once connected, opens the portfolio. */
 function HeaderWallet() {
-  const router = useRouter();
   const { address, busy, connect } = useWalletAccount();
+  const [help, setHelp] = useState(false);
+  const box = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (!help) return;
+    const close = (event: PointerEvent) => { if (box.current && !box.current.contains(event.target as Node)) setHelp(false); };
+    const escape = (event: KeyboardEvent) => { if (event.key === "Escape") setHelp(false); };
+    document.addEventListener("pointerdown", close);
+    document.addEventListener("keydown", escape);
+    return () => { document.removeEventListener("pointerdown", close); document.removeEventListener("keydown", escape); };
+  }, [help]);
   if (address) return <Link prefetch={false} href="/portfolio" className="gmd-wallet-chip"><i aria-hidden="true" />{address.slice(0, 6)}…{address.slice(-4)}</Link>;
-  return <button type="button" className="gmd-wallet-connect" disabled={busy} onClick={() => {
-    // Without an injected wallet, the portfolio page explains how to connect or view an address.
-    if (!window.okxwallet && !window.ethereum) { router.push("/portfolio#wallet"); return; }
-    void connect();
-  }}><Icon name="wallet" size={17} />{busy ? "Connecting…" : "Connect OKX Wallet"}</button>;
+  return <div className="gmd-wallet-connect-box" ref={box}>
+    <button type="button" className="gmd-wallet-connect" disabled={busy} aria-expanded={help} onClick={() => {
+      // Without an injected wallet, say here how to get one rather than leaving the page.
+      if (!window.okxwallet && !window.ethereum) { setHelp(value => !value); return; }
+      void connect();
+    }}><Icon name="wallet" size={17} />{busy ? "Connecting…" : "Connect OKX Wallet"}</button>
+    {help && <div className="gmd-wallet-help" role="dialog" aria-label="Connect a wallet">
+      <p>No wallet was found in this browser. On a phone, open this page in the OKX app; on a computer, add the OKX Wallet extension.</p>
+      <OkxAppLink className="gmd-button" />
+      <a className="gmd-button is-secondary" href="https://www.okx.com/web3" target="_blank" rel="noreferrer">Get OKX Wallet <Icon name="external" size={16} /><span className="gmd-sr-only"> (opens in a new tab)</span></a>
+      <Link prefetch={false} className="gmd-inline-link" href="/portfolio#wallet" onClick={() => setHelp(false)}>View a public address instead</Link>
+    </div>}
+  </div>;
 }
 
 export function ProductHeader({ section = "markets", preview }: { section?: ProductSection | null; preview?: DesignScreen }) {
@@ -59,7 +78,7 @@ export function ProductShell({ children, section = "markets", preview }: { child
     <a className="gmd-skip" href="#product-main">Skip to content</a>
     {preview && <div className="gmd-design-toolbar"><span><b>Design preview</b> Example account data. No transactions.</span><nav aria-label="Design screens">{(["markets", "product", "order", "portfolio", "transaction"] as const).map(screen => <Link prefetch={false} key={screen} href={designLink(screen)} aria-current={preview === screen ? "page" : undefined}>{({ markets: "Markets", product: "Product", order: "Order", portfolio: "Portfolio", transaction: "Transaction" })[screen]}</Link>)}</nav></div>}
     <ProductHeader section={section} preview={preview} />
-    <main id="product-main" className="gmd-main">{!preview && <AskGuide />}{children}</main>
+    <main id="product-main" className="gmd-main">{!preview && <NavDelayNotice />}{!preview && <AskGuide />}{children}</main>
     <footer className="gmd-footer"><div><b>Ganymede</b><span>US stock baskets on X Layer · Market data by OKX · Not investment advice</span></div><nav aria-label="Resources"><Link prefetch={false} href="/products/ustx/transparency">Transparency</Link><Link prefetch={false} href="/methodology">Methodology</Link><Link prefetch={false} href="/limitations">Risks</Link><Link prefetch={false} href="/developers">Integrations</Link><Link prefetch={false} href="/issuers">For issuers</Link></nav></footer>
   </AskProvider></div></MarketProvider></WalletAccountProvider>;
 }

@@ -3,11 +3,16 @@ import { EngineRepository } from "@/lib/engine/repository";
 import { SettlementClient } from "@/lib/engine/settlement";
 import { ToolInputError, type McpTool } from "@/lib/mcp/server";
 import { STATE_CONFIRMED, STATE_DOCUMENT_PREFIX, STATE_HISTORY, type Publication } from "@/lib/xstocks/cycle";
-import { FUND_DEPLOYMENT, FUND_MIN_INVESTMENT_MICROS, POOL_FEE_BPS, pricePerShare, routeOrder } from "@/lib/xstocks/fund";
+import {
+  FUND_CLAIM_MICROS, FUND_DEPLOYMENT, FUND_MIN_INVESTMENT_MICROS, FUND_WALLET_CHAIN, POOL_FEE_BPS, POOL_ORDER_SECONDS,
+  fundCalls, poolCalls, pricePerShare, readChainTime, readFundAccount, routeOrder, withSlippage, type TransactionCall,
+} from "@/lib/xstocks/fund";
 import { readLiquidity } from "@/lib/xstocks/liquidity";
 import { readLatestNav, type OnchainNav } from "@/lib/xstocks/onchain";
 import { verifyComposition } from "@/lib/xstocks/proof";
-import { V4_POOL_DEPLOYMENT, formatFeePips, readV4Quote } from "@/lib/xstocks/v4-liquidity";
+import { V4_POOL_DEPLOYMENT, formatFeePips, readV4Quote, v4SwapCalls, type V4Deployment } from "@/lib/xstocks/v4-liquidity";
+import { RANGE_POOL_DEPLOYMENT, rangeErrorMessage } from "@/lib/xstocks/range-liquidity";
+import { FAUCET_TERMS } from "@/lib/faucet-terms";
 import { GET as readNavApi } from "../api/v1/ustx/route";
 import { GET as readPoolsApi } from "../api/v1/ustx/pools/route";
 import { GET as readActivityApi } from "../api/v1/ustx/activity/route";
@@ -32,6 +37,12 @@ const usd = (micros: bigint | string) => { const value = BigInt(micros); const s
 const ustx = usd;
 const NO_INPUT = { type: "object" as const, properties: {}, additionalProperties: false };
 const DEMO = "X Layer Testnet with demo dollars (dUSD) that have no value. Not investment advice or an offer.";
+type Venue = "fund" | "pool" | "v4" | "range";
+const VENUE_ACTIONS: Record<"buy" | "sell", Record<Venue, string>> = {
+  buy: { fund: "Invest at the fund at the NAV", pool: "Buy on the constant-product pool", v4: "Buy on the Uniswap v4 pool", range: "Buy on the range pool" },
+  sell: { fund: "Redeem at the fund at the NAV", pool: "Sell on the constant-product pool", v4: "Sell on the Uniswap v4 pool", range: "Sell on the range pool" },
+};
+const ORDERS_PAUSED = "The latest NAV record is over an hour old, so the fund, the lending market and the two NAV-guarded pools (Uniswap v4 and the range pool) refuse orders until the next record. The constant-product pool still trades, at its own price, which drifts from the NAV while no record lands.";
 
 async function json(response: Response): Promise<Record<string, unknown>> {
   if (!response.ok) throw new Error(`upstream ${response.status}`);
@@ -170,6 +181,29 @@ function describeDocument(fund: FundDefinition, document: unknown, nowMs: number
 
 export function ustxTools(origin: string): McpTool[] {
   const page = (path: string) => `${origin}${path}`;
+  // The latest NAV record, stale or not: the fund accepts it for an hour (validUntil).
+  const lastRecord = async () => {
+    try {
+      const nav = (await json(await readNavApi(new Request(page("/api/v1/ustx"))))).nav as Record<string, string>;
+      const validUntil = Date.parse(nav.validUntil);
+      return { navMicros: BigInt(nav.perShareMicros), effectiveAt: nav.effectiveAt, open: Number.isFinite(validUntil) && Date.now() < validUntil };
+    } catch {
+      return null;
+    }
+  };
+  // Whether USTX takes orders now.
+  const ustxOrders = async (): Promise<{ ordersOpen: boolean | null; ordersNote?: string }> => {
+    const record = await lastRecord();
+    if (!record) return { ordersOpen: null, ordersNote: "Whether the fund takes orders now could not be read; get_ustx_nav says." };
+    return record.open ? { ordersOpen: true } : { ordersOpen: false, ordersNote: ORDERS_PAUSED };
+  };
+  /** How far an order's price per share is from the last NAV, in percent: above it buying, below it selling. */
+  const gapToNav = (side: "buy" | "sell", amount: bigint, out: bigint, navMicros: bigint) => {
+    const perShare = side === "buy" ? pricePerShare(amount, out) : pricePerShare(out, amount);
+    return Number((perShare - navMicros) * 10_000n / navMicros) / 100;
+  };
+  const gapNote = (side: "buy" | "sell", gap: number, record: { navMicros: bigint; effectiveAt: string }) =>
+    `That price is ${Math.abs(gap).toFixed(2)}% ${gap >= 0 ? "above" : "below"} the last NAV of $${usd(record.navMicros)} (recorded at ${record.effectiveAt}); ${side === "buy" ? "buying" : "selling"} there ${(side === "buy") === (gap >= 0) ? "costs" : "gains"} that much against the NAV.`;
   return [
     {
       name: "get_ustx_nav",
@@ -184,6 +218,7 @@ export function ustxTools(origin: string): McpTool[] {
           ticker: "USTX", name: "US Tech Basket", constituents: (body.product as { constituents: string[] }).constituents,
           navUsd: nav.perShareUsd, effectiveAt: nav.effectiveAt, recordedAt: nav.recordedAt, validUntil: nav.validUntil,
           usableForOrders: Number.isFinite(validUntil) && Date.now() < validUntil, ageSeconds: Math.max(0, Math.round((Date.now() - Date.parse(nav.effectiveAt)) / 1000)),
+          ...(Number.isFinite(validUntil) && Date.now() < validUntil ? {} : { ordersNote: ORDERS_PAUSED }),
           sharesOutstanding: ustx(nav.sharesOutstandingMicros), holdingsHash: nav.holdingsHash,
           record: body.record, pricedBy: "OKX OnchainOS", feed: body.feed,
           verifyYourself: page("/products/ustx/transparency"), environment: DEMO,
@@ -250,9 +285,11 @@ export function ustxTools(origin: string): McpTool[] {
         const side = args.side;
         if (side !== "buy" && side !== "sell") throw new ToolInputError("side must be \"buy\" or \"sell\".");
         const amount = side === "buy" ? amountMicros(args.amount, "amount (demo dollars)", FUND_MIN_INVESTMENT_MICROS, 1_000_000n * ONE) : amountMicros(args.amount, "amount (USTX)", 1n, 100_000n * ONE);
-        const [{ pool }, v4] = await Promise.all([
+        const [{ pool }, v4, range, record] = await Promise.all([
           readLiquidity(null),
           V4_POOL_DEPLOYMENT ? readV4Quote(V4_POOL_DEPLOYMENT, side, amount, ZERO_ADDRESS).catch(() => null) : Promise.resolve(null),
+          RANGE_POOL_DEPLOYMENT ? readV4Quote(RANGE_POOL_DEPLOYMENT, side, amount, ZERO_ADDRESS, { describe: rangeErrorMessage }).catch(() => null) : Promise.resolve(null),
+          lastRecord(),
         ]);
         const nav = pool.nav.navMicros;
         const route = routeOrder(side, amount, nav, pool);
@@ -260,30 +297,130 @@ export function ustxTools(origin: string): McpTool[] {
         const price = (micros: bigint | null) => micros === null ? null : usd(side === "buy" ? pricePerShare(amount, micros) : pricePerShare(micros, amount));
         const venues = {
           fund: { name: side === "buy" ? "Invest at the fund at the NAV" : "Redeem at the fund at the NAV", receive: out(route.fund), pricePerShareUsd: route.fund === null ? null : nav === null ? null : usd(nav), fee: "none",
-            unavailable: route.fund === null ? (nav === null ? "The fund waits for the next NAV record." : "The fund takes buys of at least $10.") : null },
+            unavailable: route.fund === null ? (nav === null ? ORDERS_PAUSED : "The fund takes buys of at least $10.") : null },
           pool: { name: "USTX/dUSD constant-product pool", receive: out(route.pool), pricePerShareUsd: price(route.pool), fee: `${Number(POOL_FEE_BPS) / 100}%`, unavailable: route.pool === null ? "No liquidity for this order." : null },
           v4: V4_POOL_DEPLOYMENT ? { name: "Uniswap v4 pool held at the NAV", receive: out(v4?.amountOut ?? null), pricePerShareUsd: price(v4?.amountOut ?? null),
             fee: v4?.feePips != null ? formatFeePips(v4.feePips) : null, unavailable: v4 === null ? "The v4 pool could not be quoted right now." : v4.reason } : null,
+          range: RANGE_POOL_DEPLOYMENT ? { name: "Range pool of providers' own bins, guarded by the NAV", receive: out(range?.amountOut ?? null), pricePerShareUsd: price(range?.amountOut ?? null),
+            fee: range?.feePips != null ? formatFeePips(range.feePips) : null, unavailable: range === null ? "The range pool could not be quoted right now." : range.reason } : null,
         };
-        const candidates: Array<[string, bigint | null]> = [["fund", route.fund], ["pool", route.pool], ["v4", v4?.amountOut ?? null]];
+        const candidates: Array<[string, bigint | null]> = [["fund", route.fund], ["pool", route.pool], ["v4", v4?.amountOut ?? null], ["range", range?.amountOut ?? null]];
         const best = candidates.reduce<[string, bigint] | null>((top, [name, value]) => value !== null && (top === null || value > top[1]) ? [name, value] : top, null);
+        // Each venue's price against the last NAV record, stale or not, and a warning when the one that gives the most is far from it.
+        const gaps = record ? Object.fromEntries(candidates.filter(([, value]) => value !== null).map(([name, value]) => [name, gapToNav(side, amount, value!, record.navMicros)])) : {};
+        const bestGap = best && record ? gaps[best[0]] : null;
+        const warnings = [
+          ...(record && !record.open ? [ORDERS_PAUSED] : []),
+          ...(bestGap !== null && record && Math.abs(bestGap) > 2 ? [gapNote(side, bestGap, record)] : []),
+        ];
         return {
-          side, amount: side === "buy" ? `${usd(amount)} dUSD` : `${ustx(amount)} USTX`, navUsd: nav === null ? null : usd(nav), venues, best: best?.[0] ?? null,
-          howToExecute: `Open ${page("/products/ustx")}, connect OKX Wallet on X Layer Testnet, and the order panel routes to the best venue; every order needs the user's own signature.`,
+          side, amount: side === "buy" ? `${usd(amount)} dUSD` : `${ustx(amount)} USTX`, navUsd: nav === null ? null : usd(nav),
+          lastNav: record ? { navUsd: usd(record.navMicros), effectiveAt: record.effectiveAt, ordersOpen: record.open } : null,
+          venues, vsLastNavPercent: gaps, best: best?.[0] ?? null, ...(warnings.length ? { warnings } : {}),
+          howToExecute: `Open ${page("/products/ustx")}, connect OKX Wallet on X Layer Testnet, and the order panel routes to the best venue; or call prepare_ustx_order for the transactions a wallet would sign. Every order needs the user's own signature.`,
           environment: DEMO,
+        };
+      },
+    },
+    {
+      name: "prepare_ustx_order",
+      title: "Prepare a USTX order for a wallet to sign",
+      description: "The unsigned transactions a wallet would sign on X Layer Testnet (chain 1952) to place a USTX order where it gets the most right now, or at the venue named: claiming demo dollars when buying with too few, an approval when the allowance falls short, then the order, with a minimum of the quote less 1% and, at a pool, a ten-minute deadline. Nothing is signed or sent here: the wallet signs each transaction in order, after the one before is mined, and the order should be dry-run first. While the NAV record is over an hour old the fund and the NAV-guarded pools refuse orders, so only the constant-product pool can be offered.",
+      inputSchema: {
+        type: "object",
+        properties: {
+          side: { type: "string", enum: ["buy", "sell"], description: "buy USTX with demo dollars, or sell USTX for them" },
+          amount: { type: "number", description: "buy: demo dollars to spend (10 to 1,000,000); sell: USTX to sell (0.000001 to 100,000)" },
+          wallet: { type: "string", description: "the 0x address that will sign; its balances and allowances are read from X Layer Testnet" },
+          venue: { type: "string", enum: ["best", "fund", "pool", "v4", "range"], description: "where to place the order; best, the default, is the venue that gives the most" },
+        },
+        required: ["side", "amount", "wallet"],
+        additionalProperties: false,
+      },
+      run: async (args) => {
+        const side = args.side;
+        if (side !== "buy" && side !== "sell") throw new ToolInputError("side must be \"buy\" or \"sell\".");
+        const amount = side === "buy" ? amountMicros(args.amount, "amount (demo dollars)", FUND_MIN_INVESTMENT_MICROS, 1_000_000n * ONE) : amountMicros(args.amount, "amount (USTX)", 1n, 100_000n * ONE);
+        if (typeof args.wallet !== "string" || !/^0x[0-9a-fA-F]{40}$/.test(args.wallet)) throw new ToolInputError("wallet must be a 0x address of 40 hex digits.");
+        const wallet = args.wallet.toLowerCase();
+        const asked = args.venue ?? "best";
+        if (asked !== "best" && asked !== "fund" && asked !== "pool" && asked !== "v4" && asked !== "range") throw new ToolInputError("venue must be best, fund, pool, v4 or range.");
+        const pools: Record<"v4" | "range", V4Deployment | null> = { v4: V4_POOL_DEPLOYMENT, range: RANGE_POOL_DEPLOYMENT };
+        const [account, v4, range, chainTime, record] = await Promise.all([
+          readFundAccount(wallet),
+          pools.v4 ? readV4Quote(pools.v4, side, amount, wallet).catch(() => null) : Promise.resolve(null),
+          pools.range ? readV4Quote(pools.range, side, amount, wallet, { describe: rangeErrorMessage }).catch(() => null) : Promise.resolve(null),
+          readChainTime().catch(() => 0),
+          lastRecord(),
+        ]);
+        const nav = account.nav.navMicros;
+        const route = routeOrder(side, amount, nav, account.pool);
+        const outs: Record<Venue, bigint | null> = { fund: route.fund, pool: route.pool, v4: v4?.amountOut ?? null, range: range?.amountOut ?? null };
+        const why: Record<Venue, string> = {
+          fund: nav === null ? ORDERS_PAUSED : "The fund takes buys of at least $10.",
+          pool: "The constant-product pool has no liquidity for this order.",
+          v4: v4?.reason ?? "The v4 pool could not be quoted right now.",
+          range: range?.reason ?? "The range pool could not be quoted right now.",
+        };
+        const venue: Venue | null = asked === "best"
+          ? (Object.keys(outs) as Venue[]).reduce<Venue | null>((top, name) => outs[name] !== null && (top === null || outs[name]! > outs[top]!) ? name : top, null)
+          : asked;
+        const now = Math.max(Math.floor(Date.now() / 1000), chainTime);
+        const held = side === "buy" ? account.dollarsMicros : account.sharesMicros;
+        const base = {
+          chain: FUND_WALLET_CHAIN, from: wallet, side, amount: side === "buy" ? `${usd(amount)} dUSD` : `${ustx(amount)} USTX`,
+          balance: side === "buy" ? `${usd(held)} dUSD` : `${ustx(held)} USTX`, ...(account.gasWei < FAUCET_TERMS.lowWei ? { gas: `The wallet has almost no test OKB for gas: ${page("/pools")} or POST /api/faucet gives 0.0005 once.` } : {}),
+          environment: DEMO,
+        };
+        const out = venue ? outs[venue] : null;
+        if (!venue || out === null) return { ...base, venue, transactions: [], unavailable: venue ? why[venue] : "No venue can fill this order right now." };
+        const receive = (micros: bigint) => side === "buy" ? `${ustx(micros)} USTX` : `${usd(micros)} dUSD`;
+        const gap = record ? gapToNav(side, amount, out, record.navMicros) : null;
+        // While orders are paused only the constant-product pool trades, at a price that drifts from the NAV: it is prepared only when asked for by name.
+        if (asked === "best" && nav === null) {
+          return { ...base, venue: null, transactions: [], unavailable: `${ORDERS_PAUSED}${gap !== null && record ? ` ${gapNote(side, gap, record)}` : ""} Name venue "pool" to trade there anyway.` };
+        }
+        const warning = gap !== null && record && Math.abs(gap) > 2 ? gapNote(side, gap, record) : null;
+        const minimum = withSlippage(out);
+        const deadline = now + POOL_ORDER_SECONDS;
+        const swap = venue === "v4" || venue === "range" ? v4SwapCalls(pools[venue]!) : null;
+        const order: TransactionCall = venue === "fund" ? (side === "buy" ? fundCalls.invest(amount, minimum) : fundCalls.redeem(amount, minimum))
+          : swap ? swap.swap(side, amount, minimum, deadline)
+          : side === "buy" ? poolCalls.buy(amount, minimum, deadline) : poolCalls.sell(amount, minimum, deadline);
+        // What the order spends is approved to whoever takes it: the fund, the pool or the v4 router. Redeeming burns USTX and needs none.
+        const allowance = venue === "fund" ? (side === "buy" ? account.allowanceMicros : null)
+          : swap ? (venue === "v4" ? v4 : range)!.allowanceMicros
+          : side === "buy" ? account.poolDollarAllowanceMicros : account.poolShareAllowanceMicros;
+        const approval = allowance === null || allowance >= amount ? null
+          : venue === "fund" ? fundCalls.approve(amount)
+          : swap ? (side === "buy" ? swap.approveDollars(amount) : swap.approveShares(amount))
+          : side === "buy" ? poolCalls.approveDollars(amount) : poolCalls.approveShares(amount);
+        const claim = side === "buy" && held < amount && account.nextClaimAt <= now;
+        const transactions = [
+          ...(claim ? [{ ...fundCalls.claim(), value: "0x0", purpose: `Claim ${usd(FUND_CLAIM_MICROS)} demo dollars (once a day)` }] : []),
+          ...(approval ? [{ ...approval, value: "0x0", purpose: side === "buy" ? `Approve ${usd(amount)} demo dollars` : `Approve ${ustx(amount)} USTX` }] : []),
+          { ...order, value: "0x0", purpose: `${VENUE_ACTIONS[side][venue]}: at least ${receive(minimum)}` },
+        ];
+        return {
+          ...base, venue, receive: receive(out), minimumReceive: receive(minimum), ...(venue === "fund" ? {} : { deadline: new Date(deadline * 1000).toISOString() }),
+          ...(gap !== null ? { vsLastNavPercent: gap } : {}), ...(warning ? { warning } : {}),
+          enough: held >= amount || (claim && held + FUND_CLAIM_MICROS >= amount),
+          transactions,
+          howToSign: "Send each transaction from the wallet with eth_sendTransaction, in order, each after the one before it is mined, and dry-run the order with eth_call first. The quote is for the latest block: if the price moves past the minimum, the order reverts rather than filling worse.",
         };
       },
     },
     {
       name: "get_ustx_pools",
       title: "USTX liquidity pools",
-      description: "Both USTX/dUSD pools on X Layer Testnet: value at the NAV, price, fee, and what each pool's trades made or lost for its liquidity providers at the NAV over the same NAV records (the constant-product pool loses to arbitrage after each record; the Uniswap v4 pool moves to the NAV first).",
+      description: "The USTX/dUSD pools on X Layer Testnet: the constant-product pool, the Uniswap v4 pool held at the NAV and the range pool of providers' own bins. For each: price, fee, value at the NAV, and for the first two what their trades made or lost for their liquidity providers at the NAV over the same NAV records (the constant-product pool loses to arbitrage after each record; the v4 pool moves to the NAV first). When the NAV record is over an hour old, values at the NAV are null and navUnavailable says why",
       inputSchema: NO_INPUT,
       run: async () => {
         const body = await json(await readPoolsApi());
         const pools = (body.pools as Array<Record<string, unknown>>).map(pool => ({
           id: pool.id, type: pool.type, valueUsd: pool.valueMicros ? usd(pool.valueMicros as string) : null, priceUsd: pool.priceMicros ? usd(pool.priceMicros as string) : null, navUsd: pool.navMicros ? usd(pool.navMicros as string) : null,
           fee: pool.feeBps !== undefined ? `${Number(pool.feeBps) / 100}%` : pool.feePips != null ? formatFeePips(Number(pool.feePips)) : null,
+          ...(pool.navMicros ? {} : { navUnavailable: (pool.navUnavailable as string | null | undefined) ?? ORDERS_PAUSED }),
           lpResult: pool.lpResult && {
             trades: (pool.lpResult as Record<string, unknown>).trades, resultUsd: usd((pool.lpResult as Record<string, string>).resultMicros),
             lostToArbitrageUsd: usd((pool.lpResult as Record<string, string>).arbitrageResultMicros), arbitrages: (pool.lpResult as Record<string, unknown>).arbitrages,
@@ -298,7 +435,7 @@ export function ustxTools(origin: string): McpTool[] {
     {
       name: "get_ustx_market_activity",
       title: "USTX market activity",
-      description: "The latest events of the USTX market on X Layer Testnet, newest first: investments and redemptions at the NAV, trades in both pools, the keeper's arbitrage, liquidity and lending, each with its transaction; and the last 24 hours' trades and volume.",
+      description: "The latest events of the USTX market on X Layer Testnet, newest first: investments and redemptions at the NAV, trades in the pools, the keeper's arbitrage, liquidity and lending, each with its transaction; and the last 24 hours' trades and volume.",
       inputSchema: { type: "object", properties: { limit: { type: "integer", minimum: 1, maximum: 40, description: "rows to return, 10 if not given" } }, additionalProperties: false },
       run: async (args) => {
         const limit = args.limit === undefined ? 10 : Number(args.limit);
@@ -321,12 +458,12 @@ export function ustxTools(origin: string): McpTool[] {
       description: "Every product on Markets with its latest NAV record on X Layer: six baskets of xStocks (USTX and M7X, AIX, CRYX, CORX, RTLX), two covered-call funds (SPYC on SPYx, QQQC on QQQx) and a step-down autocallable note (ELS1 on the worse of SPYx and QQQx). Each with the id for get_fund, its kind, NAV, when it was recorded and its change over seven days. Only USTX can be bought; the others are recorded every five minutes but have no share token yet.",
       inputSchema: NO_INPUT,
       run: async () => {
-        const funds = await fundSummaries(new EngineRepository(engineEnv().DB));
+        const [funds, orders] = await Promise.all([fundSummaries(new EngineRepository(engineEnv().DB)), ustxOrders()]);
         return {
           funds: funds.map(fund => ({
             id: fund.id, ticker: fund.ticker, name: fund.name, kind: fund.kind, holds: fund.holdings.map(holding => holding.symbol),
             navUsd: fund.nav ? usd(fund.nav.perShareMicros) : null, asOf: fund.nav?.asOf ?? null, change7dPercent: fund.changePercent === null ? null : Number(fund.changePercent.toFixed(2)),
-            investable: fund.onchainShares, page: page(fund.href),
+            investable: fund.onchainShares, ...(fund.onchainShares ? orders : {}), page: page(fund.href),
           })),
           environment: DEMO,
         };
@@ -349,7 +486,7 @@ export function ustxTools(origin: string): McpTool[] {
           change7dPercent: summary.changePercent === null ? null : Number(summary.changePercent.toFixed(2)),
           investable: fund.onchainShares, page: page(fund.href),
         };
-        if (fund.onchainShares) return { ...base, seeAlso: "get_ustx_nav, get_ustx_holdings and quote_ustx_order give USTX's record, holdings and quotes.", environment: DEMO };
+        if (fund.onchainShares) return { ...base, ...(await ustxOrders()), seeAlso: "get_ustx_nav, get_ustx_holdings and quote_ustx_order give USTX's record, holdings and quotes.", environment: DEMO };
         const restsOnRecords = confirmed ? await historyHolds(repo, fund, confirmed.document) : true;
         return { ...base, ...describeDocument(fund, confirmed?.document ?? null, Date.now(), restsOnRecords), notOpen: "Investing in this product is not open yet: it has no share token. Its value is recorded on X Layer every five minutes.", environment: DEMO };
       },

@@ -357,4 +357,173 @@ describe("GanymedeRangeLiquidityHook", () => {
     expect(await dollar.read.balanceOf([arbitrage.address])).to.equal(0n);
     expect(await fund.read.balanceOf([arbitrage.address])).to.equal(0n);
   });
+
+  it("keeps every provider's tokens, the NAV's band and its books across random opens, closes, trades, NAV moves and arbitrage", async () => {
+    // RANGE_FUZZ_SEEDS and RANGE_FUZZ_STEPS run it longer; each seed replays.
+    const seeds = Number(process.env.RANGE_FUZZ_SEEDS ?? 2);
+    const steps = Number(process.env.RANGE_FUZZ_STEPS ?? 40);
+    const { hook, arbitrage, router, key, lp, lp2, trader, keeper, prepare, publish, buyUstx, sellUstx, dollar, fund, managerAddress, publicClient, assetIsCurrency0, poolNav } = await deploy();
+    await prepare(lp, 4_000n * USD);
+    await prepare(lp2, 2_000n * USD);
+    await prepare(trader, 3_000n * USD);
+    await dollar.write.claim({ account: keeper.account });
+    await dollar.write.approve([arbitrage.address, maxUint256], { account: keeper.account });
+    const providers = [lp, lp2];
+    const balances = async (account: `0x${string}`) => ({ ustx: await fund.read.balanceOf([account]), dollars: await dollar.read.balanceOf([account]) });
+    // What the pool manager holds for its other pools, before any range position.
+    const baseline = await balances(managerAddress);
+    // A revert the rules call for (a price away from the NAV, a swap out of its band or on a stale
+    // NAV, nothing to arbitrage) is counted; any other revert fails the run.
+    const refusals = ["PriceAwayFromNav(int24,int24)", "OutsideBand(int24,int24)", "NavTooOld(uint256)", "NothingToDo()", "Unprofitable(uint256)", "PartialFill()"];
+    const counts = { opened: 0, bins: 0, closed: 0, swaps: 0, arbitrages: 0, records: 0, refused: 0, stale: 0 };
+    async function attempt(label: string, call: () => Promise<Hex>) {
+      try {
+        await publicClient.waitForTransactionReceipt({ hash: await call() });
+        return true;
+      } catch (caught) {
+        const text = revertText(caught);
+        if (refusals.some((signature) => new RegExp(`\\b${signature.replace(/\(.*$/, "")}\\b`).test(text) || text.toLowerCase().includes(selector(signature)))) {
+          counts.refused += 1;
+          return false;
+        }
+        throw new Error(`${label} reverted against the rules: ${text.slice(0, 400) || String(caught).slice(0, 400)}`);
+      }
+    }
+    let nav = NAV;
+    const open: { id: bigint; owner: typeof lp; bins: number }[] = [];
+
+    // After every step: the hook and the arbitrage hold nothing, every open position is its owner's,
+    // and the pool manager holds at least everything the open positions are owed, fees included.
+    async function check(step: string) {
+      for (const holder of [hook.address, arbitrage.address]) {
+        const held = await balances(holder);
+        expect(held.ustx + held.dollars, `${step}: ${holder} holds tokens`).to.equal(0n);
+      }
+      let owed0 = 0n, owed1 = 0n;
+      for (const position of open) {
+        const stored = await hook.read.positions([position.id]);
+        expect(getAddress(stored[0]), `${step}: owner of ${position.id}`).to.equal(getAddress(position.owner.account.address));
+        expect(stored[6], `${step}: ${position.id} open`).to.equal(true);
+        // Each amount already counts its fees.
+        const [amount0, amount1] = await hook.read.positionAmounts([position.id]);
+        owed0 += amount0;
+        owed1 += amount1;
+      }
+      const manager = await balances(managerAddress);
+      const extra = { ustx: manager.ustx - baseline.ustx, dollars: manager.dollars - baseline.dollars };
+      const [held0, held1] = assetIsCurrency0 ? [extra.ustx, extra.dollars] : [extra.dollars, extra.ustx];
+      expect(owed0 <= held0 && owed1 <= held1, `${step}: owed ${owed0}/${owed1}, held ${held0}/${held1}`).to.equal(true);
+    }
+
+    for (let run = 0; run < seeds; run++) {
+      let state = 0x2545f4914f6cdd1dn + BigInt(run);
+      const random = (below: bigint) => {
+        state = (state * 6364136223846793005n + 1442695040888963407n) & ((1n << 64n) - 1n);
+        return (state >> 33n) % below;
+      };
+      const pick = <T,>(items: readonly T[]) => items[Number(random(BigInt(items.length)))];
+      for (let step = 0; step < steps; step++) {
+        const action = Number(random(10n));
+        const label = `seed ${run} step ${step} action ${action}`;
+        if (action <= 2) {
+          // A provider opens bins of their own: a preset shape or one drawn bin by bin.
+          const owner = pick(providers);
+          const binTicks = pick([10, 20, 50, 100, 200, 500]);
+          const held = await balances(owner.account.address);
+          // The bins below the pool's tick hold currency1 and those above it currency0: demo dollars
+          // below and USTX above when USTX is currency0, the other way round when it is not.
+          const enough = { dollars: held.dollars >= 2n * USD, ustx: held.ustx >= SHARE / 5n };
+          const lowToken = assetIsCurrency0 ? "dollars" : "ustx";
+          const highToken = assetIsCurrency0 ? "ustx" : "dollars";
+          let below = enough[lowToken] ? Number(random(7n)) : 0;
+          let above = enough[highToken] ? Number(random(7n)) : 0;
+          if (below + above === 0) {
+            if (enough[highToken]) above = 1;
+            else if (enough[lowToken]) below = 1;
+            else continue;
+          }
+          const ustxBins = assetIsCurrency0 ? above : below;
+          const dollarBins = assetIsCurrency0 ? below : above;
+          const ustx = ustxBins > 0 ? SHARE / 10n + ((held.ustx - SHARE / 10n) / 4n) * random(1_000n) / 1_000n : 0n;
+          const dollars = dollarBins > 0 ? USD + ((held.dollars - USD) / 4n) * random(1_000n) / 1_000n : 0n;
+          const [amount0, amount1] = assetIsCurrency0 ? [ustx, dollars] : [dollars, ustx];
+          const end = await deadline();
+          const drawn = random(4n) === 0n;
+          const weights = Array.from({ length: below + above }, () => Number(random(11n)));
+          if (below > 0 && weights.slice(0, below).every((weight) => weight === 0)) weights[below - 1] = 1;
+          if (above > 0 && weights.slice(below).every((weight) => weight === 0)) weights[below] = 1;
+          const before = (await hook.read.positionsOf([owner.account.address])).length;
+          const done = await attempt(label, () => drawn
+            ? hook.write.openCustom([binTicks, below, above, weights, amount0, amount1, ...ANY_TICK, end], { account: owner.account })
+            : hook.write.open([Number(random(3n)), binTicks, below, above, amount0, amount1, ...ANY_TICK, end], { account: owner.account }));
+          if (done) {
+            const ids = await hook.read.positionsOf([owner.account.address]);
+            expect(ids.length, label).to.equal(before + 1);
+            open.push({ id: ids[ids.length - 1], owner, bins: below + above });
+            counts.opened += 1;
+            counts.bins += below + above;
+          }
+        } else if (action === 3 && open.length > 0) {
+          // A position closes for its owner, at any NAV, stale or not, with what it was owed.
+          const index = Number(random(BigInt(open.length)));
+          const position = open[index];
+          const other = providers.find((provider) => provider !== position.owner)!;
+          if (step % 7 === 0) await expectRevert(hook.write.close([position.id, 0n, 0n, await deadline()], { account: other.account }), "NotOwner");
+          const [amount0, amount1] = await hook.read.positionAmounts([position.id]);
+          const before = await balances(position.owner.account.address);
+          await hook.write.close([position.id, 0n, 0n, await deadline()], { account: position.owner.account });
+          const after = await balances(position.owner.account.address);
+          const [got0, got1] = assetIsCurrency0 ? [after.ustx - before.ustx, after.dollars - before.dollars] : [after.dollars - before.dollars, after.ustx - before.ustx];
+          const slack = BigInt(position.bins * 2 + 2);
+          expect(got0 + slack >= amount0 && got0 <= amount0 + slack, `${label}: paid ${got0} of ${amount0}`).to.equal(true);
+          expect(got1 + slack >= amount1 && got1 <= amount1 + slack, `${label}: paid ${got1} of ${amount1}`).to.equal(true);
+          open.splice(index, 1);
+          counts.closed += 1;
+        } else if (action === 4 || action === 5) {
+          // A trader buys or sells; a swap that went through leaves the price within the NAV's band.
+          const held = await balances(trader.account.address);
+          const buying = action === 4 ? held.dollars >= 2n * USD : held.ustx < SHARE / 50n;
+          const amount = buying ? USD + (held.dollars / 5n) * random(1_000n) / 1_000n : SHARE / 100n + (held.ustx / 5n) * random(1_000n) / 1_000n;
+          const end = await deadline();
+          if (await attempt(label, () => router.write.swapExactInput([key, buying ? buyUstx : sellUstx, amount, 0n, end], { account: trader.account }))) {
+            counts.swaps += 1;
+            const away = Number(await poolNav()) / Number(nav) - 1;
+            expect(Math.abs(away) <= 0.053, `${label}: the price is ${(away * 100).toFixed(2)}% from the NAV`).to.equal(true);
+          }
+        } else if (action === 6) {
+          // A new record moves the NAV up to 2% either way.
+          nav = (nav * (9_800n + random(401n))) / 10_000n;
+          await publish(nav);
+          counts.records += 1;
+        } else if (action === 7) {
+          if (await attempt(label, () => arbitrage.write.arbitrage([0n], { account: keeper.account }))) counts.arbitrages += 1;
+        } else if (action === 8 && random(5n) === 0n) {
+          // Now and then the record goes stale: swaps stop, closes do not.
+          await time.increase(65n * 60n);
+          counts.stale += 1;
+        } else {
+          await time.increase(60n + random(600n));
+        }
+        await check(label);
+      }
+      // Keep the record fresh into the next seed.
+      await publish(nav);
+    }
+
+    // Everyone leaves, at a stale NAV too: every position closes for what it is owed, and the pool
+    // manager keeps only rounding, which goes the pool's way: at most a couple of micros a bin.
+    await time.increase(2n * HOUR);
+    for (const position of [...open]) {
+      await hook.write.close([position.id, 0n, 0n, await deadline()], { account: position.owner.account });
+      open.splice(open.indexOf(position), 1);
+      counts.closed += 1;
+    }
+    await check("after everyone left");
+    const manager = await balances(managerAddress);
+    const left = { ustx: manager.ustx - baseline.ustx, dollars: manager.dollars - baseline.dollars };
+    const dust = BigInt(2 * counts.bins + 10);
+    expect(left.ustx >= 0n && left.dollars >= 0n && left.ustx <= dust && left.dollars <= dust, `left ${left.ustx} micro-USTX and ${left.dollars} micro-dollars over ${counts.bins} bins`).to.equal(true);
+    expect(counts.opened > 0 && counts.swaps > 0, JSON.stringify(counts)).to.equal(true);
+    console.log(`      range fuzz: ${JSON.stringify(counts)}`);
+  }).timeout(0); // its length follows RANGE_FUZZ_SEEDS and RANGE_FUZZ_STEPS
 });

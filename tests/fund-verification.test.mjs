@@ -25,6 +25,7 @@ test("the displayed NAV and holdings come from one verified record, regardless o
   fund.history.unshift({ ...fund.history[0], holdingsHash: "0x" + "b".repeat(64), canonical: "unrelated first entry" });
   const checked = await verifyFundSnapshot(fund, "ai-chips", options);
   assert.equal(checked.result, "matched");
+  assert.equal(checked.stale, undefined);
   assert.deepEqual(checked.record, record);
   assert.equal(checked.composition.navPerShareMicros, record.navPerShareMicros);
   assert.equal(checked.composition.productId, "ai-chips");
@@ -56,10 +57,15 @@ test("the route's pinned identity cannot be replaced by an API product key", asy
   assert.equal((await verifyFundSnapshot(fund, "us-core", options)).result, "failed");
 });
 
-test("missing, stale or tampered documents do not yield a verified trading NAV", async () => {
-  const { fund, options } = await setup();
+test("missing or tampered documents do not yield a verified NAV, and a stale one is only the last known value", async () => {
+  const { fund, record, options } = await setup();
   assert.equal((await verifyFundSnapshot({ ...fund, history: [] }, "ai-chips", options)).result, "unavailable");
-  assert.equal((await verifyFundSnapshot(fund, "ai-chips", { ...options, now: options.now + 3_600_000 })).result, "unavailable");
+  // Over an hour old, the record still checks out as what was recorded, and says it is delayed.
+  const stale = await verifyFundSnapshot(fund, "ai-chips", { ...options, now: options.now + 3_600_000 });
+  assert.equal(stale.result, "matched");
+  assert.equal(stale.stale, true);
+  assert.deepEqual(stale.record, record);
+  assert.match(stale.detail, /over an hour old: new records are delayed, so this is the last known value/);
   const tampered = { ...fund, history: [{ ...fund.history[0], canonical: fund.history[0].canonical.replace('"test fixture"', '"changed price source"') }] };
   const checked = await verifyFundSnapshot(tampered, "ai-chips", options);
   assert.equal(checked.result, "failed");

@@ -11,6 +11,9 @@ import { LIQUIDITY_SELECTORS, POOL_LAUNCH_BLOCK } from "../lib/xstocks/liquidity
 import { ACTIVITY_FIRST_BLOCK, ACTIVITY_KEEP, serializeActivityIndex } from "../lib/xstocks/activity.ts";
 import { STATE_LP_MARKOUT, STATE_MARKET_ACTIVITY } from "../lib/xstocks/activity-index.ts";
 import { MARKOUT_FIRST_BLOCK, serializeLpMarkout } from "../lib/xstocks/lp-markout.ts";
+import { RANGE_POOL_DEPLOYMENT, RANGE_SELECTORS } from "../lib/xstocks/range-liquidity.ts";
+import { OPENAPI } from "../app/api/v1/openapi.json/route.ts";
+import { schemaErrors } from "./openapi-check.mjs";
 
 const USD = 1_000_000n;
 const word = (value) => BigInt(value).toString(16).padStart(64, "0");
@@ -209,3 +212,35 @@ test("the Worker stores the pools and NAV snapshots on its own once-a-minute cro
   assert.deepEqual(sql.prepare("SELECT key FROM engine_state").all().map(row => row.key), [STATE_POOLS_SNAPSHOT], "only the pools snapshot; no NAV cycle ran");
 });
 
+
+test("the range pool is listed with its own price, fee and the NAV its hook guards it with", async (t) => {
+  const { db, sql } = database();
+  env.DB = db;
+  db.readOnly = true;
+  const base = chain();
+  // $100 a USTX: USTX is currency0 with six decimals, as dUSD.
+  const sqrtPrice = 10n << 96n;
+  const tick = 46_054n;
+  t.mock.method(globalThis, "fetch", async (url, init) => {
+    const body = JSON.parse(init.body);
+    const [first] = body.params ?? [];
+    const answer = (result) => Response.json({ jsonrpc: "2.0", id: body.id, result });
+    if (body.method === "eth_call" && first.to === RANGE_POOL_DEPLOYMENT.poolManager && first.data.startsWith(RANGE_SELECTORS.extsload)) return answer(`0x${word((tick << 160n) | sqrtPrice)}`);
+    if (body.method === "eth_call" && first.to === RANGE_POOL_DEPLOYMENT.hook && first.data === RANGE_SELECTORS.nav) return answer(`0x${word(100n * 10n ** 8n)}${word(TIME - 120)}${word(sqrtPrice)}`);
+    if (body.method === "eth_call" && first.to === RANGE_POOL_DEPLOYMENT.hook && first.data === RANGE_SELECTORS.currentFee) return answer(`0x${word(3_000n)}`);
+    return base(url, init);
+  });
+  const body = await (await GET()).json();
+  const range = body.pools.find((pool) => pool.id === "ustx-dusd-range");
+  assert.deepEqual(range, {
+    id: "ustx-dusd-range", type: "uniswap-v4-range",
+    hook: RANGE_POOL_DEPLOYMENT.hook, poolManager: RANGE_POOL_DEPLOYMENT.poolManager, router: RANGE_POOL_DEPLOYMENT.router, poolId: RANGE_POOL_DEPLOYMENT.poolId,
+    block: HEAD, tokens: { ustx: RANGE_POOL_DEPLOYMENT.asset, dusd: RANGE_POOL_DEPLOYMENT.dollar, decimals: 6 },
+    feePips: 3_000, priceMicros: "100000000", tick: 46_054, navMicros: "100000000", navUnavailable: null,
+    explorerUrl: `${FUND_DEPLOYMENT.explorerUrl}/address/${RANGE_POOL_DEPLOYMENT.hook}`,
+  });
+  assert.match(body.rule, /range pool appears once it is deployed/);
+  // The response matches its OpenAPI schema, the range pool included.
+  assert.deepEqual(schemaErrors(body, OPENAPI.paths["/api/v1/ustx/pools"].get.responses[200].content["application/json"].schema), []);
+  sql.close();
+});

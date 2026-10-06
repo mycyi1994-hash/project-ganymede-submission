@@ -22,7 +22,7 @@ test("Markets renders the actual product path without fabricated values or the v
   assert.match(html, />Invest </);
   assert.match(html, /You are on X Layer Testnet\. Balances are demo funds with no real value\./);
   assert.match(html, /Connect OKX Wallet/);
-  assert.match(html, /NAV per share/);
+  assert.match(html, /<abbr title="Net asset value: what the xStocks behind one share are worth">NAV<\/abbr> per share/);
   assert.match(html, /Priced by OKX OnchainOS/);
   assert.doesNotMatch(html, /Try to break it|Recent investor activity|Built on X Layer and OKX|What you can do/, "no pitch or developer material on the customer page");
   assert.match(html, /href="\/products\/ustx#investment"/);
@@ -255,7 +255,8 @@ test("issuer, developer and embed pages render for partners", async () => {
   assert.match(developers, /Read the NAV from a contract/);
   assert.match(developers, /Trade USTX on X Layer/);
   assert.match(developers, /A keeper checks the pool every five minutes and sends that trade when closing the gap earns at least a cent/);
-  assert.match(developers, /quotes both the fund and the pool for each order and routes it to the better price/);
+  assert.match(developers, /quotes the fund and the three pools for each order and routes it to the best price/);
+  assert.match(developers, /Its nine tools read and never sign/);
   assert.match(developers, /Use USTX as collateral/);
   assert.match(developers, /Provide liquidity/);
   assert.match(developers, /\/api\/v1\/ustx\/pools/);
@@ -308,4 +309,20 @@ test("Markets lists every fund, and each fund other than USTX has its own page",
   const ustx = await render("/funds/us-tech-x");
   assert.equal(ustx.status, 307);
   assert.match(ustx.headers.get("location"), /\/products\/ustx$/);
+});
+
+test("pages refuse to be framed while the badges may be, and every response carries the security headers", async () => {
+  const page = await render("/products/ustx");
+  assert.equal(page.headers.get("x-frame-options"), "DENY");
+  assert.match(page.headers.get("content-security-policy") ?? "", /frame-ancestors 'none'/);
+  assert.match(page.headers.get("content-security-policy") ?? "", /object-src 'none'/);
+  assert.equal(page.headers.get("x-content-type-options"), "nosniff");
+  assert.equal(page.headers.get("referrer-policy"), "strict-origin-when-cross-origin");
+  const badge = await render("/embed/ustx");
+  assert.equal(badge.status, 200);
+  assert.equal(badge.headers.get("x-frame-options"), null);
+  assert.match(badge.headers.get("content-security-policy") ?? "", /frame-ancestors \*/);
+  const moved = await render("/lab");
+  assert.equal(moved.status, 307);
+  assert.equal(moved.headers.get("x-content-type-options"), "nosniff");
 });

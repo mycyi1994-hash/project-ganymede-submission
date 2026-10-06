@@ -19,8 +19,8 @@ import { isIncomeTransition, transitionsAt, type ArchivedRecord, type Transition
 
 export type IncomeDocument = CoveredCallDocument | AutocallDocument;
 export type IncomeVerification =
-  | { result: "matched"; detail: string; record: OnchainNav; document: IncomeDocument }
-  | { result: "failed" | "unavailable" | "checking"; detail: string; record?: never; document?: never };
+  | { result: "matched"; detail: string; record: OnchainNav; document: IncomeDocument; stale?: true }
+  | { result: "failed" | "unavailable" | "checking"; detail: string; record?: never; document?: never; stale?: never };
 
 /**
  * A call sold on the product's terms: the strike 2% above the ETF price it was sold at, rounded to the
@@ -338,6 +338,8 @@ export async function verifyIncomeSnapshot(fund: FundDetail, productId: string, 
   if (fund.nav?.perShareMicros !== record.navPerShareMicros || Math.floor(Date.parse(fund.nav.asOf) / 1_000) !== Math.floor(Date.parse(record.effectiveAt) / 1_000)) return { result: "failed", detail: "The page's NAV or timestamp differs from the record on X Layer. Waiting for a matching update." };
   const history = await checkIncomeHistory(definition.id, document, fund.transitions ?? null, receiptProof(definition.productKey, options.fetcher));
   if (history.result !== "matched") return { result: history.result, detail: history.detail };
-  if (document.kind === "covered-call" && (options.now ?? Date.now()) - Date.parse(record.effectiveAt) > NAV_MAX_AGE_MS) return { result: "unavailable", detail: "The latest NAV is over an hour old. Orders are paused until a fresh record is available." };
-  return { result: "matched", detail: `Your browser read this product's record on X Layer, hashed its document and recomputed the NAV from it: they match.${history.detail ? ` ${history.detail}` : ""}`, record, document };
+  const detail = `Your browser read this product's record on X Layer, hashed its document and recomputed the NAV from it: they match.${history.detail ? ` ${history.detail}` : ""}`;
+  // A covered call is valued every five minutes, so an old record still checks out but is marked as the last known value.
+  if (document.kind === "covered-call" && (options.now ?? Date.now()) - Date.parse(record.effectiveAt) > NAV_MAX_AGE_MS) return { result: "matched", stale: true, detail: `${detail} It is the latest record but over an hour old: new records are delayed, so this is the last known value.`, record, document };
+  return { result: "matched", detail, record, document };
 }

@@ -66,7 +66,7 @@ export default function MarketChart({ points: all, loading, showActivity = true,
       </div>
       <label className="gmd-history-scrubber gmd-sr-only"><span>Inspect the NAV history</span><input type="range" min="0" max={points.length - 1} value={index === null ? points.length - 1 : Math.min(index, points.length - 1)} onFocus={() => setIndex(points.length - 1)} onBlur={() => setIndex(null)} onChange={event => setIndex(Number(event.target.value))} aria-valuetext={active ? `${shortTime(active.at)}, ${formatUsdMicros(active.micros, 4)}` : "Latest value"} /></label>
       <div className="gmd-chart-axis"><span>{shortTime(points[0].at)}</span><span>{shortTime(points[points.length - 1].at)}</span></div>
-      {kinds.size > 0 && <p className="gmd-chart-legend">{kinds.has("arbitrage") && <span><i className="is-arbitrage" aria-hidden="true" />Keeper arbitrage</span>}{kinds.has("order") && <span><i className="is-order" aria-hidden="true" />Orders of $1,000 or more</span>}</p>}
+      {kinds.size > 0 && <p className="gmd-chart-legend">{kinds.has("arbitrage") && <span><i className="is-arbitrage" aria-hidden="true" />Arbitrage to the NAV</span>}{kinds.has("order") && <span><i className="is-order" aria-hidden="true" />Orders of $1,000 or more</span>}</p>}
     </>}
   </div>;
 }

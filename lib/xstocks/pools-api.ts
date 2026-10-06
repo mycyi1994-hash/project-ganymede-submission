@@ -1,6 +1,6 @@
 /**
- * The state of USTX's two pools as GET /api/v1/ustx/pools serves it: both pools read from X Layer
- * Testnet, with the last day of trades and the pools' results for their providers from the engine
+ * The state of USTX's pools as GET /api/v1/ustx/pools serves it: the constant-product pool, the
+ * Uniswap v4 pool and the range pool, read from X Layer Testnet, with the last day of trades and the pools' results for their providers from the engine
  * state. A once-a-minute cron (POOLS_CRON) stores a snapshot in the engine state, so the public API
  * serves a recent read from the database instead of reading X Layer for each request; a public GET
  * only reads that snapshot, never writes it.
@@ -13,9 +13,10 @@ import { FUND_DEPLOYMENT, POOL_FEE_BPS, fundExplorer } from "./fund";
 import { POOL_LAUNCHED_AT, lpTokenValueMicros, poolValueMicros, readLiquidity, readPoolYield } from "./liquidity";
 import { annualizedPer, parseLpMarkout, type LpMarkout, type PoolResult } from "./lp-markout";
 import { V4_POOL_DEPLOYMENT, readV4Pool, v4ValueMicros } from "./v4-liquidity";
+import { RANGE_POOL_DEPLOYMENT, readRangePool } from "./range-liquidity";
 import { snapshotOrRead, storeSnapshot, type Snapshot } from "./snapshot";
 
-/** Every minute: a snapshot of both pools for the public API. */
+/** Every minute: a snapshot of the pools for the public API. */
 export const POOLS_CRON = "* * * * *";
 export const STATE_POOLS_SNAPSHOT = "xstocks:pools-snapshot";
 /** A snapshot this recent is served as it is; an older one is used only when X Layer cannot be read. */
@@ -51,14 +52,15 @@ function lpResult(pool: PoolResult, markout: LpMarkout, valueMicros: bigint | nu
   };
 }
 
-/** Both pools, their last day and their results for providers, read from X Layer and the engine state. */
+/** The pools, their last day and their results for providers, read from X Layer and the engine state. */
 export async function readPools(db: Db): Promise<PoolsBody> {
-  const [{ pool }, growth, day, v4, markout] = await Promise.all([
+  const [{ pool }, growth, day, v4, markout, range] = await Promise.all([
     readLiquidity(null),
     readPoolYield().catch(() => null),
     lastDay(db).catch(() => null),
     V4_POOL_DEPLOYMENT ? readV4Pool(V4_POOL_DEPLOYMENT, null).catch(() => null) : Promise.resolve(null),
     lpMarkout(db).catch(() => null),
+    RANGE_POOL_DEPLOYMENT ? readRangePool(RANGE_POOL_DEPLOYMENT, null).catch(() => null) : Promise.resolve(null),
   ]);
   const nav = pool.nav.navMicros;
   const priceMicros = pool.sharesMicros > 0n ? pool.dollarsMicros * 1_000_000n / pool.sharesMicros : null;
@@ -108,6 +110,22 @@ export async function readPools(db: Db): Promise<PoolsBody> {
       explorerUrl: fundExplorer.address(V4_POOL_DEPLOYMENT.hook),
     });
   }
+  if (RANGE_POOL_DEPLOYMENT && range) {
+    const { pool: ranged } = range;
+    pools.push({
+      id: "ustx-dusd-range",
+      type: "uniswap-v4-range",
+      hook: RANGE_POOL_DEPLOYMENT.hook, poolManager: RANGE_POOL_DEPLOYMENT.poolManager, router: RANGE_POOL_DEPLOYMENT.router, poolId: RANGE_POOL_DEPLOYMENT.poolId,
+      block: ranged.block,
+      tokens: { ustx: RANGE_POOL_DEPLOYMENT.asset, dusd: RANGE_POOL_DEPLOYMENT.dollar, decimals: 6 },
+      feePips: ranged.feePips,
+      priceMicros: ranged.priceMicros.toString(),
+      tick: ranged.tick,
+      navMicros: ranged.navMicros?.toString() ?? null,
+      navUnavailable: ranged.navReason,
+      explorerUrl: fundExplorer.address(RANGE_POOL_DEPLOYMENT.hook),
+    });
+  }
   return {
     network: FUND_DEPLOYMENT.name,
     chainId: FUND_DEPLOYMENT.chainId,
@@ -116,7 +134,7 @@ export async function readPools(db: Db): Promise<PoolsBody> {
       fromBlock: markout.fromBlock, from: new Date(markout.fromTime * 1000).toISOString(),
       toBlock: markout.toBlock, to: new Date(markout.toTime * 1000).toISOString(), navRecords: markout.navRecords,
     },
-    rule: "readAt is when X Layer Testnet was read: a scheduled job reads both pools every minute and this API serves that read while it is under 90 seconds old (each server instance keeps what it served for up to 30 seconds), reading X Layer itself only when it is older; when X Layer cannot be read, a read up to 10 minutes old is served with stale set to true. Amounts are micros (6 decimals). valueMicros counts USTX at the fund's current NAV and dUSD at face value. feeApr is the growth of √(USTX × dUSD) per LP token between fromBlock and toBlock (the last seven days, or since the pool opened), which only the 0.3% fee raises, annualised without compounding; null when it cannot be read. Over the same blocks, lpTokenValueFromMicros and lpTokenValueToMicros value one LP token's part of the reserves at the NAV of each block, and heldValueToMicros values the same USTX and dUSD held outside the pool at the later NAV. last24h counts the pool's trades in the market activity index, an arbitrage's included, with the fee they paid in demo dollars; null before the index is built. A v4 pool appears once it is deployed: feePips is its swap fee now in hundredths of a basis point, and waiting holds deposits that become LP tokens at the next NAV record. lpResult compares the pools over the same blocks (lpResults: from the v4 pool's deployment to toBlock, with the USTX NAV records published between): each trade's result for the liquidity providers is what the pool took in less what it paid out, USTX at the NAV in effect at that trade and dUSD at face value, so it holds the fee less what the trader gained by trading away from the NAV; arbitrageResultMicros is the part from GanymedeNavArbitrage's trades, repegs counts the times the v4 hook moved its pool to a new record, and per10kYearMicros scales resultMicros to $10,000 of liquidity at the pool's value now and to a year. null before the scheduled job's first run.",
+    rule: "readAt is when X Layer Testnet was read: a scheduled job reads the pools every minute and this API serves that read while it is under 90 seconds old (each server instance keeps what it served for up to 30 seconds), reading X Layer itself only when it is older; when X Layer cannot be read, a read up to 10 minutes old is served with stale set to true. Amounts are micros (6 decimals). valueMicros counts USTX at the fund's current NAV and dUSD at face value. feeApr is the growth of √(USTX × dUSD) per LP token between fromBlock and toBlock (the last seven days, or since the pool opened), which only the 0.3% fee raises, annualised without compounding; null when it cannot be read. Over the same blocks, lpTokenValueFromMicros and lpTokenValueToMicros value one LP token's part of the reserves at the NAV of each block, and heldValueToMicros values the same USTX and dUSD held outside the pool at the later NAV. last24h counts the pool's trades in the market activity index, an arbitrage's included, with the fee they paid in demo dollars; null before the index is built. A v4 pool appears once it is deployed: feePips is its swap fee now in hundredths of a basis point, and waiting holds deposits that become LP tokens at the next NAV record. lpResult compares the pools over the same blocks (lpResults: from the v4 pool's deployment to toBlock, with the USTX NAV records published between): each trade's result for the liquidity providers is what the pool took in less what it paid out, USTX at the NAV in effect at that trade and dUSD at face value, so it holds the fee less what the trader gained by trading away from the NAV; arbitrageResultMicros is the part from GanymedeNavArbitrage's trades, repegs counts the times the v4 hook moved its pool to a new record, and per10kYearMicros scales resultMicros to $10,000 of liquidity at the pool's value now and to a year. null before the scheduled job's first run. The range pool appears once it is deployed: its providers hold bins of their own, so it has no LP token or pooled holdings here; priceMicros and tick are its own, feePips its swap fee now, and navMicros the NAV its hook guards it with, null with navUnavailable saying why when the record is over an hour old and its swaps stop.",
     environment: "X Layer Testnet. Demo dollars and USTX have no value; not an offer.",
   };
 }

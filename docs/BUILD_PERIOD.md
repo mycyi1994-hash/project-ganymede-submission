@@ -85,6 +85,9 @@ Ganymede was selected as one of 30 finalists from 150 teams. The organizers conf
 | 2026-10-06 17:23 | `3e35e3a` | Pools opens on Custom, and a position of one's own reaches up to ±100%, taking the bins it needs, with the chart fitted to it |
 | 2026-10-06 17:35 | `3ddaccc` | Portfolio's look-through chart counts the basket's own holdings, and the Dev Day notes give nine tokens and the current test counts |
 | 2026-10-06 18:06 | `dc9306c` | Who controls the contracts lists the v4 router and the range pool's hook and arbitrage, and all twelve contracts match exactly on Sourcify |
+| 2026-10-06 19:25 | `eca3e9a` | Thirty judge questions checked against the code and the live site: security headers on every response; a delayed NAV record named on every screen; agents get each venue's gap to the NAV, warnings and the unsigned transactions a wallet signs (`prepare_ustx_order`); the range pool in the APIs; rate limits on `/mcp` |
+| 2026-10-06 19:37 | `80346dd` | A fund page whose records wait for X Layer shows its last verified NAV, marked delayed, instead of a dash |
+| 2026-10-06 19:52 | `9cd07e5` | The USTX holdings table fits a phone at 390, 375 and 360px |
 
 ## Every commit in the build period (UTC)
 

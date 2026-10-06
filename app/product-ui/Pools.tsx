@@ -101,10 +101,11 @@ function windowLabel(growth: PoolYield) {
 const signedYield = (wad: bigint) => `${wad > 0n ? "+" : ""}${formatYield(wad)}`;
 
 /** An LP token's value change at the NAV over the window, against holding the same tokens outside the pool. */
-function performance(growth: PoolYield | null): string {
+function performance(growth: PoolYield | null, navStale = false): string {
   const pooled = growth ? changeWad(growth.lpValueFromMicros, growth.lpValueToMicros) : null;
   const held = growth ? changeWad(growth.lpValueFromMicros, growth.heldValueToMicros) : null;
-  if (pooled === null || held === null) return "—";
+  // Both ends are valued at a NAV record, so a stale one leaves nothing to compare until the next.
+  if (pooled === null || held === null) return navStale ? "Waiting for the next NAV record" : "—";
   return `${signedYield(pooled)}, against ${signedYield(held)} holding the same tokens`;
 }
 
@@ -220,7 +221,7 @@ function PoolList({ snapshot, failure, owner, growth, v4, selected, onSelect, bu
           <th scope="row">{link("v4", <><span className="gmd-pair-mark" aria-hidden="true"><i>U</i><i>$</i></span><span><b>USTX / dUSD</b><small>Uniswap v4 · held at the NAV</small></span></>, "gmd-pool-pair")}</th>
           <td>{v4Pool?.feePips != null ? formatFeePips(v4Pool.feePips) : "0.30–1.00%"}</td>
           <td>{v4Pool ? v4Pool.nav.answer !== null ? formatUsdRounded(v4ValueMicros(v4Pool, v4Pool.nav.answer)) : "—" : loading(70, Boolean(v4.failure))}</td>
-          <td>New</td>
+          <td><a className="gmd-inline-link" href="#lp-results">See results<span className="gmd-sr-only">: its fee changes with the NAV record’s age, so its providers’ result is compared below</span></a></td>
           <td>{!owner ? "—" : !v4Mine ? loading(56, Boolean(v4.failure)) : v4Mine.lp === 0n ? (v4Account?.waiting ? "Waiting" : "None") : v4Mine.valueMicros !== null ? formatUsdRounded(v4Mine.valueMicros) : `${formatSharesShort(v4Mine.lp, 4)} USTX-V4LP`}</td>
           <td>{link("v4", v4Mine && v4Mine.lp > 0n ? "Manage" : "Add liquidity", "gmd-small-button")}</td>
         </tr>}
@@ -256,11 +257,11 @@ function PoolOverview({ snapshot, failure, retry, growth }: { snapshot: Snapshot
     <dl className="gmd-fund-facts">
       <div><dt>Pool price</dt><dd>{price !== null ? `${formatUsdMicros(price, 2)} per USTX` : "—"}</dd></div>
       <div><dt>NAV per share</dt><dd>{nav !== null ? formatUsdMicros(nav, 4) : pool?.nav.navMicros === null ? "Waiting for the next record" : "—"}</dd></div>
-      <div><dt>Value per LP token</dt><dd>{pool && nav !== null && pool.supply > 0n ? `${formatUsdMicros(lpTokenValueMicros(pool, nav), 4)} at the NAV` : "—"}</dd></div>
+      <div><dt>Value per LP token</dt><dd>{pool && pool.supply > 0n && (nav !== null || price !== null) ? `${formatUsdMicros(lpTokenValueMicros(pool, nav ?? price!), 4)} at the ${nav !== null ? "NAV" : "pool’s price, the NAV record being over an hour old"}` : "—"}</dd></div>
       <div><dt>LP tokens issued</dt><dd>{pool ? `${formatSharesShort(pool.supply, 4)} USTX-LP` : "—"}</dd></div>
       <div><dt>Pricing</dt><dd>Constant product: the reserves’ ratio sets the price</dd></div>
       <div><dt>Fee</dt><dd>{FEE_PERCENT} of each trade, to providers</dd></div>
-      <div><dt>LP token, {growth.value ? windowLabel(growth.value) : "7 days"}</dt><dd>{performance(growth.value)}</dd></div>
+      <div><dt>LP token, {growth.value ? windowLabel(growth.value) : "7 days"}</dt><dd>{performance(growth.value, pool !== null && nav === null)}</dd></div>
       <div><dt>Opened</dt><dd>{day(POOL_LAUNCHED_AT)}</dd></div>
       <div><dt>View pool</dt><dd><a className="gmd-inline-tx" href={fundExplorer.address(FUND_DEPLOYMENT.pool)} target="_blank" rel="noreferrer">X Layer Testnet<Icon name="external" size={12} /><span className="gmd-sr-only"> (opens in a new tab)</span></a></dd></div>
     </dl>

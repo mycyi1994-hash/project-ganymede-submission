@@ -57,7 +57,7 @@ const PRODUCT_KEYS: Record<string, string> = {
 
 export const USTX_FUND: FundDefinition = {
   id: XSTOCKS_PRODUCT.id, ticker: "USTX", name: "US Tech Basket", theme: "Nine US technology leaders",
-  description: "Equal weight in nine US technology leaders. Invest from OKX Wallet, trade it in two pools and borrow against it.",
+  description: "Equal weight in nine US technology leaders. Invest from OKX Wallet, trade it in three pools and borrow against it.",
   constituents: XSTOCKS_CONSTITUENTS.map((item) => item.symbol), onchainShares: true, href: "/products/ustx", productKey: PRODUCT_KEYS[XSTOCKS_PRODUCT.id],
 };
 

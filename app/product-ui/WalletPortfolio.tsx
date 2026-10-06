@@ -11,6 +11,7 @@ import { useMarket } from "./MarketProvider";
 import { useWalletAccount } from "./WalletAccount";
 import { useRecordCheck } from "./useRecordCheck";
 import { Icon } from "./Icons";
+import { OkxAppLink } from "./OkxApp";
 
 const percent = (bps: number) => `${(bps / 100).toFixed(2)}%`;
 const shortAddress = (value: string) => `${value.slice(0, 6)}…${value.slice(-4)}`;
@@ -19,8 +20,10 @@ const shortAddress = (value: string) => `${value.slice(0, 6)}…${value.slice(-4
 function AddressBar() {
   const { address, source, busy, message, connect, watch, clearWatch } = useWalletAccount();
   const [input, setInput] = useState("");
+  // Without a wallet in this browser, the ways to get one sit next to the message that says so.
+  const [noWallet, setNoWallet] = useState(false);
   if (address) return <p className="gmd-wallet-inline">{source === "watch" ? "Viewing" : "Your wallet"} <code title={address}>{shortAddress(address)}</code><button type="button" className="gmd-text-button" onClick={() => { clearWatch(); setInput(""); }}>{source === "watch" ? "Clear" : "View another address"}</button></p>;
-  return <section className="gmd-wallet-bar" aria-label="Address"><button type="button" className="gmd-button" disabled={busy} onClick={() => void connect()}><Icon name="wallet" size={17} />{busy ? "Connecting…" : "Connect OKX Wallet"}</button><form className="gmd-wallet-form" onSubmit={event => { event.preventDefault(); watch(input); }}><label htmlFor="portfolio-address">Or view any public address</label><div><input id="portfolio-address" value={input} onChange={event => setInput(event.target.value)} placeholder="0x…" spellCheck={false} autoComplete="off" /><button type="submit" className="gmd-small-button">View</button></div></form><p role="status" className="gmd-wallet-message">{message}</p><p className="gmd-caption">Connecting lets you view your holdings. It does not request a payment or signature.</p></section>;
+  return <section className="gmd-wallet-bar" aria-label="Address"><button type="button" className="gmd-button" disabled={busy} onClick={() => { setNoWallet(!window.okxwallet && !window.ethereum); void connect(); }}><Icon name="wallet" size={17} />{busy ? "Connecting…" : "Connect OKX Wallet"}</button><form className="gmd-wallet-form" onSubmit={event => { event.preventDefault(); watch(input); }}><label htmlFor="portfolio-address">Or view any public address</label><div><input id="portfolio-address" value={input} onChange={event => setInput(event.target.value)} placeholder="0x…" spellCheck={false} autoComplete="off" /><button type="submit" className="gmd-small-button">View</button></div></form><p role="status" className="gmd-wallet-message">{message}</p>{noWallet && <div className="gmd-wallet-get"><OkxAppLink className="gmd-small-button" /><a className="gmd-small-button" href="https://www.okx.com/web3" target="_blank" rel="noreferrer">Get OKX Wallet <Icon name="external" size={14} /><span className="gmd-sr-only"> (opens in a new tab)</span></a></div>}<p className="gmd-caption">Connecting lets you view your holdings. It does not request a payment or signature.</p></section>;
 }
 
 export default function WalletPortfolio() {

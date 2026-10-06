@@ -1,5 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
+import { OPENAPI } from "../app/api/v1/openapi.json/route.ts";
+import { schemaErrors } from "./openapi-check.mjs";
 import { DatabaseSync } from "node:sqlite";
 import { readFileSync } from "node:fs";
 import { env } from "cloudflare:workers";
@@ -62,6 +64,9 @@ test("the public NAV API serves the X Layer record to any origin and never write
     assert.equal(body.nav.holdingsHash, HASH);
     // Orders and loans use the record for an hour after its time; older records have no calculation time.
     assert.equal(body.nav.validUntil, "2026-09-24T19:05:17.000Z");
+    assert.equal(body.nav.usableForOrders, Date.now() < Date.parse(body.nav.validUntil));
+    // The response matches what the OpenAPI document promises.
+    assert.deepEqual(schemaErrors(body, OPENAPI.paths["/api/v1/ustx"].get.responses[200].content["application/json"].schema), []);
     assert.equal(body.nav.calculatedAt, null);
     assert.equal(body.record.chainId, 1952);
     assert.equal(body.record.transactionHash, TX);

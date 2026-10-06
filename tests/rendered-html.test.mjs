@@ -30,6 +30,18 @@ test("Markets renders the actual product path without fabricated values or the v
   assert.doesNotMatch(html, /\$12,454|Example account/);
 });
 
+test("a tab from before a deploy loads the page it was opening again, once, when its build's files are gone", async () => {
+  // Pools did not open in such a tab: the Pools file of its build had gone with the deploy.
+  for (const path of ["/", "/pools"]) {
+    const html = await (await render(path)).text();
+    const script = html.match(/<script>(\(function\(\)\{var target=null;[\s\S]*?)<\/script>/)?.[1];
+    assert.ok(script, `${path} carries the stale-build handler`);
+    assert.match(script, /addEventListener\("vite:preloadError"/);
+    assert.match(script, /location\.assign\(href\)/);
+    assert.match(script, /6e4/, "at most once a minute per address");
+  }
+});
+
 test("public product routes share navigation and select the right destination before hydration", async () => {
   const expected = [["/", "Markets"], ["/pools", "Pools"], ["/portfolio", "Portfolio"], ["/products/ustx/transparency", "Transparency"]];
   for (const [path, current, heading] of [

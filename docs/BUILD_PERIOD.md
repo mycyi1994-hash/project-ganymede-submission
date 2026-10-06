@@ -80,6 +80,7 @@ Ganymede was selected as one of 30 finalists from 150 teams. The organizers conf
 | 2026-10-06 12:47 | `42fd707` | The range hook redeployed with the user's approval, so a position opens only within the price limits the provider's wallet sends; the app, the keeper and the records pin the new hook and arbitrage |
 | 2026-10-06 14:24 | `3176922` | A range position's shape can be drawn bar by bar, as on Meteora's DLMM Pro: the range hook, redeployed with the user's approval, takes a weight for every bin (`openCustom`), and Pools draws, keeps and opens the shape; the app, the keeper and the records pin the new hook and arbitrage |
 | 2026-10-06 15:46 | `a81c181` | Custom on Pools draws a range position's shape in a grid of blocks, as on Meteora's DLMM Pro: a column per bin with the current price, undo and redo, presets in the same grid, ranges of ±1–10% with their prices, setups saved by name, and the chart drawn bin by bin |
+| 2026-10-06 16:33 | `9d8c2f8` | A tab opened before a deploy, whose build's files are gone, loads the page it was opening again instead of leaving Pools blank |
 
 ## Every commit in the build period (UTC)
 

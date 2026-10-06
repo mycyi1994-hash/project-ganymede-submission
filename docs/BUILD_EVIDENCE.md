@@ -1,6 +1,6 @@
 # Build provenance
 
-Production source revision: `a81c1815cbc04580fc856a0905ff63a0d4a30f46`.
+Production source revision: `9d8c2f8859f53a2f3efc1614681a782aef38bab7`.
 
 This is a source snapshot, not a claim that the entire project was newly built for this event. The original repository remains private. The entries below were exported from its Git history; reviewers can inspect current implementations and tests, and request original history access from the team if needed. No old secrets, local environment files or full private Git history are published.
 
@@ -704,3 +704,11 @@ Production source: `a81c1815cbc04580fc856a0905ff63a0d4a30f46`. App Worker versio
 Custom on Pools lays out its settings as Meteora's DLMM Pro lays out its price range: the shape is a grid with a column of up to ten blocks for every bin, demo dollars below the price and USTX above it, with the current price over the price line, the bins' prices underneath, and undo and redo. A press fills a column up to the block pressed (the top block again takes it off), a drag paints across the columns, and the arrow keys work on a column. Spot, Curve and Bid-Ask show in the same grid and become one's own shape once a block changes; the range takes presets of ±1, 2, 5 and 10% or a custom reach with its lowest and highest prices; a whole setup is saved by name in the browser. A side drawn empty is not filled, so a drawing on one side opens a one-sided position, and the chart draws one's own position bin by bin at its prices. The range hook already took a weight for every bin, so nothing was redeployed on chain.
 
 Checks: `npm test` passed all 277 application tests, `npm run lint` reported no errors, and the app's range client test against the compiled hook passed. After deployment the grid was drawn, edited, undone, saved and reloaded on the public site at two widths with no page errors or horizontal overflow, twelve pages at two widths returned 200, legacy routes redirected and a forged identity header was refused. X Layer Testnet had produced no block since 14:23:24 UTC (block 42837767) when this snapshot was made, so NAV records and wallet trades were waiting on the chain. These are point-in-time observations, not continuous availability or a security audit.
+
+## Pages reopen for tabs from an earlier build — 6 October 2026
+
+Production source: `9d8c2f8859f53a2f3efc1614681a782aef38bab7`. App Worker version: `44c07952-ae21-4ac7-b92f-7d4d15a37cb1`; prior version: `6cb9748c-da0e-43b9-80fa-8fe50faecdae`. The keeper and the contracts are unchanged. Exported development commit: `9f12d198a288a4e87eeead295829d2a4ec3ef5e3`, which adds only the release record and the build-period record to the production source.
+
+A tab opened before a deploy still asks for the files of its own build, which the new deploy no longer serves, so moving to Pools from such a tab changed the address but left the page blank. A small script in the root layout now listens for Vite's `vite:preloadError` and loads the page the visitor was opening from the server, which hands it the new build, at most once per address a minute.
+
+Checks: `npm test` passed all 278 application tests and `npm run lint` reported no errors. On the public site, a Pools file failed once in a browser reopened `/pools` and drew it, a page with nothing failing did not reload, twelve pages at two widths returned 200 with no page errors or horizontal overflow, legacy routes redirected and a forged identity header was refused. X Layer Testnet resumed producing blocks at 15:50 UTC, but transactions submitted during its stall had not been included when this snapshot was made, so the latest NAV record on chain was still the one from 14:20 UTC. These are point-in-time observations, not continuous availability or a security audit.

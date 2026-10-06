@@ -23,9 +23,18 @@ export async function generateMetadata(): Promise<Metadata> {
   };
 }
 
+// After a release, a tab opened before it still asks for the files of its own build, which the new
+// deploy no longer serves, so a page it moves to (Pools, say) never draws. Vite raises
+// vite:preloadError then, often before the address changes: the page the visitor was going to (the
+// link last pressed) loads from the server, which hands it the new build. Once per address a
+// minute, and never within a minute of a fresh load when storage is off, so a file missing for good
+// cannot keep reloading the page.
+const RELOAD_ON_STALE_BUILD = `(function(){var target=null;addEventListener("click",function(e){var a=e.target&&e.target.closest&&e.target.closest("a[href]");if(a&&a.origin===location.origin)target={href:a.href,at:Date.now()}},true);addEventListener("vite:preloadError",function(event){var now=Date.now(),href=target&&now-target.at<15e3?target.href:location.href,key="gmd-stale-build",seen=null;try{seen=JSON.parse(sessionStorage.getItem(key)||"null")}catch(e){}if(seen&&seen.href===href&&now-seen.at<6e4)return;try{sessionStorage.setItem(key,JSON.stringify({href:href,at:now}))}catch(e){if(now-performance.timeOrigin<6e4)return}event.preventDefault();location.assign(href)})})();`;
+
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
   return (
     <html lang="en">
+      <head><script dangerouslySetInnerHTML={{ __html: RELOAD_ON_STALE_BUILD }} /></head>
       <body>{children}</body>
     </html>
   );

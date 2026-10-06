@@ -1,0 +1,9 @@
+network               X Layer Testnet (chain 1952)
+address               0xaee2ffbb9b3c3dbb5bda350d5df7314978b045dc
+explorer              https://www.okx.com/web3/explorer/xlayer-test/address/0xaee2ffbb9b3c3dbb5bda350d5df7314978b045dc
+contract name         contracts/GanymedeRangeArbitrage.sol:GanymedeRangeArbitrage
+compiler              v0.8.28+commit.7893614a
+optimizer             enabled, 200 runs
+evm version           paris
+license               MIT
+constructor args      0000000000000000000000008e489d68cf8cbb9199105e3f0c32fc08936e28c000000000000000000000000077eaeba1366bde7818da12d3cbdbea0a2ee97596

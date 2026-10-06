@@ -61,6 +61,46 @@ each range's fees; zero is the intended start.
 
 No finding led to a change in the contracts.
 
+## Slither 0.11.6, 6 October 2026: the range pool
+
+`GanymedeRangeLiquidityHook` and `GanymedeRangeArbitrage` came after that pass. The deployed versions
+(hook `0x8e489d68…`, arbitrage `0xaee2ffbb…`, both matched exactly on Sourcify) were analysed with the
+same settings: 31 findings.
+
+| Contract | Impact | Detector | Count | Outcome |
+| --- | --- | --- | --- | --- |
+| `GanymedeRangeArbitrage` | High | arbitrary-send-erc20 | 1 | False positive: the payer is the caller |
+| `GanymedeRangeArbitrage` | High | reentrancy-balance | 1 | False positive: trusted callee |
+| both | Medium | unused-return | 17 | Intended |
+| `GanymedeRangeLiquidityHook` | Medium | divide-before-multiply | 1 | Intended rounding |
+| both | Low | reentrancy-events, timestamp, calls-loop | 7 | Reviewed, no change |
+| `GanymedeRangeLiquidityHook` | Informational | too-many-digits, low-level-calls | 4 | No change |
+
+**arbitrary-send-erc20 (High, 1), `GanymedeRangeArbitrage._draw`.** `transferFrom(caller, …)` takes
+demo dollars from an address decoded from the pool manager's callback data. That data is written only
+by `arbitrage()`, as its own `msg.sender`; `unlockCallback` refuses any caller but the pool manager,
+and the pool manager calls back only the contract that called `unlock`, with that contract's data. So
+the payer is always the wallet calling `arbitrage()`. It pays at most a rounding remainder when the
+contract buys in the pool, or, when it sells into the pool, what the pool paid short of the fund's $10
+minimum, for which it receives the extra USTX bought.
+
+**reentrancy-balance (High, 1), `GanymedeRangeArbitrage.arbitrage`.** The contract reads its USTX
+balance and sends all of it to the caller. The token is the fund itself, Ganymede's own ERC-20 with no
+transfer callbacks, so nothing can run between the read and the transfer.
+
+**unused-return (Medium, 17).** Calls whose other results are not needed: `getSlot0`, `currentNav`,
+`nav`, `latestRoundData` and `getPositionInfo` read only some fields; `settle()` returns the amount the
+contract has just synced and paid; `initialize` returns the opening tick, read again later; and
+`modifyLiquidity`'s second result repeats fees already counted in its first. `fund.invest(invest,
+owedShares)` returns the shares issued, which the fund guarantees are at least `owedShares`; any more go
+to the caller with the contract's balance.
+
+**divide-before-multiply (Medium, 1), `GanymedeRangeLiquidityHook._floor`.** `(tick / TICK_SPACING) *
+TICK_SPACING` rounds a tick down to the spacing, stepping once more for negative ticks; the loss of the
+remainder is the point.
+
+No finding led to a change in the contracts.
+
 ## Invariant fuzzing
 
 `onchain/test/GanymedeRwaLiquidityHook.test.ts` runs two randomised runs against Uniswap's compiled

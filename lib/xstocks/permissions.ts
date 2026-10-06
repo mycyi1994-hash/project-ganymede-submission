@@ -7,6 +7,7 @@
 import { PROOF_DEPLOYMENT } from "./proof";
 import { FUND_DEPLOYMENT, call, type Rpc } from "./fund";
 import { V4_POOL_DEPLOYMENT } from "./v4-liquidity";
+import { RANGE_POOL_DEPLOYMENT } from "./range-liquidity";
 
 export const PERMISSION_SELECTORS = { administrator: "0xf53d0a8e", pendingAdministrator: "0x6a75f3a0", paused: "0x5c975abb", publisher: "0x8c72c54e", minter: "0x07546172", owner: "0x8da5cb5b" } as const;
 
@@ -57,8 +58,18 @@ export function controlSpecs(): Spec[] {
     specs.push(
       { name: "Uniswap v4 hook", address: V4_POOL_DEPLOYMENT.hook, roles: [], pausable: false,
         can: "Moves its pool to each NAV record and holds the liquidity for its depositors.", cannot: "It has no administrator: only Uniswap's PoolManager can call its hooks, and nobody can move depositors' liquidity." },
+      { name: "Uniswap v4 router", address: V4_POOL_DEPLOYMENT.router, roles: [], pausable: false,
+        can: "Swaps on a Uniswap v4 pool for whoever calls it, with the least they accept and a deadline.", cannot: "It has no owner and holds nothing between transactions." },
       { name: "Uniswap v4 PoolManager", address: V4_POOL_DEPLOYMENT.poolManager, roles: [["Owner", "owner"]], pausable: false,
         can: "Uniswap v4-core as published. Its owner can set Uniswap's protocol fee, which this deployment leaves at zero.", cannot: "The owner cannot move pool liquidity or change the hook." },
+    );
+  }
+  if (RANGE_POOL_DEPLOYMENT) {
+    specs.push(
+      { name: "Range pool hook", address: RANGE_POOL_DEPLOYMENT.hook, roles: [], pausable: false,
+        can: "Opens each provider's bins near the NAV and closes them for their owner at any time, with their tokens and fees.", cannot: "It has no administrator and no pause: only Uniswap's PoolManager can call its hooks, nobody can move another provider's position, and no swap may leave the price more than about 5% from the NAV." },
+      { name: "Range pool arbitrage", address: RANGE_POOL_DEPLOYMENT.arbitrage, roles: [], pausable: false,
+        can: "Anyone can bring the range pool back to the NAV through the fund in one transaction.", cannot: "It has no administrator, holds nothing between trades and takes demo dollars only from its caller." },
     );
   }
   return specs;

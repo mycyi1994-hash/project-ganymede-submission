@@ -6,7 +6,8 @@ import { FaucetError, dripGas } from "../lib/faucet.ts";
 import { FAUCET_TERMS, formatOkb } from "../lib/faucet-terms.ts";
 import { visitorOf } from "../lib/engine/api-helpers.ts";
 import { LISTED_LATE, RANGE_ORDERS_MOVED, addUsage, moveListedLate, moveRangeArbitrageOrders, summarizeUsage, updateUsage } from "../lib/xstocks/usage.ts";
-import { RANGE_ARBITRAGES } from "../lib/xstocks/range-liquidity.ts";
+import { RANGE_ARBITRAGES, RANGE_POOL_DEPLOYMENT } from "../lib/xstocks/range-liquidity.ts";
+import { V4_POOL_DEPLOYMENT } from "../lib/xstocks/v4-liquidity.ts";
 import { LOAD_TEST_WALLETS } from "../lib/xstocks/load-test-wallets.ts";
 import { USAGE_SEED } from "../lib/xstocks/usage-seed.ts";
 import { TEAM_WALLETS } from "../lib/xstocks/team-wallets.ts";
@@ -225,6 +226,9 @@ test("the contract controls read each role and pause flag from X Layer, and a fa
   const specs = controlSpecs();
   assert.ok(specs.some((spec) => spec.address === FUND_DEPLOYMENT.fund && spec.pausable));
   assert.ok(specs.some((spec) => spec.address === FUND_DEPLOYMENT.pool && spec.roles.length === 0));
+  for (const address of [RANGE_POOL_DEPLOYMENT.hook, RANGE_POOL_DEPLOYMENT.arbitrage, V4_POOL_DEPLOYMENT.router]) {
+    assert.ok(specs.some((spec) => spec.address === address && spec.roles.length === 0 && !spec.pausable), address);
+  }
   const admin = "107633a3aa88c81d4c47d01992e089573e2e87c9";
   const rpc = async (method, [{ to, data }]) => {
     assert.equal(method, "eth_call");

@@ -1,0 +1,9 @@
+network               X Layer Testnet (chain 1952)
+address               0xbd899115e3c6926d109a5bd39bf12646fae3862b
+explorer              https://www.okx.com/web3/explorer/xlayer-test/address/0xbd899115e3c6926d109a5bd39bf12646fae3862b
+contract name         contracts/GanymedeV4Router.sol:GanymedeV4Router
+compiler              v0.8.28+commit.7893614a
+optimizer             enabled, 200 runs
+evm version           paris
+license               MIT
+constructor args      000000000000000000000000e83eee508ce92832488dd9f574ad329a1203641c

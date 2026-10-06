@@ -284,9 +284,11 @@ record; a later run claims them. Trades, not administrator actions; demo dollars
 
 ## Verify the sources
 
-Source verification makes the contract readable on the explorer. All eight
-deployed contracts are verified on the OKX explorer and match exactly (creation
-and runtime bytecode) on Sourcify:
+Source verification makes the contract readable on the explorer. All twelve
+deployed contracts match exactly (creation and runtime bytecode) on Sourcify. The
+first eight are also verified on the OKX explorer; the v4 hook, its router, the
+range hook and the range arbitrage were matched on Sourcify on 6 October, and
+their files for the OKX explorer's form are in `deployments/verification/`:
 
 | Contract | OKX explorer | Sourcify |
 | --- | --- | --- |
@@ -298,6 +300,10 @@ and runtime bytecode) on Sourcify:
 | `GanymedeNavArbitrage` | [verified](https://web3.okx.com/explorer/x-layer-testnet/address/0xaeba15aa92d6f3109e2b992f18933e1abe2fa3d9) | [exact match](https://repo.sourcify.dev/1952/0xaeba15aa92d6f3109e2b992f18933e1abe2fa3d9) |
 | `GanymedeNavFeed` (USTX / USD) | [verified](https://web3.okx.com/explorer/x-layer-testnet/address/0x292c56c5290cc7b73e3ee33c2c2688eb3e04c3c8) | [exact match](https://repo.sourcify.dev/1952/0x292c56c5290cc7b73e3ee33c2c2688eb3e04c3c8) |
 | `GanymedeLendingMarket` | [verified](https://web3.okx.com/explorer/x-layer-testnet/address/0xae2f54ae3d0370295de18510d56de92afb8843c7) | [exact match](https://repo.sourcify.dev/1952/0xae2f54ae3d0370295de18510d56de92afb8843c7) |
+| `GanymedeRwaLiquidityHook` (v4 hook) | [address](https://web3.okx.com/explorer/x-layer-testnet/address/0x96a78af00ef351f294f2ccc05adf09b119f968c0) | [exact match](https://repo.sourcify.dev/1952/0x96a78af00ef351f294f2ccc05adf09b119f968c0) |
+| `GanymedeV4Router` | [address](https://web3.okx.com/explorer/x-layer-testnet/address/0xbd899115e3c6926d109a5bd39bf12646fae3862b) | [exact match](https://repo.sourcify.dev/1952/0xbd899115e3c6926d109a5bd39bf12646fae3862b) |
+| `GanymedeRangeLiquidityHook` (range hook) | [address](https://web3.okx.com/explorer/x-layer-testnet/address/0x8e489d68cf8cbb9199105e3f0c32fc08936e28c0) | [exact match](https://repo.sourcify.dev/1952/0x8e489d68cf8cbb9199105e3f0c32fc08936e28c0) |
+| `GanymedeRangeArbitrage` | [address](https://web3.okx.com/explorer/x-layer-testnet/address/0xaee2ffbb9b3c3dbb5bda350d5df7314978b045dc) | [exact match](https://repo.sourcify.dev/1952/0xaee2ffbb9b3c3dbb5bda350d5df7314978b045dc) |
 
 MAG3's registry, a second `GanymedeNavRegistry` deployed by the demo issuer wallet at
 [`0xf412ba3857f63f513b93c4a8e3cacc1f162daa60`](https://web3.okx.com/explorer/x-layer-testnet/address/0xf412ba3857f63f513b93c4a8e3cacc1f162daa60),

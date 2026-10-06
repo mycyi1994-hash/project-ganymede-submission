@@ -1,6 +1,6 @@
 # Build provenance
 
-Production source revision: `3ddacccd5f51f7e419c8f0722499c083993dd4ca`.
+Production source revision: `dc9306c7fae043f408cceda1f096b15e915abb25`.
 
 This is a source snapshot, not a claim that the entire project was newly built for this event. The original repository remains private. The entries below were exported from its Git history; reviewers can inspect current implementations and tests, and request original history access from the team if needed. No old secrets, local environment files or full private Git history are published.
 
@@ -736,3 +736,11 @@ Production source: `3ddacccd5f51f7e419c8f0722499c083993dd4ca`. App Worker versio
 Portfolio's look-through chart said "Across 6 xStocks" whatever the basket held, though USTX has held nine since 4 October; it now counts the basket's holdings. The Dev Day notes now give the nine token contracts and the test counts on 6 October (279 application tests, 34 relayer tests, 116 contract tests) instead of those from the build period, and the design preview says nine as well.
 
 Checks: `npm test` passed all 279 application tests and `npm run lint` reported no errors. On the public site twelve pages at two widths returned 200 with no page errors or horizontal overflow, legacy routes redirected, a forged identity header was refused, and the served bundle no longer contained "Across 6 xStocks". X Layer Testnet was producing blocks holding only its system transaction, so the latest NAV record on chain was still the one from 14:20 UTC. These are point-in-time observations, not continuous availability or a security audit.
+
+## Every contract under who controls it, and all twelve matched on Sourcify — 6 October 2026
+
+Production source: `dc9306c7fae043f408cceda1f096b15e915abb25`. App Worker version: `329e9a10-ebaf-43e6-8186-63d1a7fbba09`; prior version: `864f4be9-d635-430b-abac-96f7092cbba6`. The keeper and the contracts are unchanged. Exported development commit: `097e30bb0d26cfbbc5432723ee4116a1a761e10c`, which adds only the release record and the build-period record to the production source, with the location of the contract controls corrected in SECURITY.md.
+
+The developer page's "Who controls the contracts" now also reads the v4 router and the range pool's hook and arbitrage, none of which has an administrator or a pause. The v4 hook, its router, the range hook and the range arbitrage had no Sourcify match; submitted with the standard JSON input of their compiled build, each matched exactly (creation and runtime bytecode), so all twelve Ganymede contracts on X Layer Testnet do, and `npm run verify:export` now writes the range contracts' files for the OKX explorer's form. Slither 0.11.6 ran on the range hook and arbitrage, which came after the 2 October pass: 31 findings, with the two Highs in the arbitrage false positives and the Mediums intended, so nothing changed in the contracts (docs/STATIC_ANALYSIS.md). README and the Dev Day notes describe the issuer page as it is since 4 October, and SECURITY.md lists the newer contracts, the current load tests and how the sources are verified.
+
+Checks: `npm test` passed all 279 application tests and `npm run lint` reported no errors. On the public site the controls table showed twelve rows at two widths with no page errors or horizontal overflow, twelve pages at two widths returned 200 with none either, legacy routes redirected and a forged identity header was refused. X Layer Testnet was including other wallets' transactions again, but the relayer's and the keeper's transactions sent during its stall had not been included, so the latest NAV record on chain was still the one from 14:20 UTC. These are point-in-time observations, not continuous availability or a security audit.

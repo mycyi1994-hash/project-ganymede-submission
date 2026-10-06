@@ -84,6 +84,7 @@ Ganymede was selected as one of 30 finalists from 150 teams. The organizers conf
 | 2026-10-06 16:57 | `7e44a5b` | Pools shows the pool and its chart at the pool's own price while the NAV record is over an hour old, instead of loading for good |
 | 2026-10-06 17:23 | `3e35e3a` | Pools opens on Custom, and a position of one's own reaches up to ±100%, taking the bins it needs, with the chart fitted to it |
 | 2026-10-06 17:35 | `3ddaccc` | Portfolio's look-through chart counts the basket's own holdings, and the Dev Day notes give nine tokens and the current test counts |
+| 2026-10-06 18:06 | `dc9306c` | Who controls the contracts lists the v4 router and the range pool's hook and arbitrage, and all twelve contracts match exactly on Sourcify |
 
 ## Every commit in the build period (UTC)
 

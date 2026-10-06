@@ -28,6 +28,7 @@ const signed = (ratio: number, digits = 1) => `${ratio > 0 ? "+" : ratio < 0 ? "
 const day = (iso: string) => new Date(iso).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric", timeZone: "UTC" });
 const txUrl = (hash: string | null | undefined) => hash && /^0x[0-9a-f]{64}$/i.test(hash) ? `${PROOF_DEPLOYMENT.explorerUrl}/tx/${hash}` : null;
 
+/** A product's last check stays while its refreshed response is checked, never for another product. */
 function useIncomeCheck(fund: FundDetail | null, id: string): IncomeVerification {
   const [state, setState] = useState<{ fund: FundDetail; check: IncomeVerification } | null>(null);
   useEffect(() => {
@@ -36,7 +37,7 @@ function useIncomeCheck(fund: FundDetail | null, id: string): IncomeVerification
     verifyIncomeSnapshot(fund, id).then(check => { if (!cancelled) setState({ fund, check }); }).catch(() => { if (!cancelled) setState({ fund, check: { result: "unavailable", detail: "X Layer could not be read just now." } }); });
     return () => { cancelled = true; };
   }, [fund, id]);
-  return state?.fund === fund ? state.check : { result: "checking", detail: "Reading the record on X Layer…" };
+  return fund?.id === id && state?.fund.id === id ? state.check : { result: "checking", detail: "Reading the record on X Layer…" };
 }
 
 /** The latest document this page has, before or without the check (the check's own when it matched). */

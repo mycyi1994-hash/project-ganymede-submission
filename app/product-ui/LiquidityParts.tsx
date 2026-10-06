@@ -17,8 +17,8 @@ export type TxStep<K extends string> = { key: K; label: string; state: StepState
  * turn comes, with the plan's progress so far; and what to read from its receipt.
  */
 export type PlanStep<K extends string> = { key: K; label: string; approval: boolean; request: (progress: PlanProgress) => Promise<TransactionCall | null>; read?: (receipt: FundReceipt) => void };
-/** How far a plan got: the newest block it saw, the transactions that went through and the last one sent. */
-export type PlanProgress = { block: number; hashes: string[]; lastHash: string | null };
+/** How far a plan got: the newest block it saw, the transactions that went through, the last one sent and the step it was on. */
+export type PlanProgress = { block: number; hashes: string[]; lastHash: string | null; step?: string };
 
 const STEP_STATE: Record<StepState, string> = { idle: "Next", wallet: "Confirm in your wallet", chain: "Confirming on X Layer Testnet…", done: "Done", skipped: "Not needed" };
 
@@ -37,6 +37,7 @@ export async function runPlan<K extends string>(plan: PlanStep<K>[], options: { 
   const { provider, from, progress, mark, signal } = options;
   for (const step of plan) {
     signal?.throwIfAborted();
+    progress.step = step.key;
     const request = await step.request(progress);
     if (!request) { mark(step.key, "skipped"); continue; }
     if (!step.approval) await simulateFundCall(from, request, { minBlock: progress.block });

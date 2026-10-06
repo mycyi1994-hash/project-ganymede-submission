@@ -59,6 +59,17 @@ Ganymede was selected as one of 30 finalists from 150 teams. The organizers conf
 | 2026-10-04 10:34 | `772d056` | Lending-market load test scaled to 3,000 wallets; those wallets counted as the team's usage |
 | 2026-10-04 10:40 | `5328529` | Previously counted load-test wallets reclassified into the team's usage |
 | 2026-10-04 10:43 | `defa322` | Fund selection buttons retain left-aligned names and tickers below them across desktop and phone layouts |
+| 2026-10-04 12:02 | `d3f6fa8` | Ask USTX guides every screen with suggested questions; Pools adds and withdraws liquidity with one button |
+| 2026-10-04 12:10 | `146de28` | The Pools summary at full width |
+| 2026-10-04 12:34 | `2db56e6` | Pools shows its liquidity by price, a deposit and a NAV move; the USTX page has one order panel without tabs |
+| 2026-10-04 13:00 | `33e56b9` | Pools charts zoom and open full width, with Explain with AI |
+| 2026-10-04 13:18 | `d3442c0` | Income and structured products on SPYx and QQQx: two covered-call funds priced by Black–Scholes at stated terms and a step-down autocallable note, each recorded under its own product key; Markets grouped into RWA baskets, Income and Structured |
+| 2026-10-04 13:57 | `5b2edec` | The Income and Structured tabs laid out like the baskets |
+| 2026-10-04 14:32 | `5c9a70e` | Liquidity strategies on Pools (Spot, Curve and Spot + Curve) drawn by price in one chart |
+| 2026-10-04 16:25 | `9b03e69` | `GanymedeRangeLiquidityHook`, a second pool on the same PoolManager where each provider holds bins of their own (Bid-Ask and Custom), with `GanymedeRangeArbitrage`, deployed and seeded on X Layer Testnet with the user's approval |
+| 2026-10-04 16:59 | `d64177b` | Simplified for the live demo; a contract audit found no fund-loss issue and replaced the range arbitrage so it also crosses a stretch with no position in it |
+| 2026-10-06 07:42 | `c96a6a2` | Review fixes: fund and USTX demo order ids kept apart, the range arbitrage shown and counted as the keeper's, safe settlement of the autocallable note, per-visitor allowances, Pools retries that reuse what was bought, and a steady NAV on the USTX page |
+| 2026-10-06 08:19 | `0f5a1c6` | The range arbitrage replaced with the user's approval, so the caller makes up what the pool pays short of the fund's $10 minimum and the pool always comes back to the NAV |
 
 ## Every commit in the build period (UTC)
 

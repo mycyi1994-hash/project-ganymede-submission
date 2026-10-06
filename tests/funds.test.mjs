@@ -8,13 +8,14 @@ import { FUNDS, USTX_FUND, XSTOCK_UNIVERSE, fundConstituents, otherFund } from "
 import { FundDemoLedger, ensureFundDemoTables } from "../lib/funds/demo.ts";
 import { addSeriesPoint, fundPoolCheck, fundStateKey, runFundsCycle } from "../lib/funds/cycle.ts";
 import { EngineRepository } from "../lib/engine/repository.ts";
-import { DEMO_START_CASH_MICROS, DemoLedger } from "../lib/demo/ledger.ts";
+import { DEMO_DAILY_ORDER_CAP, DEMO_START_CASH_MICROS, DemoLedger } from "../lib/demo/ledger.ts";
 import { valueDemoPortfolio } from "../lib/demo/portfolio.ts";
 import { verifyFundComposition, parseFundComposition } from "../lib/xstocks/proof.ts";
 import { FUND_POOLS } from "../lib/xstocks/pool-prices.ts";
 import { STATE_LATEST } from "../lib/xstocks/cycle.ts";
 import { GET as fundsGET } from "../app/api/v1/funds/route.ts";
 import { POST as fundOrdersPOST } from "../app/api/funds/orders/route.ts";
+import { POST as demoOrdersPOST } from "../app/api/demo/orders/route.ts";
 import { GET as fundAccountGET } from "../app/api/funds/account/route.ts";
 import { GET as demoAccountGET } from "../app/api/demo/account/route.ts";
 import { POST as resetPOST } from "../app/api/demo/reset/route.ts";
@@ -232,6 +233,42 @@ test("the fund API reads only, and a demo order fills at the fund's record on X 
     // Starting again clears the fund holdings too.
     assert.equal((await resetPOST(request("/api/demo/reset", { method: "POST" }, cookie))).status, 200);
     assert.deepEqual((await (await fundAccountGET(request("/api/funds/account", {}, cookie))).json()).positions, []);
+  } finally { delete env.DB; delete env.NAV_REGISTRY_ADDRESS; sql.close(); }
+});
+
+test("a USTX order never carries a fund order's id, so its paid mark cannot pay for fund shares", async (t) => {
+  const { db, sql } = database();
+  try {
+    env.DB = db;
+    env.NAV_REGISTRY_ADDRESS = REGISTRY;
+    const cookie = (await demoAccountGET(request("/api/demo/account"))).headers.get("set-cookie").split(";")[0];
+    t.mock.method(globalThis, "fetch", async (_url, init) => {
+      if (JSON.parse(init.body).method === "eth_chainId") return Response.json({ jsonrpc: "2.0", id: 2, result: "0x7a0" });
+      return Response.json({ jsonrpc: "2.0", id: 1, result: "0x" + word(NAV) + word(0) + "a".repeat(64) + word(Math.floor((Date.now() - 120_000) / 1000)) + word(0) });
+    });
+    const post = (handler, path, body) => handler(request(path, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(body) }, cookie));
+    const ustxOrder = (clientOrderId, usdMicros) => post(demoOrdersPOST, "/api/demo/orders", { side: "subscribe", clientOrderId, usdMicros });
+    const fundOrder = (clientOrderId, usdMicros) => post(fundOrdersPOST, "/api/funds/orders", { fundId: "ai-chips", side: "subscribe", clientOrderId, usdMicros });
+    const aiShares = async () => (await (await fundAccountGET(request("/api/funds/account", {}, cookie))).json()).positions.filter((position) => position.fundId === "ai-chips");
+
+    // A USTX client id spelled like a fund order's once was ("<fund>-<client id>") marks its account paid.
+    assert.equal((await ustxOrder("ai-chips-abcd1234", "10000000")).status, 201);
+    // With the day's orders used up, the fund order's cash update matches nothing, and nothing is credited.
+    sql.prepare("UPDATE demo_daily SET orders = ?").run(DEMO_DAILY_ORDER_CAP);
+    const capped = await fundOrder("abcd1234", "9990000000");
+    assert.equal(capped.status, 429);
+    assert.equal((await capped.json()).code, "daily_limit");
+    assert.deepEqual(await aiShares(), []);
+
+    // Nor when a USTX order spends the cash between the fund order's balance check and its fill.
+    sql.prepare("UPDATE demo_daily SET orders = 0").run();
+    db.beforeBatch = async () => assert.equal((await ustxOrder("ai-chips-wxyz5678", "9990000000")).status, 201);
+    const raced = await fundOrder("wxyz5678", "9990000000");
+    assert.equal(raced.status, 409);
+    assert.equal((await raced.json()).code, "account_changed");
+    assert.deepEqual(await aiShares(), []);
+    const ustx = await (await demoAccountGET(request("/api/demo/account", {}, cookie))).json();
+    assert.equal(ustx.account.cashMicros, "0", "the USTX orders paid for themselves, and the fund order took nothing");
   } finally { delete env.DB; delete env.NAV_REGISTRY_ADDRESS; sql.close(); }
 });
 

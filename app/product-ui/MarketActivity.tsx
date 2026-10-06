@@ -6,7 +6,7 @@ import { DEMO_ORDER_EVENT, formatSharesShort } from "@/lib/demo/format";
 import { formatUsdMicros, formatUsdRounded } from "@/lib/nav-display";
 import { relativeTime } from "@/lib/product-market";
 import {
-  ACTIVITY_FIRST_BLOCK, ACTIVITY_HIGHLIGHTS, ACTIVITY_LIMIT, isHighlight, mergeActivity, parseActivityDay, parseActivityIndex, parseHighlights, readActivityTail, withNewerRows,
+  ACTIVITY_FIRST_BLOCK, ACTIVITY_HIGHLIGHTS, ACTIVITY_LIMIT, isArbitrage, isHighlight, mergeActivity, parseActivityDay, parseActivityIndex, parseHighlights, readActivityTail, withNewerRows,
   type ActivityDay, type ActivityKind, type MarketActivity,
 } from "@/lib/xstocks/activity";
 import { FUND_DEPLOYMENT, fundExplorer, fundRpc, pricePerShare } from "@/lib/xstocks/fund";
@@ -83,7 +83,7 @@ export type ChartEvent = { key: string; at: string; kind: "arbitrage" | "order";
 /** The keeper's arbitrage and orders of $1,000 or more, for the NAV chart; none outside a provider. */
 export function useChartEvents(): ChartEvent[] {
   const highlights = useContext(ActivityContext)?.loaded?.highlights ?? [];
-  return highlights.map(row => ({ key: `${row.hash}:${row.logIndex}`, at: row.at, kind: row.kind === "arbitrage" ? "arbitrage" : "order", ...describe(row) }));
+  return highlights.map(row => ({ key: `${row.hash}:${row.logIndex}`, at: row.at, kind: isArbitrage(row.kind) ? "arbitrage" : "order", ...describe(row) }));
 }
 
 const usd = (micros: bigint | null) => micros === null ? "—" : formatUsdMicros(micros, 2);
@@ -93,7 +93,7 @@ const ustx = (micros: bigint | null) => micros === null ? "—" : `${formatShare
 const short = (address: string) => `${address.slice(0, 6)}…${address.slice(-4)}`;
 
 const ICONS: Record<ActivityKind, Parameters<typeof Icon>[0]["name"]> = {
-  invest: "arrow", redeem: "back", buy: "arrow", sell: "back", addLiquidity: "market", removeLiquidity: "market", arbitrage: "refresh",
+  invest: "arrow", redeem: "back", buy: "arrow", sell: "back", addLiquidity: "market", removeLiquidity: "market", arbitrage: "refresh", rangeArbitrage: "refresh",
   v4Buy: "arrow", v4Sell: "back", v4Deposit: "market", v4Withdraw: "market",
   deposit: "lock", withdrawCollateral: "back", borrow: "wallet", repay: "check", lend: "arrow", withdraw: "back", liquidate: "info",
 };
@@ -108,12 +108,14 @@ function describe(row: MarketActivity): { title: string; detail: string; amount:
     case "sell": return { title: "Sold in the pool", detail: `${ustx(row.sharesMicros)} at ${price}`, amount: usd(row.dollarsMicros) };
     case "addLiquidity": return { title: "Added pool liquidity", detail: `With ${ustx(row.sharesMicros)}`, amount: usd(row.dollarsMicros) };
     case "removeLiquidity": return { title: "Removed pool liquidity", detail: `With ${ustx(row.sharesMicros)}`, amount: usd(row.dollarsMicros) };
-    case "arbitrage": {
+    case "arbitrage":
+    case "rangeArbitrage": {
       const profit = row.dollarsOutMicros !== null && row.dollarsMicros !== null && row.dollarsOutMicros > row.dollarsMicros ? row.dollarsOutMicros - row.dollarsMicros : 0n;
       const earned = `earned ${earnedUsd(profit)}`;
+      const pool = row.kind === "rangeArbitrage" ? "the range pool" : "the pool";
       return {
-        title: "Closed the gap to the NAV",
-        detail: row.boughtInPool ? `Bought ${ustx(row.sharesMicros)} in the pool, redeemed at the fund, ${earned}` : `Invested at the fund, sold ${ustx(row.sharesMicros)} in the pool, ${earned}`,
+        title: row.kind === "rangeArbitrage" ? "Closed the range pool’s gap to the NAV" : "Closed the gap to the NAV",
+        detail: row.boughtInPool ? `Bought ${ustx(row.sharesMicros)} in ${pool}, redeemed at the fund, ${earned}` : `Invested at the fund, sold ${ustx(row.sharesMicros)} in ${pool}, ${earned}`,
         amount: usd(row.dollarsMicros),
       };
     }

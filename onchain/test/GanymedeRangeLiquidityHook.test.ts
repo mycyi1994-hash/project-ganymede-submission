@@ -261,4 +261,36 @@ describe("GanymedeRangeLiquidityHook", () => {
     await arbitrage.write.arbitrage([0n], { account: keeper.account });
     expect(Number(await poolNav()) / 1e6).to.be.closeTo(104 * (1 - Number(await hook.read.currentFee()) / 1e6), 0.06);
   });
+
+  it("sells into fewer bids than the fund's minimum with the caller's demo dollars, so the pool still comes back", async () => {
+    const { hook, arbitrage, fund, dollar, lp, keeper, prepare, open, publish, poolNav, assetIsCurrency0 } = await deploy();
+    await prepare(lp, 1_000n * USD);
+    // The pool's only liquidity: $5 of demo dollars in 20 bins of 50 ticks under the price. (Dollar
+    // bins are the pool's lower bins when USTX is currency0, its upper bins otherwise.)
+    await open(lp, SPOT, 50, assetIsCurrency0 ? 20 : 0, assetIsCurrency0 ? 0 : 20, 0n, 5n * USD);
+    // The NAV falls 3%. Selling USTX into those bids down to NAV / (1 − fee) receives about $1.37,
+    // under the fund's $10 minimum investment, and no position can open meanwhile.
+    await publish(97n * USD);
+    await expectRevert(hook.write.open([SPOT, 50, 2, 2, 1n * SHARE, 100n * USD, await deadline()], { account: lp.account }), "PriceAwayFromNav(int24,int24)");
+    // The caller makes up the difference only from demo dollars they have approved to the arbitrage.
+    await expectRevert(arbitrage.simulate.arbitrage([0n], { account: keeper.account }), "InsufficientAllowance");
+    await dollar.write.claim({ account: keeper.account });
+    await dollar.write.approve([arbitrage.address, maxUint256], { account: keeper.account });
+    const { result } = await arbitrage.simulate.arbitrage([0n], { account: keeper.account });
+    expect(result).to.equal(0n);
+    const held = () => Promise.all([dollar.read.balanceOf([keeper.account.address]), fund.read.balanceOf([keeper.account.address])]);
+    const [dollarsBefore, sharesBefore] = await held();
+    await arbitrage.write.arbitrage([0n], { account: keeper.account });
+    const [dollarsAfter, sharesAfter] = await held();
+    const put = dollarsBefore - dollarsAfter;
+    const took = sharesAfter - sharesBefore;
+    expect(put > 8n * USD && put < 9n * USD, `put in ${put}`).to.equal(true);
+    // The USTX it bought beyond what the pool took is worth at the NAV more than what it put in.
+    expect((took * 97n * USD) / SHARE > put, `took ${took} for ${put}`).to.equal(true);
+    // The pool is back within its fee of the NAV, and positions open again.
+    expect(Number(await poolNav()) / 1e6).to.be.closeTo(97 * (1 + Number(await hook.read.currentFee()) / 1e6), 0.05);
+    await open(lp, SPOT, 50, 2, 2, 1n * SHARE, 100n * USD);
+    expect(await dollar.read.balanceOf([arbitrage.address])).to.equal(0n);
+    expect(await fund.read.balanceOf([arbitrage.address])).to.equal(0n);
+  });
 });

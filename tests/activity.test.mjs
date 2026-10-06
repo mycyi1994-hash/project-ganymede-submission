@@ -6,12 +6,13 @@ import { env } from "cloudflare:workers";
 import { FUND_DEPLOYMENT, FUND_EVENTS, POOL_EVENTS, fundRpc } from "../lib/xstocks/fund.ts";
 import { LENDING_EVENTS } from "../lib/xstocks/lending.ts";
 import { V4_EVENTS, V4_POOL_DEPLOYMENT, V4_SWAPPED_TOPIC } from "../lib/xstocks/v4-liquidity.ts";
+import { RANGE_ARBITRAGES, RANGE_POOL_DEPLOYMENT } from "../lib/xstocks/range-liquidity.ts";
 import {
   ACTIVITY_EVENTS, ACTIVITY_FIRST_BLOCK, ACTIVITY_HIGHLIGHTS, ACTIVITY_INDEX_MARGIN, ACTIVITY_KEEP, ACTIVITY_LIMIT, LARGE_ORDER_MICROS, activityDay, activityDayJson, activityFromJson, activityJson, isHighlight, mergeActivity,
   parseActivityDay, parseActivityIndex, parseHighlights, readActivityTail, scanActivity, serializeActivityIndex, updateActivityIndex, withNewerRows,
 } from "../lib/xstocks/activity.ts";
 import { ACTIVITY_CRON, STATE_MARKET_ACTIVITY, runActivityIndex } from "../lib/xstocks/activity-index.ts";
-import { STATE_USAGE } from "../lib/xstocks/usage.ts";
+import { LISTED_LATE, RANGE_ORDERS_MOVED, STATE_USAGE } from "../lib/xstocks/usage.ts";
 import { GET, OPTIONS } from "../app/api/v1/ustx/activity/route.ts";
 
 const F = ACTIVITY_FIRST_BLOCK;
@@ -82,7 +83,7 @@ test("market events read as rows, newest first, with an arbitrage as one row", a
   const rows = await scanActivity(rpc, F, F + 350);
   assert.deepEqual(ranges(), [[F, F + 99], [F + 100, F + 199], [F + 200, F + 299], [F + 300, F + 350]]);
   const request = calls.find(call => call.method === "eth_getLogs").params[0];
-  assert.deepEqual(request.address, [fund, pool, arbitrage, lending, V4_POOL_DEPLOYMENT.router, V4_POOL_DEPLOYMENT.hook]);
+  assert.deepEqual(request.address, [fund, pool, arbitrage, lending, V4_POOL_DEPLOYMENT.router, V4_POOL_DEPLOYMENT.hook, ...RANGE_ARBITRAGES]);
   assert.equal(request.topics[0].length, 17, "every market event, one request per range");
   assert.deepEqual(calls.filter(call => call.method === "eth_getBlockByNumber").map(call => Number(call.params[0])), [F + 260], "block times only where the response left them out");
 
@@ -322,7 +323,7 @@ test("the scheduled run keeps the index, and the public API serves it to any ori
   assert.equal(response.headers.get("cache-control"), "public, max-age=30");
   const served = await response.json();
   assert.deepEqual([served.chainId, served.fromBlock, served.toBlock], [1952, F, F + 400]);
-  assert.deepEqual(served.contracts, { fund, pool, arbitrage, lending, v4Router: V4_POOL_DEPLOYMENT.router, v4Hook: V4_POOL_DEPLOYMENT.hook });
+  assert.deepEqual(served.contracts, { fund, pool, arbitrage, lending, v4Router: V4_POOL_DEPLOYMENT.router, v4Hook: V4_POOL_DEPLOYMENT.hook, rangeArbitrage: RANGE_POOL_DEPLOYMENT.arbitrage });
   assert.equal(served.rows.length, 5);
   assert.deepEqual(served.rows[2], { ...activityJson((await scanActivity(chain({ head: F + 400, logs: MARKET }).rpc, F, F + 400))[2]), explorerUrl: `${FUND_DEPLOYMENT.explorerUrl}/tx/${tx(3)}` });
   assert.match(served.environment, /no value/);
@@ -375,4 +376,69 @@ test("the NAV chart marks every arbitrage and orders of $1,000 or more, and noth
   assert.deepEqual(parseHighlights(Array.from({ length: ACTIVITY_HIGHLIGHTS + 1 }, (_, i) => activityJson(row("arbitrage", 1n, i + 10)))), []);
   assert.deepEqual(parseHighlights(undefined), []);
   assert.deepEqual(parseHighlights([activityJson(row("repay", 5_000_000_000n, 7))]), [], "a served row that is not marked is dropped");
+});
+
+/** Two runs of the range pool's arbitrage and one that moved the price across an empty stretch. */
+const [RANGE] = RANGE_ARBITRAGES;
+const RANGE_RUNS = [
+  // Bought 1.771892 USTX in the range pool and redeemed it at the fund for $178.730444, keeping $0.026.
+  log(fund, [FUND_EVENTS.redeemed, topic(RANGE)], [1_771_892n, 178_730_444n, 100_870_000n, TIME], { block: F + 30, index: 4, hash: tx(31) }),
+  log(RANGE, [ACTIVITY_EVENTS.arbitraged, topic(keeper)], [1n, 1_771_892n, 26_000n, 100_870_000n], { block: F + 30, index: 6, hash: tx(31) }),
+  // Invested $10 at the fund and sold 0.099 USTX in the range pool for $10.05.
+  log(fund, [FUND_EVENTS.invested, topic(RANGE)], [10n * USD, 99_000n, 101_000_000n, TIME], { block: F + 40, index: 2, hash: tx(32) }),
+  log(RANGE, [ACTIVITY_EVENTS.arbitraged, topic(keeper)], [0n, 99_000n, 50_000n, 101_000_000n], { block: F + 40, index: 5, hash: tx(32) }),
+  log(RANGE, [ACTIVITY_EVENTS.arbitraged, topic(keeper)], [1n, 0n, 0n, 101_000_000n], { block: F + 50, index: 0, hash: tx(33) }),
+];
+const at = (block) => new Date((TIME + block - F) * 1000).toISOString();
+const none = { dollarsMicros: null, sharesMicros: null, navMicros: null, dollarsOutMicros: null, boughtInPool: null, borrower: null };
+const RANGE_ROWS = [
+  { ...none, kind: "rangeArbitrage", hash: tx(32), block: F + 40, logIndex: 5, at: at(F + 40), account: keeper, dollarsMicros: 10n * USD, dollarsOutMicros: 10_050_000n, sharesMicros: 99_000n, navMicros: 101_000_000n, boughtInPool: false },
+  { ...none, kind: "rangeArbitrage", hash: tx(31), block: F + 30, logIndex: 6, at: at(F + 30), account: keeper, dollarsMicros: 178_704_444n, dollarsOutMicros: 178_730_444n, sharesMicros: 1_771_892n, navMicros: 100_870_000n, boughtInPool: true },
+];
+
+test("the range pool's arbitrage is one row, the keeper's, from its fund order and its report, apart from the constant-product pool", async () => {
+  const rows = await scanActivity(chain({ head: F + 100, logs: RANGE_RUNS }).rpc, F, F + 60);
+  assert.deepEqual(rows, RANGE_ROWS, "a run that traded nothing is no row");
+  // Trades and arbitrage of the market, and marked on the NAV chart, but not trades in the constant-product pool.
+  const day = activityDay({ fromBlock: ACTIVITY_FIRST_BLOCK, toBlock: F + 60, keep: ACTIVITY_KEEP, rows }, (TIME + 100) * 1000);
+  assert.deepEqual([day.trades, day.volumeMicros, day.arbitrages, day.earnedMicros, day.poolTrades], [2, 188_704_444n, 2, 76_000n, 0]);
+  assert.ok(rows.every(isHighlight));
+  assert.deepEqual(parseActivityIndex(serializeActivityIndex({ fromBlock: F, toBlock: F + 60, keep: ACTIVITY_KEEP, rows })).rows, rows, "the new kind is stored and read back");
+});
+
+test("rows kept from before the range arbitrage was folded are read again, and its orders move to the team's usage once", async () => {
+  const { db, sql } = database();
+  const keep = (key, value) => sql.prepare("INSERT INTO engine_state (key, value, updated_at) VALUES (?, ?, ?)").run(key, value, "2026-10-06T00:00:00.000Z");
+  const stored = (key) => sql.prepare("SELECT value FROM engine_state WHERE key = ?").get(key).value;
+  // What the earlier index kept: the contract's fund orders as an investor's, beside Alice's own order.
+  const alice = { ...none, kind: "invest", hash: tx(30), block: F + 20, logIndex: 1, at: at(F + 20), account: ALICE, dollarsMicros: 1_000n * USD, sharesMicros: 10n * USD, navMicros: 100n * USD };
+  const old = [
+    { ...none, kind: "invest", hash: tx(32), block: F + 40, logIndex: 2, at: at(F + 40), account: RANGE, dollarsMicros: 10n * USD, sharesMicros: 99_000n, navMicros: 101_000_000n },
+    { ...none, kind: "redeem", hash: tx(31), block: F + 30, logIndex: 4, at: at(F + 30), account: RANGE, dollarsMicros: 178_730_444n, sharesMicros: 1_771_892n, navMicros: 100_870_000n },
+    alice,
+  ];
+  keep(STATE_MARKET_ACTIVITY, serializeActivityIndex({ fromBlock: F, toBlock: F + 100, keep: ACTIVITY_KEEP, rows: old }));
+  // And the usage it counted: the contract as a wallet outside the team's.
+  const wallet = (actions, volumeMicros) => ({ firstAt: at(F + 20), lastAt: at(F + 40), actions, volumeMicros });
+  keep(STATE_USAGE, JSON.stringify({
+    fromBlock: F, toBlock: F + 100, wallets: { [ALICE]: wallet(1, "1000000000"), [RANGE]: wallet(2, "188730444") },
+    kinds: { invest: { all: 2, outside: 2 }, redeem: { all: 1, outside: 1 } }, team: { actions: 5, volumeMicros: "7" }, migrations: [LISTED_LATE.id],
+  }));
+
+  const network = chain({ head: F + 100 + ACTIVITY_INDEX_MARGIN, logs: [log(fund, [FUND_EVENTS.invested, topic(ALICE)], [1_000n * USD, 10n * USD, 100n * USD, TIME], { block: F + 20, index: 1, hash: tx(30) }), ...RANGE_RUNS] });
+  await runActivityIndex({ DB: db }, { rpc: network.rpc });
+  assert.deepEqual(network.ranges(), [[F + 30, F + 30], [F + 40, F + 40]], "only the blocks of the kept orders");
+  assert.deepEqual(parseActivityIndex(stored(STATE_MARKET_ACTIVITY)).rows, [...RANGE_ROWS, alice]);
+  const usage = JSON.parse(stored(STATE_USAGE));
+  assert.deepEqual(Object.keys(usage.wallets), [ALICE]);
+  // Counted as the keeper's arbitrages, with what each put in: $10 invested, and $178.704444 that
+  // bought the USTX it redeemed for $178.730444.
+  assert.deepEqual(usage.team, { actions: 7, volumeMicros: (7n + 10n * USD + 178_704_444n).toString() });
+  assert.deepEqual(usage.kinds, { invest: { all: 1, outside: 1 }, redeem: { all: 0, outside: 0 }, rangeArbitrage: { all: 2, outside: 0 } });
+  assert.deepEqual(usage.migrations, [LISTED_LATE.id, RANGE_ORDERS_MOVED]);
+
+  // The next run finds nothing to read again or move.
+  await runActivityIndex({ DB: db }, { rpc: network.rpc });
+  assert.equal(network.ranges().length, 2);
+  assert.deepEqual(JSON.parse(stored(STATE_USAGE)), usage);
 });

@@ -25,8 +25,10 @@ export async function POST(request: Request) {
     const db = engineEnv().DB as unknown as FundDb;
     await ensureFundDemoTables(db);
     const demo = new FundDemoLedger(db);
-    // The id covers the fund too, so the same client id in two funds never collides.
-    const id = await orderId(identity.subject, `${fund.id}-${input.clientOrderId}`);
+    // The id covers the fund too, so the same client id in two funds never collides. It never equals
+    // a USTX order's id either, since a client id holds no ':'; both ledgers mark a paid order in
+    // demo_accounts.last_order_id, and a shared id would let one ledger's mark pay for the other's order.
+    const id = await orderId(identity.subject, `fund:${fund.id}:${input.clientOrderId}`);
     // Recover a committed order even when the NAV/RPC is no longer available on retry.
     const existing = await demo.order(identity.subject, id);
     let result;

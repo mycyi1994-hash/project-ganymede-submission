@@ -21,9 +21,11 @@ export async function runActivityIndex(env: Pick<EngineEnv, "DB">, options: { rp
   const repo = new EngineRepository(env.DB);
   const index = parseActivityIndex((await repo.getState(STATE_MARKET_ACTIVITY))?.value);
   const next = await updateActivityIndex(index, options.rpc ?? fundRpc({ signal: AbortSignal.timeout(120_000) }));
+  // Usage since launch (lib/xstocks/usage.ts) follows the rows the index has just added. It is kept
+  // first: its correction of the range pool's arbitrage reads the rows stored before this run read
+  // them again, and a run that stops before the index is kept reads them again next time.
+  await repo.setState(STATE_USAGE, JSON.stringify(updateUsage(parseUsage((await repo.getState(STATE_USAGE))?.value), next, index?.rows ?? [])));
   await repo.setState(STATE_MARKET_ACTIVITY, serializeActivityIndex(next));
-  // Usage since launch (lib/xstocks/usage.ts) follows the rows the index has just added.
-  await repo.setState(STATE_USAGE, JSON.stringify(updateUsage(parseUsage((await repo.getState(STATE_USAGE))?.value), next)));
   return { fromBlock: next.fromBlock, toBlock: next.toBlock, rows: next.rows.length };
 }
 

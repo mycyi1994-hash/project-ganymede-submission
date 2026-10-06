@@ -12,7 +12,8 @@ import { hookRevert, tickToUsd, v4PriceMicros, type V4Amounts, type V4Deployment
 // (Bid-Ask). Swaps need a NAV under an hour old, and none may leave the price more than 5% from
 // it; GanymedeRangeArbitrage, which the keeper runs, brings the price back to the NAV. Closing a
 // position pays its tokens and fees at any NAV. RANGE_POOL_DEPLOYMENT pins the deployment
-// `npm run deploy:range` recorded on 4 October 2026 with the user's approval;
+// `npm run deploy:range` recorded on 4 October 2026 with the user's approval, and the arbitrage
+// `npm run deploy:range-arbitrage` replaced on 6 October;
 // onchain/test/AppRangeClient.test.ts checks the pin against the record. Demo dollars and USTX have no value.
 
 export type RangeDeployment = V4Deployment & { arbitrage: string };
@@ -27,8 +28,20 @@ export const RANGE_POOL_DEPLOYMENT: RangeDeployment | null = {
   assetIsCurrency0: true,
   poolId: "0x2ffd6b32d25902cf1bc6714ae74cb0afb2711e2cab38e265d58b2de78afee7a1",
   stateSlot: "0xc0ae777922c57e236a9da6e9779173cb9f76b12252cdb71b7aaef76b2aca6510",
-  arbitrage: "0xa4cc0d50eb9fa78b8615ec264b034006e051cbb4",
+  arbitrage: "0x58571aa0519a82f1d3839cae5392dfb060c5d572",
 };
+
+/**
+ * Every GanymedeRangeArbitrage: the one pinned above, the second, replaced on 6 October when the
+ * caller began to make up what the pool pays short of the fund's minimum, and the first, replaced on
+ * 4 October (docs/PRODUCT_RELEASE.md). The fund's events name the contract as the investor in its
+ * orders, so the market activity folds each into the arbitrage it was part of (lib/xstocks/activity.ts).
+ */
+export const RANGE_ARBITRAGES: readonly string[] = [
+  ...(RANGE_POOL_DEPLOYMENT ? [RANGE_POOL_DEPLOYMENT.arbitrage] : []),
+  "0xa4cc0d50eb9fa78b8615ec264b034006e051cbb4",
+  "0xbe0624ee3d949352498a767f1edbe235de38ca4d",
+];
 
 export const RANGE_SELECTORS = {
   open: "0xa9229268",

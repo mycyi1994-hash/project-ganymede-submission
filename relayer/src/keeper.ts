@@ -1,4 +1,7 @@
-import { BaseError, ContractFunctionRevertedError, createPublicClient, createWalletClient, http, maxUint256, parseAbi, type Address, type Hex } from "viem";
+import {
+  BaseError, ContractFunctionRevertedError, createPublicClient, createWalletClient, encodeAbiParameters, http, keccak256, maxUint256, parseAbi, parseAbiParameters,
+  type Address, type Hex,
+} from "viem";
 import { privateKeyToAccount } from "viem/accounts";
 import { xlayerTestnet } from "./chain";
 
@@ -12,7 +15,8 @@ import { xlayerTestnet } from "./chain";
  * landed, and runs every trade as a call before sending it, so it does not pay gas for a trade
  * that would revert. With V4_HOOK_ADDRESS set, it also moves the Uniswap v4 pool to each new NAV
  * record, which turns the deposits waiting for that record into LP tokens; with RANGE_ARBITRAGE_ADDRESS
- * set, it brings the pool of one's own positions to the NAV through the fund, which needs no money. Its key (KEEPER_PRIVATE_KEY, a Worker secret) holds testnet OKB for gas and
+ * set, it brings the pool of one's own positions to the NAV through the fund, which needs no money
+ * beyond, at times, the rest of the fund's $10 minimum investment, repaid in USTX. Its key (KEEPER_PRIVATE_KEY, a Worker secret) holds testnet OKB for gas and
  * no-value demo dollars, claimed from the demo dollar when it runs low. It has no role on any
  * contract, and a trade that is no longer profitable when it lands reverts in the arbitrage contract.
  */
@@ -47,29 +51,63 @@ export interface RepegChain {
   repeg(): Promise<Sent>;
 }
 
-/** The pool of one's own positions: its arbitrage needs no money, so the keeper only runs it as a call and sends it when it pays. */
+/**
+ * The pool of one's own positions: its arbitrage needs no money, so the keeper only runs it as a call
+ * and sends it when it pays. Where the pool pays less than the fund needs (selling into under the
+ * fund's $10 minimum investment), the arbitrage draws the rest from the keeper's demo dollars and
+ * repays it in USTX worth more at the NAV, so it needs the keeper's allowance.
+ */
 export interface RangeChain {
+  /** The keeper's demo-dollar allowance to the arbitrage, and approving it in full. */
+  dollarAllowance(): Promise<bigint>;
+  approveDollars(): Promise<Sent>;
   /** The arbitrage's profit in demo-dollar micros, run as a call, or the error it would revert with. */
   simulate(): Promise<{ profit: bigint } | { revert: string }>;
+  /** USTX's price in the pool against the NAV, as a fraction (−0.012 is 1.2% under it); null while the hook has no usable NAV. */
+  navGap(): Promise<number | null>;
   arbitrage(minProfit: bigint): Promise<Sent>;
 }
+
+/**
+ * How far the range pool's price may be from the NAV for positions to open: the hook allows
+ * OPEN_TICKS, about 1%, and the app (app/product-ui/Pools.tsx) stops short of it at 0.95%.
+ */
+export const RANGE_OPEN_GAP = 0.0095;
 
 export type RangeOutcome = { action: "none"; reason: string } | { action: "arbitrage" | "recentre"; profit: string; hash: Hex; success: boolean };
 
 /**
  * Brings the range pool to the NAV when that earns at least a cent, insisting on half of it when it
- * lands. A profit of exactly 0 means no position lies between the price and the NAV: the trade then
- * only moves the price across that empty stretch, which positions need before they can open, so it
- * is sent for the gas alone.
+ * lands. A profit of exactly 0 means no position lies between the price and the NAV, and the trade
+ * only moves the price across that empty stretch, which positions need before they can open; or that
+ * the pool pays less than the fund's minimum, and the keeper's demo dollars make up the rest for USTX
+ * worth more at the NAV. Either is sent for the gas alone. A profit under a cent means only a little
+ * liquidity lies there; that trade is sent too, insisting on half of it, while the price is too far
+ * from the NAV for positions to open, since nothing else would bring it back. The keeper approves
+ * its demo dollars to the arbitrage first, once, and keeps the $10 it may draw: given its `wallet`,
+ * it claims demo dollars when it holds less and a claim is due, whatever became of the other trade.
  */
-export async function runRangeArbitrage(chain: RangeChain): Promise<RangeOutcome> {
+export async function runRangeArbitrage(chain: RangeChain, wallet?: KeeperWallet): Promise<RangeOutcome> {
+  if (wallet && (await wallet.dollarBalance()) < MIN_INVESTMENT_MICROS && (await wallet.nextClaimAt()) <= (await wallet.now())) {
+    const claimed = await wallet.claim();
+    if (!claimed.success) return none(`claim reverted: ${claimed.hash}`);
+  }
+  if (await chain.dollarAllowance() < MIN_INVESTMENT_MICROS) {
+    const approved = await chain.approveDollars();
+    if (!approved.success) return none(`approving demo dollars for the range arbitrage failed in ${approved.hash}`);
+  }
   const simulated = await chain.simulate();
   if ("revert" in simulated) return none(simulated.revert.startsWith("NothingToDo") ? "the range pool is within its fee of the NAV" : `the arbitrage would revert: ${simulated.revert}`);
   if (simulated.profit === 0n) {
     const sent = await chain.arbitrage(0n);
     return { action: "recentre", profit: "0", hash: sent.hash, success: sent.success };
   }
-  if (simulated.profit < MIN_PROFIT_MICROS) return none(`the arbitrage would earn ${simulated.profit}, under the ${MIN_PROFIT_MICROS} worth a trade`);
+  if (simulated.profit < MIN_PROFIT_MICROS) {
+    const gap = await chain.navGap();
+    if (gap === null || Math.abs(gap) <= RANGE_OPEN_GAP) return none(`the arbitrage would earn ${simulated.profit}, under the ${MIN_PROFIT_MICROS} worth a trade`);
+    const sent = await chain.arbitrage(simulated.profit / 2n);
+    return { action: "recentre", profit: simulated.profit.toString(), hash: sent.hash, success: sent.success };
+  }
   const sent = await chain.arbitrage(simulated.profit / 2n);
   return { action: "arbitrage", profit: simulated.profit.toString(), hash: sent.hash, success: sent.success };
 }
@@ -108,6 +146,9 @@ export interface KeeperChain {
   /** The range pool, when RANGE_ARBITRAGE_ADDRESS is set; it shares the keeper's nonces too. */
   range?: RangeChain | null;
 }
+
+/** The keeper's own demo dollars, for the range pool's arbitrage to keep enough of them. */
+export type KeeperWallet = Pick<KeeperChain, "dollarBalance" | "nextClaimAt" | "now" | "claim">;
 
 export type KeeperOutcome =
   | { action: "none"; reason: string }
@@ -210,6 +251,8 @@ const HOOK_ABI = parseAbi([
 
 const RANGE_ARBITRAGE_ABI = parseAbi([
   "function arbitrage(uint256 minProfit) returns (uint256 profit)",
+  "function hook() view returns (address)",
+  "function poolManager() view returns (address)",
   "error NothingToDo()",
   "error Unprofitable(uint256 profit)",
   "error TransferFailed()",
@@ -219,7 +262,23 @@ const RANGE_ARBITRAGE_ABI = parseAbi([
   "error OutsideBand(int24 tick, int24 navTick)",
   "error BelowMinimum()",
   "error ContractPaused()",
+  "error InsufficientAllowance()",
+  "error InsufficientBalance()",
 ]);
+
+const RANGE_HOOK_ABI = parseAbi([
+  "function poolId() view returns (bytes32)",
+  "function assetIsCurrency0() view returns (bool)",
+  "function nav() view returns (uint256 answer, uint256 updatedAt, uint160 sqrtPriceX96)",
+  "error NavUnavailable()",
+  "error NavTooOld(uint256 updatedAt)",
+  "error NavInFuture(uint256 updatedAt)",
+  "error NavOutOfRange()",
+]);
+
+const POOL_MANAGER_ABI = parseAbi(["function extsload(bytes32 slot) view returns (bytes32)"]);
+// Where Uniswap v4's PoolManager keeps its pools (StateLibrary.POOLS_SLOT): a pool's slot0 is at keccak256(poolId, 6).
+const POOLS_SLOT = 6n;
 
 const DOLLAR_ABI = parseAbi([
   "function balanceOf(address account) view returns (uint256)",
@@ -334,6 +393,8 @@ export function xlayerKeeperChain(env: KeeperEnv): KeeperChain {
       repeg: () => send(n => walletClient.writeContract({ address: hook, abi: HOOK_ABI, functionName: "repeg", nonce: n, gas: 900_000n })),
     },
     range: rangeArbitrage && {
+      dollarAllowance: () => publicClient.readContract({ address: dollar, abi: DOLLAR_ABI, functionName: "allowance", args: [account.address, rangeArbitrage] }),
+      approveDollars: () => send(n => walletClient.writeContract({ address: dollar, abi: DOLLAR_ABI, functionName: "approve", args: [rangeArbitrage, maxUint256], nonce: n, gas: 80_000n })),
       async simulate() {
         try {
           const { result } = await publicClient.simulateContract({ account, address: rangeArbitrage, abi: RANGE_ARBITRAGE_ABI, functionName: "arbitrage", args: [0n] });
@@ -343,6 +404,30 @@ export function xlayerKeeperChain(env: KeeperEnv): KeeperChain {
           if (reason === undefined) throw error;
           return { revert: reason };
         }
+      },
+      async navGap() {
+        const [hook, manager] = await Promise.all([
+          publicClient.readContract({ address: rangeArbitrage, abi: RANGE_ARBITRAGE_ABI, functionName: "hook" }),
+          publicClient.readContract({ address: rangeArbitrage, abi: RANGE_ARBITRAGE_ABI, functionName: "poolManager" }),
+        ]);
+        const [poolId, assetIsCurrency0] = await Promise.all([
+          publicClient.readContract({ address: hook, abi: RANGE_HOOK_ABI, functionName: "poolId" }),
+          publicClient.readContract({ address: hook, abi: RANGE_HOOK_ABI, functionName: "assetIsCurrency0" }),
+        ]);
+        let navSqrt: bigint;
+        try {
+          [, , navSqrt] = await publicClient.readContract({ address: hook, abi: RANGE_HOOK_ABI, functionName: "nav" });
+        } catch (error) {
+          if (revertReason(error) === undefined) throw error;
+          return null;
+        }
+        const slot = keccak256(encodeAbiParameters(parseAbiParameters("bytes32, uint256"), [poolId, POOLS_SLOT]));
+        const slot0 = BigInt(await publicClient.readContract({ address: manager, abi: POOL_MANAGER_ABI, functionName: "extsload", args: [slot] }));
+        const poolSqrt = slot0 & ((1n << 160n) - 1n);
+        if (navSqrt === 0n || poolSqrt === 0n) return null;
+        // Pool prices are currency1 per currency0, so USTX's price in demo dollars is the ratio squared, or its inverse.
+        const ratio = (Number(poolSqrt) / Number(navSqrt)) ** 2;
+        return (assetIsCurrency0 ? ratio : 1 / ratio) - 1;
       },
       // A swap across the pool's bins, a redemption or an investment at the fund: about 300,000 gas, more when it crosses many bins.
       arbitrage: minProfit => send(n => walletClient.writeContract({ address: rangeArbitrage, abi: RANGE_ARBITRAGE_ABI, functionName: "arbitrage", args: [minProfit], nonce: n, gas: 1_500_000n })),
@@ -378,7 +463,7 @@ export default {
       await runKeeper(chain).then(outcome => console.log(JSON.stringify(outcome)), error => console.error(`keeper run failed: ${describe(error)}`));
       // The v4 pool's re-peg runs whatever became of the arbitrage.
       if (chain.v4) await runRepeg(chain.v4).then(outcome => console.log(JSON.stringify({ pool: "v4", ...outcome })), error => console.error(`v4 re-peg failed: ${describe(error)}`));
-      if (chain.range) await runRangeArbitrage(chain.range).then(outcome => console.log(JSON.stringify({ pool: "range", ...outcome })), error => console.error(`range arbitrage failed: ${describe(error)}`));
+      if (chain.range) await runRangeArbitrage(chain.range, chain).then(outcome => console.log(JSON.stringify({ pool: "range", ...outcome })), error => console.error(`range arbitrage failed: ${describe(error)}`));
     })());
   },
   // The keeper only runs on its schedule; it serves nothing.

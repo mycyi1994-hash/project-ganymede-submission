@@ -6,7 +6,8 @@ import { productKey, toBytes32 } from "../../relayer/src/ids";
 import { type FundReceipt } from "../../lib/xstocks/fund";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
-import { RANGE_ERRORS, RANGE_EVENTS, RANGE_POOL_DEPLOYMENT, RANGE_SELECTORS, rangeCalls, rangeErrorMessage, rangeFill, readRangePool, type RangeDeployment } from "../../lib/xstocks/range-liquidity";
+import { RANGE_ARBITRAGES, RANGE_ERRORS, RANGE_EVENTS, RANGE_POOL_DEPLOYMENT, RANGE_SELECTORS, rangeCalls, rangeErrorMessage, rangeFill, readRangePool, type RangeDeployment } from "../../lib/xstocks/range-liquidity";
+import { ACTIVITY_EVENTS } from "../../lib/xstocks/activity";
 import { binTicksFor, planRange } from "../../lib/xstocks/lp-strategy";
 import { CREATE2_PROXY, CREATE2_PROXY_CODE, DYNAMIC_FEE_FLAG, deployRangeLiquidity, deployRwaLiquidity, poolIdOf, poolStateSlot } from "../scripts/_v4";
 
@@ -29,6 +30,16 @@ describe("App range pool client", () => {
     expect(RANGE_EVENTS).to.deep.equal({ opened: eventOf("PositionOpened"), closed: eventOf("PositionClosed") });
     const errors = new Set(hook.filter(item => item.type === "error").map(item => keccak256(toBytes(signature(item as never))).slice(0, 10)));
     for (const selector of Object.keys(RANGE_ERRORS)) expect(errors.has(selector), selector).to.equal(true);
+  });
+
+  it("reads the range arbitrage's report as the market activity decodes it", async () => {
+    // lib/xstocks/activity.ts tells it from the constant-product pool's arbitrage by its address and
+    // reads its words in this order; the topic is the same signature's.
+    const arbitrage = (await hre.artifacts.readArtifact("GanymedeRangeArbitrage")).abi as readonly AbiItem[];
+    const event = arbitrage.find(item => item.type === "event" && item.name === "Arbitraged") as { name: string; inputs: readonly { name: string; type: string; indexed?: boolean }[] };
+    expect(toEventSelector(signature(event))).to.equal(ACTIVITY_EVENTS.arbitraged);
+    expect(event.inputs.map(input => `${input.indexed ? "indexed " : ""}${input.name}`)).to.deep.equal(["indexed trader", "boughtInPool", "sharesMoved", "profit", "navPerShareMicros"]);
+    expect(RANGE_ARBITRAGES[0]).to.equal(RANGE_POOL_DEPLOYMENT!.arbitrage);
   });
 
   it("opens, reads and closes a Bid-Ask position with the app's own calls", async () => {

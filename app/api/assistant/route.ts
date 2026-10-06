@@ -1,4 +1,4 @@
-import { engineEnv, isSameSiteRequest, noStoreJson } from "@/lib/engine/api-helpers";
+import { engineEnv, isSameSiteRequest, noStoreJson, visitorOf } from "@/lib/engine/api-helpers";
 import { AssistantError, askUstx, parseConversation, streamUstx, takeQuestion, type AskEvent } from "@/lib/assistant/ask";
 import { ustxTools } from "../../mcp/tools";
 
@@ -19,7 +19,7 @@ export async function POST(request: Request) {
     let body: unknown;
     try { body = JSON.parse(text); } catch { throw new AssistantError("Send a JSON object with Content-Type: application/json.", 400, "bad_request"); }
     const conversation = parseConversation(body);
-    const visitor = request.headers.get("cf-connecting-ip") ?? request.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ?? "unknown";
+    const visitor = visitorOf(request);
     await takeQuestion(env.DB, visitor, new Date());
     const tools = ustxTools(new URL(request.url).origin);
     const options = { apiKey: env.OPENAI_API_KEY, model: env.OPENAI_MODEL };

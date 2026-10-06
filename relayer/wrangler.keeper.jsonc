@@ -17,7 +17,7 @@
     "ARBITRAGE_ADDRESS": "0xaeba15aa92d6f3109e2b992f18933e1abe2fa3d9",
     "DOLLAR_ADDRESS": "0xf07535080f74e8b0f571e58dfa600f47e72ea9bf",
     "V4_HOOK_ADDRESS": "0x96a78af00ef351f294f2ccc05adf09b119f968c0",
-    "RANGE_ARBITRAGE_ADDRESS": "0xa4cc0d50eb9fa78b8615ec264b034006e051cbb4"
+    "RANGE_ARBITRAGE_ADDRESS": "0x58571aa0519a82f1d3839cae5392dfb060c5d572"
     // KEEPER_PRIVATE_KEY is a secret, never a var:
     //   npx wrangler secret put KEEPER_PRIVATE_KEY -c wrangler.keeper.jsonc
   }

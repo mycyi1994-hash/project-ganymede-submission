@@ -4,7 +4,9 @@ import { DatabaseSync } from "node:sqlite";
 import { readFileSync } from "node:fs";
 import { FaucetError, dripGas } from "../lib/faucet.ts";
 import { FAUCET_TERMS, formatOkb } from "../lib/faucet-terms.ts";
-import { LISTED_LATE, addUsage, moveListedLate, summarizeUsage, updateUsage } from "../lib/xstocks/usage.ts";
+import { visitorOf } from "../lib/engine/api-helpers.ts";
+import { LISTED_LATE, RANGE_ORDERS_MOVED, addUsage, moveListedLate, moveRangeArbitrageOrders, summarizeUsage, updateUsage } from "../lib/xstocks/usage.ts";
+import { RANGE_ARBITRAGES } from "../lib/xstocks/range-liquidity.ts";
 import { LOAD_TEST_WALLETS } from "../lib/xstocks/load-test-wallets.ts";
 import { USAGE_SEED } from "../lib/xstocks/usage-seed.ts";
 import { TEAM_WALLETS } from "../lib/xstocks/team-wallets.ts";
@@ -73,8 +75,23 @@ test("a failed send leaves the wallet free to ask again, and each visitor and th
   await assert.rejects(drip(wallet(100)), (error) => error.code === "limit" && /several wallets/.test(error.message));
   // The refused wallet was not marked as served.
   assert.equal(db.sql.prepare("SELECT COUNT(*) AS n FROM engine_state WHERE key = ?").get(`faucet:wallet:${wallet(100)}`).n, 0);
+  // Past their allowance, a visitor is refused as often as they ask, without spending the site's.
+  const site = () => db.sql.prepare("SELECT value FROM engine_state WHERE key = ?").get(`faucet:site:${now.toISOString().slice(0, 10)}`).value;
+  const before = site();
+  for (let n = 101; n < 120; n++) await assert.rejects(drip(wallet(n)), (error) => error.code === "limit" && /several wallets/.test(error.message));
+  assert.equal(site(), before);
   for (let n = 0; n < FAUCET_TERMS.perSitePerDay; n++) await drip(wallet(1_000 + n), `10.0.0.${n}`).catch(() => undefined);
   await assert.rejects(drip(wallet(5_000), "9.9.9.9"), (error) => error.code === "limit" && /run out/.test(error.message));
+});
+
+test("a daily allowance counts an IPv4 address, or the /64 network of an IPv6 one", () => {
+  const visitor = (ip) => visitorOf(new Request("https://demo.test/", { headers: { "cf-connecting-ip": ip } }));
+  assert.equal(visitor("203.0.113.7"), "203.0.113.7");
+  assert.equal(visitor("2001:db8:abcd:12:1:2:3:4"), "2001:db8:abcd:12::/64");
+  assert.equal(visitor("2001:DB8:ABCD:0012::ffff"), "2001:db8:abcd:12::/64", "any address in the /64, however written");
+  assert.equal(visitor("2001:db8::1"), "2001:db8:0:0::/64");
+  assert.equal(visitor("::ffff:198.51.100.2"), "198.51.100.2", "an IPv4 address written as IPv6");
+  assert.equal(visitorOf(new Request("https://demo.test/", { headers: { "x-forwarded-for": "198.51.100.9, 10.0.0.1" } })), "198.51.100.9");
 });
 
 const row = (block, account, kind = "invest", dollars = 100_000_000n) => ({
@@ -126,6 +143,38 @@ test("load-test wallets counted before they were listed move to the team's figur
   const other = { ...usage, wallets: { ...wallets, [late[1]]: { ...wallets[late[1]], actions: 13 } } };
   assert.equal(moveListedLate(other), other);
   assert.equal(moveListedLate(USAGE_SEED), USAGE_SEED);
+});
+
+test("the range arbitrage's orders counted as an outside wallet are counted again as its arbitrages, only when the kept rows account for all of them", () => {
+  // The arbitrage whose orders were counted from 5 October, replaced on 6 October.
+  const range = "0xa4cc0d50eb9fa78b8615ec264b034006e051cbb4";
+  assert.ok(RANGE_ARBITRAGES.includes(range));
+  const keeper = Object.keys(TEAM_WALLETS).find((address) => TEAM_WALLETS[address] === "Arbitrage keeper");
+  const kept = [row(5, range, "redeem", 178_730_444n), row(6, range, "invest", 10_000_000n), row(7, wallet(9))];
+  // What the index read in their place: the keeper's arbitrages, with the dollars each put in. Bought
+  // in the pool for $178.704444 and redeemed for $178.730444; invested $10 and sold for $10.05.
+  const arbitrage = (block, account, dollars, out, boughtInPool) => ({ ...row(block, account, "rangeArbitrage", dollars), dollarsOutMicros: out, boughtInPool });
+  const rows = [arbitrage(5, keeper, 178_704_444n, 178_730_444n, true), arbitrage(6, keeper, 10_000_000n, 10_050_000n, false), row(7, wallet(9))];
+  const counted = { firstAt: "2026-10-05T13:43:02.000Z", lastAt: "2026-10-05T19:08:02.000Z", actions: 2, volumeMicros: "188730444" };
+  const usage = { fromBlock: 1, toBlock: 10, wallets: { [range]: counted, [wallet(9)]: { ...counted, actions: 1, volumeMicros: "100000000" } }, kinds: { redeem: { all: 4, outside: 1 }, invest: { all: 5, outside: 2 } }, team: { actions: 3, volumeMicros: "7" } };
+  const moved = moveRangeArbitrageOrders(usage, kept, rows);
+  assert.deepEqual(Object.keys(moved.wallets), [wallet(9)]);
+  // As if the arbitrages had been counted from the start: their kind, their caller and what they put in.
+  assert.deepEqual(moved.team, { actions: 5, volumeMicros: (7n + 178_704_444n + 10_000_000n).toString() });
+  assert.deepEqual(moved.kinds, { redeem: { all: 3, outside: 0 }, invest: { all: 4, outside: 1 }, rangeArbitrage: { all: 2, outside: 0 } });
+  assert.deepEqual(moved.migrations, [RANGE_ORDERS_MOVED]);
+  assert.equal(moveRangeArbitrageOrders(moved, kept, rows), moved, "once");
+  // Anyone may call the arbitrage: a call from a wallet outside the team's is counted under it.
+  const theirs = moveRangeArbitrageOrders(usage, kept, [rows[0], arbitrage(6, wallet(9), 10_000_000n, 10_050_000n, false)]);
+  assert.deepEqual(theirs.team, { actions: 4, volumeMicros: (7n + 178_704_444n).toString() });
+  assert.deepEqual(theirs.wallets[wallet(9)], { ...counted, firstAt: row(6, wallet(9)).at, actions: 2, volumeMicros: "110000000" });
+  assert.deepEqual(theirs.kinds.rangeArbitrage, { all: 2, outside: 1 });
+  // Kept rows that do not account for every counted action and dollar, or an order without the
+  // arbitrage read in its place, leave the usage as it is.
+  assert.equal(moveRangeArbitrageOrders(usage, kept.slice(1), rows), usage);
+  assert.equal(moveRangeArbitrageOrders(usage, kept, rows.slice(1)), usage);
+  assert.equal(moveRangeArbitrageOrders({ ...usage, toBlock: 5 }, kept, rows).wallets[range], counted, "orders after the counted blocks were never counted");
+  assert.equal(moveRangeArbitrageOrders({ ...usage, kinds: { ...usage.kinds, redeem: { all: 4, outside: 0 } } }, kept, rows).wallets[range], counted);
 });
 
 const quotePayload = (symbol) => ({

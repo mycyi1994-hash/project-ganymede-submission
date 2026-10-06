@@ -57,14 +57,21 @@ export async function dripGas(input: { db: D1; address: unknown; visitor: string
 
   const siteKey = `faucet:site:${day}`;
   const visitorKey = `faucet:visitor:${day}:${(await sha256Hex(`${day}:${visitor}`)).slice(0, 32)}`;
-  const count = (key: string) => db.prepare("INSERT INTO engine_state (key, value, updated_at) VALUES (?, '1', ?) ON CONFLICT(key) DO UPDATE SET value = CAST(CAST(value AS INTEGER) + 1 AS TEXT), updated_at = excluded.updated_at").bind(key, at);
-  await db.batch([count(siteKey), count(visitorKey)]);
+  const count = (key: string) => db.prepare("INSERT INTO engine_state (key, value, updated_at) VALUES (?, '1', ?) ON CONFLICT(key) DO UPDATE SET value = CAST(CAST(value AS INTEGER) + 1 AS TEXT), updated_at = excluded.updated_at").bind(key, at).run();
   const read = async (key: string) => Number((await db.prepare("SELECT value FROM engine_state WHERE key = ?").bind(key).first<{ value: string }>())?.value ?? 0);
-  const [site, mine] = await Promise.all([read(siteKey), read(visitorKey)]);
-  if (site === 1) await db.prepare("DELETE FROM engine_state WHERE (key LIKE 'faucet:site:%' OR key LIKE 'faucet:visitor:%') AND updated_at < ?").bind(`${day}T00:00:00.000Z`).run();
-  if (mine > FAUCET_TERMS.perVisitorPerDay || site > FAUCET_TERMS.perSitePerDay) {
+  // The visitor's own allowance first: a visitor past it is refused before the site's is counted,
+  // so one visitor cannot spend the site's day.
+  await count(visitorKey);
+  if (await read(visitorKey) > FAUCET_TERMS.perVisitorPerDay) {
     await release();
-    throw new FaucetError(site > FAUCET_TERMS.perSitePerDay ? "Today's test OKB here has run out. Get some from the OKX faucet, or try after 00:00 UTC." : "You have asked for test OKB for several wallets today. Try again after 00:00 UTC.", 429, "limit");
+    throw new FaucetError("You have asked for test OKB for several wallets today. Try again after 00:00 UTC.", 429, "limit");
+  }
+  await count(siteKey);
+  const site = await read(siteKey);
+  if (site === 1) await db.prepare("DELETE FROM engine_state WHERE (key LIKE 'faucet:site:%' OR key LIKE 'faucet:visitor:%') AND updated_at < ?").bind(`${day}T00:00:00.000Z`).run();
+  if (site > FAUCET_TERMS.perSitePerDay) {
+    await release();
+    throw new FaucetError("Today's test OKB here has run out. Get some from the OKX faucet, or try after 00:00 UTC.", 429, "limit");
   }
 
   let hash: string;

@@ -404,16 +404,17 @@ export type V4Quote = {
 /**
  * The pool's quote for an order of `amountIn`, from the router's own dry run of the swap, with the
  * fee and `owner`'s allowance to the router, read at one block. A swap the hook or the pool would
- * refuse (a stale NAV, too little liquidity) quotes nothing and says why.
+ * refuse (a stale NAV, too little liquidity) quotes nothing and says why, in `describe`'s words: the
+ * hook's errors are its own, so the range pool's are not this pool's.
  */
-export async function readV4Quote(deployment: V4Deployment, side: "buy" | "sell", amountIn: bigint, owner: string, options: { rpc?: Rpc; minBlock?: number } = {}): Promise<V4Quote> {
+export async function readV4Quote(deployment: V4Deployment, side: "buy" | "sell", amountIn: bigint, owner: string, options: { rpc?: Rpc; minBlock?: number; describe?: (error: unknown) => string } = {}): Promise<V4Quote> {
   const rpc = options.rpc ?? fundRpc();
   const block = await readBlock(rpc, options.minBlock);
   const tag = hexBlock(block);
   return atBlock(async () => {
     const token = side === "buy" ? deployment.dollar : deployment.asset;
     const quote = call(rpc, deployment.router, `${V4_SELECTORS.quoteExactInput}${poolKeyWords(deployment)}${word(zeroForOne(deployment, side) ? 1n : 0n)}${word(amountIn)}`, tag)
-      .then(value => ({ amountOut: words(value, 1)[0], reason: null }), error => { if (!isRevert(error)) throw error; return { amountOut: null, reason: v4ErrorMessage(error) }; });
+      .then(value => ({ amountOut: words(value, 1)[0], reason: null }), error => { if (!isRevert(error)) throw error; return { amountOut: null, reason: (options.describe ?? v4ErrorMessage)(error) }; });
     const fee = call(rpc, deployment.hook, V4_SELECTORS.currentFee, tag)
       .then(value => Number(words(value, 1)[0]), error => { if (!isRevert(error)) throw error; return null; });
     const allowance = call(rpc, token, `${FUND_SELECTORS.allowance}${addressWord(owner)}${addressWord(deployment.router)}`, tag).then(value => words(value, 1)[0]);

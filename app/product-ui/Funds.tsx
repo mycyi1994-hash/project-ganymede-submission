@@ -79,7 +79,10 @@ export function useFundAccount(fundId: string) {
   return useFundResource<FundAccount>(`/api/funds/account?fund=${encodeURIComponent(fundId)}`);
 }
 
-/** Never keep a successful badge when the API response or selected fund changes. */
+/**
+ * Never keep one fund's badge for another. The same fund's last check stays while its refreshed
+ * response is checked, so its value and order panel do not blank on every refresh.
+ */
 function useFundCheck(fund: FundDetail | null, fundId: string): FundVerification {
   const [state, setState] = useState<{ fund: FundDetail; fundId: string; check: FundVerification } | null>(null);
   useEffect(() => {
@@ -90,7 +93,7 @@ function useFundCheck(fund: FundDetail | null, fundId: string): FundVerification
       .catch(() => { if (!cancelled) setState({ fund, fundId, check: { result: "unavailable", detail: "X Layer Testnet could not be read from this browser just now." } }); });
     return () => { cancelled = true; };
   }, [fund, fundId]);
-  return state?.fund === fund && state.fundId === fundId ? state.check : { result: "checking", detail: "Reading the record on X Layer…" };
+  return fund && state?.fundId === fundId && state.fund.id === fund.id ? state.check : { result: "checking", detail: "Reading the record on X Layer…" };
 }
 
 /** The selected fund on Markets uses its own record, history and holdings. */

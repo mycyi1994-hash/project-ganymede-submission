@@ -74,7 +74,9 @@ export class FundDemoLedger {
   /**
    * Fills one order in a single transaction, like the USTX ledger: the side that pays is updated
    * under its condition and marked with the order id, and the other side and the order row are
-   * written only if that mark is there. A retry with the same id replays the stored order.
+   * written only if that mark is there. A retry with the same id replays the stored order. The USTX
+   * ledger marks demo_accounts.last_order_id too, so `id` must never be a USTX order's id
+   * (app/api/funds/orders/route.ts keeps the two apart).
    */
   async place(subject: string, fundId: string, input: { id: string; side: DemoSide; usdMicros?: bigint; sharesMicros?: bigint }, nav: ExecutableNav, now: Date): Promise<{ order: FundOrder; replayed: boolean }> {
     const existing = await this.order(subject, input.id);
@@ -150,10 +152,13 @@ export class FundDemoLedger {
   async settleAll(fundId: string, nav: { navMicros: bigint; effectiveAt: string; holdingsHash: string }, now = new Date()): Promise<void> {
     const at = now.toISOString();
     const payout = bindable(nav.navMicros);
+    // D1 binds a number as REAL, which would make the division real and leave fractions of a micro
+    // in the balance; as integers it rounds down, like every other fill.
+    const paid = "CAST(shares_micros AS INTEGER) * CAST(? AS INTEGER) / 1000000";
     await this.db.batch([
-      this.db.prepare("INSERT OR IGNORE INTO demo_fund_orders (id, subject, fund_id, side, usd_micros, shares_micros, nav_micros, nav_effective_at, nav_holdings_hash, created_at) SELECT ? || '-' || subject, subject, fund_id, 'redeem', shares_micros * ? / 1000000, shares_micros, ?, ?, ?, ? FROM demo_fund_positions WHERE fund_id = ? AND shares_micros > 0")
+      this.db.prepare(`INSERT OR IGNORE INTO demo_fund_orders (id, subject, fund_id, side, usd_micros, shares_micros, nav_micros, nav_effective_at, nav_holdings_hash, created_at) SELECT ? || '-' || subject, subject, fund_id, 'redeem', ${paid}, shares_micros, ?, ?, ?, ? FROM demo_fund_positions WHERE fund_id = ? AND shares_micros > 0`)
         .bind(`${fundId}-settled`, payout, payout, nav.effectiveAt, nav.holdingsHash, at, fundId),
-      this.db.prepare("UPDATE demo_accounts SET cash_micros = cash_micros + (SELECT shares_micros * ? / 1000000 FROM demo_fund_positions p WHERE p.subject = demo_accounts.subject AND p.fund_id = ?), updated_at = ? WHERE subject IN (SELECT subject FROM demo_fund_positions WHERE fund_id = ? AND shares_micros > 0)")
+      this.db.prepare(`UPDATE demo_accounts SET cash_micros = cash_micros + (SELECT ${paid} FROM demo_fund_positions p WHERE p.subject = demo_accounts.subject AND p.fund_id = ?), updated_at = ? WHERE subject IN (SELECT subject FROM demo_fund_positions WHERE fund_id = ? AND shares_micros > 0)`)
         .bind(payout, fundId, at, fundId),
       this.db.prepare("UPDATE demo_fund_positions SET shares_micros = 0, cost_micros = 0, updated_at = ? WHERE fund_id = ? AND shares_micros > 0").bind(at, fundId),
     ]);

@@ -1,4 +1,4 @@
-import { engineEnv, isSameSiteRequest, noStoreJson } from "@/lib/engine/api-helpers";
+import { engineEnv, isSameSiteRequest, noStoreJson, visitorOf } from "@/lib/engine/api-helpers";
 import { FaucetError, dripGas, faucetSender } from "@/lib/faucet";
 
 export const dynamic = "force-dynamic";
@@ -11,7 +11,7 @@ export async function POST(request: Request) {
     if (!env.FAUCET_PRIVATE_KEY) throw new FaucetError("Test OKB is not available here. Use the OKX faucet.", 503, "not_configured");
     let body: { address?: unknown };
     try { body = await request.json() as { address?: unknown }; } catch { throw new FaucetError("Send a wallet address.", 400, "bad_address"); }
-    const visitor = request.headers.get("cf-connecting-ip") ?? request.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ?? "unknown";
+    const visitor = visitorOf(request);
     return noStoreJson(await dripGas({ db: env.DB, address: body?.address, visitor, now: new Date(), send: faucetSender(env.FAUCET_PRIVATE_KEY) }));
   } catch (error) {
     if (error instanceof FaucetError) return noStoreJson({ error: error.message, code: error.code }, { status: error.status });

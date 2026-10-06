@@ -49,6 +49,21 @@ export async function requestIdentity(request: Request, payloadWallet?: unknown,
   return token ? { subject: `paper-session:${await sha256Hex(token)}`, email: null, walletAddress } : null;
 }
 
+/**
+ * Whom a daily allowance counts: the visitor's IPv4 address, or the /64 network of an IPv6 one,
+ * since a connection is given a whole /64 and may use any address in it. Callers store only a hash.
+ */
+export function visitorOf(request: Request): string {
+  const address = (request.headers.get("cf-connecting-ip") ?? request.headers.get("x-forwarded-for")?.split(",")[0] ?? "unknown").trim().toLowerCase();
+  if (!address.includes(":")) return address;
+  if (address.includes(".")) return address.slice(address.lastIndexOf(":") + 1);
+  const [head, tail = ""] = address.split("::");
+  const left = head ? head.split(":") : [];
+  const right = tail ? tail.split(":") : [];
+  const groups = [...left, ...Array<string>(Math.max(0, 8 - left.length - right.length)).fill("0"), ...right];
+  return `${groups.slice(0, 4).map((group) => group.replace(/^0+(?=.)/, "")).join(":")}::/64`;
+}
+
 export function isSameSiteRequest(request: Request): boolean {
   if (request.headers.get("sec-fetch-site") === "cross-site") return false;
   const origin = request.headers.get("origin");

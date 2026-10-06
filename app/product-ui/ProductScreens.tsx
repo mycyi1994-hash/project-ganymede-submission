@@ -8,6 +8,8 @@ import { useEffect, useRef, useState, type ReactNode } from "react";
 import { formatUsdMicros } from "@/lib/nav-display";
 import { publicationStatus } from "@/lib/nav-status";
 import { compositionForRecord, formatCountdown, nextRecordAt, publicationHistory, shortTime } from "@/lib/product-market";
+import type { OnchainNav } from "@/lib/xstocks/onchain";
+import { PROOF_DEPLOYMENT } from "@/lib/xstocks/proof";
 import { useMarket } from "./MarketProvider";
 import { CATEGORY_EVENT } from "./AskUstx";
 import { Icon } from "./Icons";
@@ -56,7 +58,14 @@ function useNextRecord(effectiveAt: string | null) {
 function NavValue() {
   const { data, now, error, loading } = useMarket();
   const { checks } = useRecordCheck(data, error);
-  const record = checks?.record?.effectiveAt ? checks.record : null;
+  const read = checks?.record?.effectiveAt ? checks.record : null;
+  // The record this browser read last stays while each refresh is read again, so the value does not blank.
+  const [last, setLast] = useState<OnchainNav | null>(null);
+  if (read && read !== last) setLast(read);
+  // When this browser cannot read X Layer, the record the server read from the pinned registry is shown, as unconfirmed here.
+  const pinned = data?.registry.chainId === PROOF_DEPLOYMENT.chainId && data.registry.address?.toLowerCase() === PROOF_DEPLOYMENT.registry;
+  const unconfirmed = !read && checks?.error && pinned && data?.onchain?.effectiveAt ? data.onchain : null;
+  const record = read ?? unconfirmed ?? (checks ? null : last);
   const status = publicationStatus(record, data?.latest ?? null, now, Boolean(error || data?.onchainError));
   const next = useNextRecord(record && status.tone === "ready" ? record.effectiveAt : null);
   // A new record flashes the value: up in green, down in red. The first one read does not.
@@ -67,8 +76,8 @@ function NavValue() {
     if (seen) { const change = BigInt(record.navPerShareMicros) - BigInt(seen.nav); setFlash({ at: record.effectiveAt, tone: change > 0n ? "up" : change < 0n ? "down" : "same" }); }
   }
   // Customers see when the price was recorded; an older record reads "last recorded", not an error.
-  const state = !data && loading ? "Loading…" : !record ? "Confirming the price…" : status.tone === "ready" ? "Recorded on X Layer" : "Last recorded on X Layer";
-  return <div className="gmd-nav-summary"><div><span className="gmd-label">NAV per share <span>/ USD</span></span>{!data && loading ? <strong className="gmd-value"><i className="gmd-skeleton is-hero" aria-hidden="true" /><span className="gmd-sr-only">Loading</span></strong> : <strong key={flash?.at ?? "value"} className={`gmd-value${flash ? ` is-${flash.tone}` : ""}`}>{record ? formatUsdMicros(record.navPerShareMicros, 4) : "—"}</strong>}</div><div className="gmd-nav-meta"><OkxSource>Priced by OKX OnchainOS</OkxSource><span className={`gmd-status ${status.tone === "ready" ? "is-neutral" : "is-waiting"}`}><i />{state}</span><time dateTime={record?.effectiveAt ?? undefined}>{record ? shortTime(record.effectiveAt) : ""}</time>{next && <span className="gmd-live"><i aria-hidden="true" />{next}</span>}</div></div>;
+  const state = !data && loading ? "Loading…" : !record ? "Confirming the price…" : record === unconfirmed ? "Price confirmation unavailable" : status.tone === "ready" ? "Recorded on X Layer" : "Last recorded on X Layer";
+  return <div className="gmd-nav-summary"><div><span className="gmd-label">NAV per share <span>/ USD</span></span>{!data && loading ? <strong className="gmd-value"><i className="gmd-skeleton is-hero" aria-hidden="true" /><span className="gmd-sr-only">Loading</span></strong> : <strong key={flash?.at ?? "value"} className={`gmd-value${flash ? ` is-${flash.tone}` : ""}`}>{record ? formatUsdMicros(record.navPerShareMicros, 4) : "—"}</strong>}</div><div className="gmd-nav-meta"><OkxSource>Priced by OKX OnchainOS</OkxSource><span className={`gmd-status ${status.tone === "ready" && record !== unconfirmed ? "is-neutral" : "is-waiting"}`}><i />{state}</span><time dateTime={record?.effectiveAt ?? undefined}>{record ? shortTime(record.effectiveAt) : ""}</time>{next && <span className="gmd-live"><i aria-hidden="true" />{next}</span>}</div></div>;
 }
 
 function ProductIdentity({ compact = false }: { compact?: boolean }) {

@@ -70,22 +70,25 @@ export const ASK_COUNT_KEY = "usage:ask-questions";
 type D1 = { prepare(query: string): { bind(...values: unknown[]): { first<T>(): Promise<T | null>; run(): Promise<unknown> } }; batch(statements: unknown[]): Promise<unknown> };
 
 /**
- * Counts one question for the visitor (a hash of their address and the day, never the address
- * itself) and for the site, and refuses it past either daily allowance. The day's first question
- * clears earlier days' counts.
+ * Counts one question for the visitor (a hash of their network and the day, never the address
+ * itself) and then for the site, and refuses it past either daily allowance. A visitor past their own
+ * allowance is refused before the site's is counted, so one visitor cannot spend the site's day. The
+ * day's first question clears earlier days' counts.
  */
 export async function takeQuestion(db: D1, visitor: string, now: Date): Promise<void> {
   const day = now.toISOString().slice(0, 10);
   const at = now.toISOString();
   const siteKey = `assistant:site:${day}`;
   const visitorKey = `assistant:visitor:${day}:${(await sha256Hex(`${day}:${visitor}`)).slice(0, 32)}`;
-  const count = (key: string) => db.prepare("INSERT INTO engine_state (key, value, updated_at) VALUES (?, '1', ?) ON CONFLICT(key) DO UPDATE SET value = CAST(CAST(value AS INTEGER) + 1 AS TEXT), updated_at = excluded.updated_at").bind(key, at);
-  await db.batch([count(siteKey), count(visitorKey), count(ASK_COUNT_KEY)]);
+  const count = (key: string) => db.prepare("INSERT INTO engine_state (key, value, updated_at) VALUES (?, '1', ?) ON CONFLICT(key) DO UPDATE SET value = CAST(CAST(value AS INTEGER) + 1 AS TEXT), updated_at = excluded.updated_at").bind(key, at).run();
   const read = async (key: string) => Number((await db.prepare("SELECT value FROM engine_state WHERE key = ?").bind(key).first<{ value: string }>())?.value ?? 0);
-  const [site, mine] = await Promise.all([read(siteKey), read(visitorKey)]);
+  await count(visitorKey);
+  if (await read(visitorKey) > ASSISTANT_LIMITS.perVisitorPerDay) throw new AssistantError(`You have asked ${ASSISTANT_LIMITS.perVisitorPerDay} questions today. Ask again after 00:00 UTC.`, 429, "visitor_limit");
+  await count(siteKey);
+  const site = await read(siteKey);
   if (site === 1) await db.prepare("DELETE FROM engine_state WHERE key LIKE 'assistant:%' AND updated_at < ?").bind(`${day}T00:00:00.000Z`).run();
-  if (mine > ASSISTANT_LIMITS.perVisitorPerDay) throw new AssistantError(`You have asked ${ASSISTANT_LIMITS.perVisitorPerDay} questions today. Ask again after 00:00 UTC.`, 429, "visitor_limit");
   if (site > ASSISTANT_LIMITS.perSitePerDay) throw new AssistantError("The assistant has answered all it can today. Ask again after 00:00 UTC.", 429, "site_limit");
+  await count(ASK_COUNT_KEY);
 }
 
 type ToolCall = { id: string; type: "function"; function: { name: string; arguments: string } };

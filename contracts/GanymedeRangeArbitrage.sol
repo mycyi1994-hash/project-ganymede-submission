@@ -34,26 +34,34 @@ interface IRangeFund {
 interface IRangeDollar {
     function approve(address spender, uint256 value) external returns (bool);
     function transfer(address to, uint256 value) external returns (bool);
+    function transferFrom(address from, address to, uint256 value) external returns (bool);
     function balanceOf(address account) external view returns (uint256);
 }
 
 /// @title GanymedeRangeArbitrage
 /// @notice Brings GanymedeRangeLiquidityHook's pool back to the NAV through the fund, in one
-///         transaction and with no money of the caller's: below the NAV it buys USTX in the pool and
-///         redeems it at the fund, above it sells USTX into the pool that it invests for at the fund.
-///         The swap stops where the pool's price, net of its fee, meets the NAV, so the last unit
-///         traded still pays. Every demo dollar left over, and any USTX the fund's $10 minimum
-///         investment bought beyond what the pool took, goes to the caller; the transaction reverts
-///         unless the demo dollars come to at least `minProfit`. Where no position holds liquidity
-///         between the price and the NAV, the swap moves the price across that empty stretch and
-///         trades nothing, for a profit of 0: so the pool never stays stuck away from the NAV, where
-///         positions cannot open.
+///         transaction: below the NAV it buys USTX in the pool and redeems it at the fund, above it
+///         sells USTX into the pool that it invests for at the fund. The swap stops where the pool's
+///         price, net of its fee, meets the NAV, so the last unit traded still pays. Every demo
+///         dollar left over, and any USTX the fund's $10 minimum investment bought beyond what the
+///         pool took, goes to the caller; the transaction reverts unless the demo dollars come to at
+///         least `minProfit`. Where no position holds liquidity between the price and the NAV, the
+///         swap moves the price across that empty stretch and trades nothing, for a profit of 0.
+///         Where the pool pays less than the fund needs, the caller makes up the difference from
+///         demo dollars they have approved to this contract, for a profit of 0: selling into less
+///         than the fund's $10 minimum investment, when the USTX bought beyond what the pool took is
+///         worth at the NAV at least what they put in, or a rounding remainder of up to a cent when
+///         buying in the pool. So the pool never stays stuck away from the NAV, where positions
+///         cannot open.
 /// @dev Holds nothing between transactions and has no owner. The USTX token is the fund itself.
+///      Only the caller's own demo dollars are ever drawn, and only within their call.
 contract GanymedeRangeArbitrage is IUnlockCallback {
     using StateLibrary for IPoolManager;
 
     uint256 private constant ONE_SHARE = 1e6;
     uint256 private constant MIN_INVESTMENT = 10 * 10 ** 6;
+    /// @dev The most a purchase in the pool may draw from the caller: a rounding remainder, a cent at most.
+    uint256 private constant MAX_REMAINDER = 10_000;
     uint256 private constant PIPS = 1_000_000;
 
     IRangeHook public immutable hook;
@@ -84,7 +92,7 @@ contract GanymedeRangeArbitrage is IUnlockCallback {
     ///         result is the profit in demo dollars, or a revert when there is nothing to gain.
     function arbitrage(uint256 minProfit) external returns (uint256 profit) {
         (bool buyInPool, uint160 limit) = _direction();
-        bytes memory result = poolManager.unlock(abi.encode(buyInPool, limit));
+        bytes memory result = poolManager.unlock(abi.encode(buyInPool, limit, msg.sender));
         uint256 moved;
         (profit, moved) = abi.decode(result, (uint256, uint256));
         if (profit < minProfit) revert Unprofitable(profit);
@@ -97,7 +105,7 @@ contract GanymedeRangeArbitrage is IUnlockCallback {
 
     function unlockCallback(bytes calldata data) external returns (bytes memory) {
         if (msg.sender != address(poolManager)) revert NotPoolManager();
-        (bool buyInPool, uint160 limit) = abi.decode(data, (bool, uint160));
+        (bool buyInPool, uint160 limit, address caller) = abi.decode(data, (bool, uint160, address));
         PoolKey memory key = hook.poolKey();
         // Buying USTX in the pool pays demo dollars for it; selling pays USTX for demo dollars.
         bool zeroForOne = buyInPool ? !assetIsCurrency0 : assetIsCurrency0;
@@ -113,9 +121,13 @@ contract GanymedeRangeArbitrage is IUnlockCallback {
             if (shares == 0) revert NothingToDo();
             poolManager.take(assetCurrency, address(this), shares);
             uint256 dollars = fund.redeem(shares, 0);
-            if (dollars < owed) revert Unprofitable(0);
+            // At most a rounding remainder: the swap stops where buying costs the NAV.
+            if (dollars < owed) {
+                if (owed - dollars > MAX_REMAINDER) revert Unprofitable(0);
+                _draw(caller, owed - dollars);
+            }
             _pay(dollarCurrency, owed);
-            return abi.encode(dollars - owed, shares);
+            return abi.encode(dollars > owed ? dollars - owed : 0, shares);
         }
         uint256 owedShares = uint256(uint128(-assetDelta));
         uint256 received = uint256(uint128(dollarDelta));
@@ -126,10 +138,13 @@ contract GanymedeRangeArbitrage is IUnlockCallback {
         // Enough demo dollars for the shares owed at the fund's rounding, and at least its minimum.
         uint256 invest = (owedShares * navMicros + ONE_SHARE - 1) / ONE_SHARE + 1;
         if (invest < MIN_INVESTMENT) invest = MIN_INVESTMENT;
-        if (invest > received) revert Unprofitable(0);
+        // Less than the fund's minimum came out of the pool: the caller makes up the rest, and the
+        // USTX it buys beyond what the pool took goes to them, worth at the NAV what they put in and
+        // what the pool paid over the NAV.
+        if (invest > received) _draw(caller, invest - received);
         fund.invest(invest, owedShares);
         _payShares(assetCurrency, owedShares);
-        return abi.encode(received - invest, owedShares);
+        return abi.encode(received > invest ? received - invest : 0, owedShares);
     }
 
     /// @dev Which way the pool is off the NAV, and the price the swap stops at: where the last unit
@@ -155,6 +170,10 @@ contract GanymedeRangeArbitrage is IUnlockCallback {
         }
         if (limit <= TickMath.MIN_SQRT_PRICE || limit >= TickMath.MAX_SQRT_PRICE) revert NothingToDo();
         buyInPool = assetCheap;
+    }
+
+    function _draw(address caller, uint256 amount) private {
+        if (!dollar.transferFrom(caller, address(this), amount)) revert TransferFailed();
     }
 
     function _pay(Currency currency, uint256 amount) private {

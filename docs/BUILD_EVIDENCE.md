@@ -1,6 +1,6 @@
 # Build provenance
 
-Production source revision: `d64177beff13d1dd5d56b1cf7af5cc9288463029`.
+Production source revision: `0f5a1c6005fa09254fd54ea12c77dbdf4ee21f71`.
 
 This is a source snapshot, not a claim that the entire project was newly built for this event. The original repository remains private. The entries below were exported from its Git history; reviewers can inspect current implementations and tests, and request original history access from the team if needed. No old secrets, local environment files or full private Git history are published.
 
@@ -622,3 +622,27 @@ Validation of production source:
 These are point-in-time observations, not continuous availability or a security audit.
 
 Public-snapshot validation: clean `npm ci` and `npm test` passed all 270 application tests; clean relayer `npm ci`, typecheck and all 31 tests passed. The first NAV after deployment was confirmed at 17:00:32 UTC.
+
+## Review fixes and the range arbitrage replacement — 6 October 2026
+
+Production source: `0f5a1c6005fa09254fd54ea12c77dbdf4ee21f71`. App Worker version: `9bc037b7-2d0d-4b3c-bb69-3b3a71bf0956`; prior versions: `a01d52fe-2a6a-4786-aa44-af786c0a2770` (review fixes, source `c96a6a2`) and `b80fc2dc-48ac-4a15-ab78-d382051e00e7`. Arbitrage keeper version: `d8398e4c-aab4-4b42-9116-7753bb554f07`; prior versions: `bcdddb2d-c45b-499b-b15f-acb2263a3439` and `7c11331b-1c3a-4bdf-823d-306ebbf8f7b9`. Exported development commit: `8afc79a9d805e1dcde05bc88c0f90267e8bc7490`, which adds only the release record and the build-period record to the production source.
+
+A review of the 3–5 October changes led to these fixes:
+- A fund order's id can no longer equal a USTX order's id in the demo ledgers, which could credit fund shares without payment.
+- The range pool's arbitrage appears on Markets as the keeper's arbitrage, not as customers' redemptions, and its orders already counted in usage were counted again as the keeper's.
+- The autocallable note's settlement survives a refused final record, pays whole micros and refuses bad prices.
+- A visitor past their own daily allowance no longer spends the site's allowance for Ask USTX or the test OKB faucet.
+- Pools reuses the USTX an unfinished deposit bought when it is tried again.
+- The NAV on the USTX page no longer blanks while each refresh is checked.
+
+`GanymedeRangeArbitrage` was replaced with the user's approval at `0x58571aa0519a82f1d3839cae5392dfb060c5d572`. Where the pool pays less than the fund needs, it draws the difference from the caller's approved demo dollars. Selling, that is the rest of the fund's $10 minimum investment, repaid in USTX worth more at the NAV. Buying, it is a rounding remainder of up to a cent. Before, selling into fewer bids than the minimum reverted, and the pool could stay more than 1% from the NAV, where positions cannot open. The keeper approves its demo dollars to the new contract, keeps at least $10 of them, and sends a range arbitrage worth under a cent while the price is more than 0.95% from the NAV. The hook is unchanged.
+
+Validation of production source:
+- 278 application tests, typecheck and build; lint with 0 errors.
+- 111 contract tests. The new test fails on the replaced contract.
+- 34 relayer and keeper tests.
+- After the deploys, the crons and the keeper ran without errors, and the keeper approved its demo dollars to the new contract on its first run. Usage returned to 2 outside wallets and 71 actions once the range arbitrage's orders were counted as the keeper's. The main routes returned 200 and the legacy routes redirected.
+
+These are point-in-time observations, not continuous availability or a security audit.
+
+Public-snapshot validation: clean `npm ci` and `npm test` passed all 278 application tests; clean relayer `npm ci`, typecheck and all 34 tests passed. The first NAV cycle after deployment ran at 08:25 UTC with all eight other product records published and no warnings, and the USTX record of 08:30 UTC was confirmed at 08:30:19 UTC.

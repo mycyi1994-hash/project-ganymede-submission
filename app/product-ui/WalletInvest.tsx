@@ -55,7 +55,7 @@ const deploymentOf = (at: Place): V4Deployment | null => at === "v4" ? V4_POOL_D
  * after the amount stops changing. While the panel reads a newer block, the same order keeps its
  * last quote; null while a new order is quoted or when there is no v4 pool.
  */
-function useV4Quote(deployment: V4Deployment | null, owner: string, side: Side, amountIn: bigint | null, block: number): { quote: V4Quote | null; pending: boolean } {
+function useV4Quote(deployment: V4Deployment | null, owner: string, side: Side, amountIn: bigint | null, block: number, describe?: (error: unknown) => string): { quote: V4Quote | null; pending: boolean } {
   const order = amountIn !== null && amountIn > 0n && owner ? `${owner}:${side}:${amountIn}` : null;
   const key = order === null ? null : `${order}:${block}`;
   const [state, setState] = useState<{ key: string; quote: V4Quote | null } | null>(null);
@@ -63,12 +63,12 @@ function useV4Quote(deployment: V4Deployment | null, owner: string, side: Side, 
     if (!deployment || key === null || amountIn === null) return;
     let cancelled = false;
     const timer = window.setTimeout(() => {
-      readV4Quote(deployment, side, amountIn, owner, { minBlock: block })
+      readV4Quote(deployment, side, amountIn, owner, { minBlock: block, describe })
         .then(quote => { if (!cancelled) setState({ key, quote }); })
         .catch(() => { if (!cancelled) setState({ key, quote: null }); });
     }, 300);
     return () => { cancelled = true; window.clearTimeout(timer); };
-  }, [deployment, key, owner, side, amountIn, block]);
+  }, [deployment, key, owner, side, amountIn, block, describe]);
   const current = state !== null && order !== null && state.key.startsWith(`${order}:`) ? state : null;
   return { quote: current?.quote ?? null, pending: deployment !== null && key !== null && current === null };
 }
@@ -185,7 +185,7 @@ export function WalletInvest({ tabs, onUseDemo }: { tabs: ReactNode; onUseDemo: 
   // Every venue priced for this order; the pools still trade while the fund waits for a NAV record.
   const priced = account && !problem && amountIn ? routeOrder(side, amountIn, nav, account.pool) : null;
   const v4 = useV4Quote(V4_POOL_DEPLOYMENT, address, side, priced ? amountIn : null, account?.block ?? 0);
-  const rangeQuote = useV4Quote(RANGE_POOL_DEPLOYMENT, address, side, priced ? amountIn : null, account?.block ?? 0);
+  const rangeQuote = useV4Quote(RANGE_POOL_DEPLOYMENT, address, side, priced ? amountIn : null, account?.block ?? 0, rangeErrorMessage);
   const quotes: Record<"v4" | "range", { quote: V4Quote | null; pending: boolean }> = { v4, range: rangeQuote };
   const route: (Record<Place, bigint | null> & { best: Place | null; count: number }) | null = priced && (() => {
     const outs: Record<Place, bigint | null> = { fund: priced.fund, pool: priced.pool, v4: v4.quote?.amountOut ?? null, range: rangeQuote.quote?.amountOut ?? null };

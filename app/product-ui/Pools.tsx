@@ -24,9 +24,9 @@ import { ActivityProvider, PoolActivitySection, dayWindow, useActivityDay } from
 import { useWalletAccount } from "./WalletAccount";
 import { TxLink, sendFromWallet, useInjectedWallet, useWalletChain, type Provider } from "./WalletInvest";
 import { TxSteps, WalletGate, orderDeadline, runPlan, useUnmountSignal, type PlanProgress, type PlanStep, type StepState, type TxStep } from "./LiquidityParts";
-import { V4_POOL_DEPLOYMENT, formatFeePips, v4Calls, v4Fill, v4ValueMicros, v4WithdrawEstimate, type V4Amounts } from "@/lib/xstocks/v4-liquidity";
+import { V4_POOL_DEPLOYMENT, formatFeePips, v4Calls, v4ErrorMessage, v4Fill, v4ValueMicros, v4WithdrawEstimate, type V4Amounts } from "@/lib/xstocks/v4-liquidity";
 import { allocateShares, binTicksFor, planRange, planStrategy, strategyById } from "@/lib/xstocks/lp-strategy";
-import { RANGE_POOL_DEPLOYMENT, rangeCalls, rangeFill } from "@/lib/xstocks/range-liquidity";
+import { RANGE_POOL_DEPLOYMENT, rangeCalls, rangeErrorMessage, rangeFill } from "@/lib/xstocks/range-liquidity";
 import { V4LiquidityPanel, V4PoolGuide, V4PoolOverview, useV4Pool, v4Position, type V4Reader } from "./PoolsV4";
 import { PoolResults } from "./PoolResults";
 import { DEFAULT_CHOICE, StrategyChart, StrategyPicker, ownRangeOf, strategyPercent, type StrategyChoice } from "./PoolStrategy";
@@ -335,6 +335,8 @@ function LiquidityPanel({ provider, chain, owner, reader, v4, range, onBusy, amo
   const [failure, setFailure] = useState<{ message: string; hash: string | null } | null>(null);
   const [done, setDone] = useState<Done | null>(null);
   const [claim, setClaim] = useState<{ state: "wallet" | "chain" | "failed"; message?: string } | null>(null);
+  /** USTX a deposit bought and could not finish depositing, and whether the constant-product pool took its part. */
+  const [carried, setCarried] = useState<{ key: string; sharesMicros: bigint; added: boolean } | null>(null);
   const stepsRef = useRef<HTMLOListElement>(null);
   const doneRef = useRef<HTMLDivElement>(null);
   const failureRef = useRef<HTMLParagraphElement>(null);
@@ -379,36 +381,45 @@ function LiquidityPanel({ provider, chain, owner, reader, v4, range, onBusy, amo
   const rangeFresh = !range || (rangeSnapshot !== null && rangeSnapshot.pool.block >= range.watermark);
   const own = range && RANGE_POOL_DEPLOYMENT ? ownRangeOf(strategy) : null;
   const rangePlan = own ? planRange(dollarsOnly ?? 0n, nav, own.sides) : null;
+  // A strategy with part at the NAV: one investment, then each pool's part.
+  const percent = v4 && V4_POOL_DEPLOYMENT && !own ? strategyPercent(strategy) : 0;
+  const mixed = percent > 0;
+  const strategyPlan = mixed && pool ? planStrategy(dollarsOnly ?? 0n, percent, nav, pool, v4Pool) : null;
+  const planQuote = strategyPlan?.constantProduct && pool ? quoteAddLiquidity(strategyPlan.constantProduct.sharesMicros, strategyPlan.constantProduct.dollarsMicros, pool) : null;
+  // The USTX an unfinished attempt at this same deposit bought is still in the wallet: trying again
+  // deposits it instead of buying more, with only the demo dollars still to go in.
+  const planKey = `${owner}:${JSON.stringify(own ?? strategy.id)}:${dollarsOnly ?? ""}`;
+  const carriedShares = !carried ? 0n : carried.added && strategyPlan ? allocateShares(strategyPlan, carried.sharesMicros).v4 : carried.sharesMicros;
+  const reuse = carried && carried.key === planKey && account && account.sharesMicros >= carriedShares ? carried : null;
+  const dollarsNeeded = !reuse ? dollarsOnly
+    : rangePlan ? rangePlan.dollarsMicros
+    : strategyPlan ? (reuse.added ? 0n : strategyPlan.constantProduct?.dollarsMicros ?? 0n) + (strategyPlan.v4?.dollarsMicros ?? 0n)
+    : dollarsOnly;
   const rangeNavGap = rangePool && rangePool.navMicros ? Number(rangePool.priceMicros - rangePool.navMicros) / Number(rangePool.navMicros) : null;
   const rangeProblem = !own || !account || !pool ? null
     : !fresh || !rangeFresh ? "Updating your balances…"
     : !rangePool || !rangeAccount ? "Reading the range pool on X Layer Testnet…"
     : rangePool.navMicros === null ? rangePool.navReason ?? "The range pool cannot use the NAV right now."
     : dollarsOnly === null || dollarsOnly === 0n ? "Enter an amount in demo dollars."
-    : dollarsOnly > account.dollarsMicros ? "That is more than your demo dollars."
+    : (dollarsNeeded ?? 0n) > account.dollarsMicros ? "That is more than your demo dollars."
     : !rangePlan ? "That amount is too small: the part bought at the NAV must come to at least $10."
     : rangeNavGap !== null && Math.abs(rangeNavGap) > 0.0095 ? "The range pool’s price is more than 1% from the NAV right now. The keeper brings it back within five minutes."
     : null;
   const rangeConfirmations = !rangePlan || !account || !rangeAccount ? 0
-    : (rangePlan.investMicros > 0n ? Number(account.fundAllowanceMicros < rangePlan.investMicros) + 1 + Number(rangeAccount.assetAllowanceMicros < rangePlan.sharesMicros * 101n / 100n) : 0)
+    : (rangePlan.investMicros > 0n ? (reuse ? 0 : Number(account.fundAllowanceMicros < rangePlan.investMicros) + 1) + Number(rangeAccount.assetAllowanceMicros < rangePlan.sharesMicros * 101n / 100n) : 0)
       + (rangePlan.dollarsMicros > 0n ? Number(rangeAccount.dollarAllowanceMicros < rangePlan.dollarsMicros) : 0) + 1;
-  // A strategy with part at the NAV: one investment, then each pool's part.
-  const percent = v4 && V4_POOL_DEPLOYMENT && !own ? strategyPercent(strategy) : 0;
-  const mixed = percent > 0;
-  const strategyPlan = mixed && pool ? planStrategy(dollarsOnly ?? 0n, percent, nav, pool, v4Pool) : null;
-  const planQuote = strategyPlan?.constantProduct && pool ? quoteAddLiquidity(strategyPlan.constantProduct.sharesMicros, strategyPlan.constantProduct.dollarsMicros, pool) : null;
   const strategyProblem = !mixed || !account || !pool ? null
     : !fresh || !v4Fresh ? "Updating your balances…"
     : !v4Pool || !v4Account ? "Reading the v4 pool on X Layer Testnet…"
     : nav === null ? "Deposits of demo dollars alone reopen with the next NAV record."
     : dollarsOnly === null || dollarsOnly === 0n ? "Enter an amount in demo dollars."
-    : dollarsOnly > account.dollarsMicros ? "That is more than your demo dollars."
+    : (dollarsNeeded ?? 0n) > account.dollarsMicros ? "That is more than your demo dollars."
     : !strategyPlan ? "That amount is too small: the part bought at the NAV must come to at least $10."
     : strategyPlan.constantProduct && !planQuote ? "That amount is too small for the constant-product pool."
     : null;
   const strategyConfirmations = !strategyPlan || !account || !v4Account ? 0
-    : Number(account.fundAllowanceMicros < strategyPlan.investMicros) + 1
-      + (strategyPlan.constantProduct ? Number(account.poolDollarAllowanceMicros < strategyPlan.constantProduct.dollarsMicros) + Number(account.poolShareAllowanceMicros < strategyPlan.constantProduct.sharesMicros * 101n / 100n) + 1 : 0)
+    : (reuse ? 0 : Number(account.fundAllowanceMicros < strategyPlan.investMicros) + 1)
+      + (strategyPlan.constantProduct && !reuse?.added ? Number(account.poolDollarAllowanceMicros < strategyPlan.constantProduct.dollarsMicros) + Number(account.poolShareAllowanceMicros < strategyPlan.constantProduct.sharesMicros * 101n / 100n) + 1 : 0)
       + (strategyPlan.v4 ? Number(v4Account.dollarAllowanceMicros < strategyPlan.v4.dollarsMicros) + Number(v4Account.assetAllowanceMicros < strategyPlan.v4.sharesMicros * 101n / 100n) + 1 : 0);
   // Withdrawing: LP tokens, and what they pay now.
   const lpAmount = parseShares(removeText);
@@ -504,8 +515,8 @@ function LiquidityPanel({ provider, chain, owner, reader, v4, range, onBusy, amo
       read: receipt => { const fill = liquidityFill(receipt); if (fill?.side !== "add") throw new Error("The deposit did not go through on X Layer Testnet."); result.added = fill; },
     });
     if (rangeRun && rangePlan && rangeAccount && own && RANGE_POOL_DEPLOYMENT) {
-      const parts = rangePlan, deployment = RANGE_POOL_DEPLOYMENT, mineRange = rangeAccount, calls = rangeCalls(deployment), shape = own;
-      if (parts.investMicros > 0n) {
+      const parts = rangePlan, deployment = RANGE_POOL_DEPLOYMENT, mineRange = rangeAccount, calls = rangeCalls(deployment), shape = own, carry = reuse;
+      if (parts.investMicros > 0n && !carry) {
         if (wallet.fundAllowanceMicros < parts.investMicros) plan.push({ key: "approveFund", label: "Approve demo dollars for the fund", approval: true, request: async () => fundCalls.approve(parts.investMicros) });
         plan.push({
           key: "invest", label: "Invest at the NAV", approval: false,
@@ -517,7 +528,7 @@ function LiquidityPanel({ provider, chain, owner, reader, v4, range, onBusy, amo
           },
         });
       }
-      const shares = () => result.invested?.sharesMicros ?? 0n;
+      const shares = () => result.invested?.sharesMicros ?? carry?.sharesMicros ?? 0n;
       if (parts.dollarsMicros > 0n && mineRange.dollarAllowanceMicros < parts.dollarsMicros) plan.push({ key: "approveRangeDollars", label: "Approve demo dollars for your position", approval: true, request: async () => calls.approveDollars(parts.dollarsMicros) });
       if (parts.investMicros > 0n) plan.push({ key: "approveRangeShares", label: "Approve USTX for your position", approval: true, request: async () => mineRange.assetAllowanceMicros >= shares() ? null : calls.approveShares(shares()) });
       const binTicks = binTicksFor(shape.rangePercent, shape.bins);
@@ -527,20 +538,22 @@ function LiquidityPanel({ provider, chain, owner, reader, v4, range, onBusy, amo
         read: receipt => { const fill = rangeFill(receipt, deployment, from); if (!fill.opened) throw new Error("The position did not open on X Layer Testnet."); result.opened = fill.opened; },
       });
     } else if (strategyRun && strategyPlan && v4Account && V4_POOL_DEPLOYMENT) {
-      const parts = strategyPlan, hook = V4_POOL_DEPLOYMENT, pegged = v4Account, calls = v4Calls(hook);
-      if (wallet.fundAllowanceMicros < parts.investMicros) plan.push({ key: "approveFund", label: "Approve demo dollars for the fund", approval: true, request: async () => fundCalls.approve(parts.investMicros) });
-      plan.push({
-        key: "invest", label: "Invest at the NAV", approval: false,
-        request: async () => fundCalls.invest(parts.investMicros, withSlippage(parts.sharesMicros)),
-        read: receipt => {
-          const fill = fundFill(receipt);
-          if (fill?.side !== "invest") throw new Error("The investment did not go through on X Layer Testnet.");
-          result.invested = { dollarsMicros: fill.dollarsMicros, sharesMicros: fill.sharesMicros };
-        },
-      });
-      // The USTX bought, shared between the pools as each part invested.
-      const shares = () => allocateShares(parts, result.invested?.sharesMicros ?? parts.sharesMicros);
-      if (parts.constantProduct) {
+      const parts = strategyPlan, hook = V4_POOL_DEPLOYMENT, pegged = v4Account, calls = v4Calls(hook), carry = reuse;
+      if (!carry) {
+        if (wallet.fundAllowanceMicros < parts.investMicros) plan.push({ key: "approveFund", label: "Approve demo dollars for the fund", approval: true, request: async () => fundCalls.approve(parts.investMicros) });
+        plan.push({
+          key: "invest", label: "Invest at the NAV", approval: false,
+          request: async () => fundCalls.invest(parts.investMicros, withSlippage(parts.sharesMicros)),
+          read: receipt => {
+            const fill = fundFill(receipt);
+            if (fill?.side !== "invest") throw new Error("The investment did not go through on X Layer Testnet.");
+            result.invested = { dollarsMicros: fill.dollarsMicros, sharesMicros: fill.sharesMicros };
+          },
+        });
+      }
+      // The USTX bought, now or by the unfinished attempt, shared between the pools as each part invested.
+      const shares = () => allocateShares(parts, result.invested?.sharesMicros ?? carry?.sharesMicros ?? parts.sharesMicros);
+      if (parts.constantProduct && !carry?.added) {
         const cp = parts.constantProduct;
         if (wallet.poolDollarAllowanceMicros < cp.dollarsMicros) plan.push({ key: "approveDollars", label: "Approve demo dollars for the constant-product pool", approval: true, request: async () => poolCalls.approveDollars(cp.dollarsMicros) });
         plan.push({ key: "approveShares", label: "Approve USTX for the constant-product pool", approval: true, request: async () => wallet.poolShareAllowanceMicros >= shares().constantProduct ? null : poolCalls.approveShares(shares().constantProduct) });
@@ -645,16 +658,27 @@ function LiquidityPanel({ provider, chain, owner, reader, v4, range, onBusy, amo
         : result.removed || result.withdrawn || result.cancelled || result.closed ? { tab: "remove", removed: result.removed, withdrawn: sumAmounts(result.withdrawn, result.cancelled), closed: result.closed, redeemed: result.redeemed, hashes, block } : null;
       if (!finished) throw new Error("The transaction did not go through on X Layer Testnet.");
       setDone(finished);
+      setCarried(null);
       setPhase("done");
       if (action === "add") { setPair(current => ({ ...current, text: "" })); setDollarsText(""); } else setRemoveText("");
     } catch (error) {
-      // An earlier step may have gone through: say what is in the wallet now.
-      const partial = result.invested && rangeRun && !result.opened ? `Your investment went through: ${ustx(result.invested.sharesMicros)} are in your wallet. Try opening the position again, or use them elsewhere. `
-        : result.invested && (result.added || result.deposited) ? `Part of it went through: ${result.added ? "the constant-product pool's part is deposited" : "the v4 pool's part is deposited"}; what remains is in your wallet. `
+      // An earlier step may have gone through: say what is in the wallet now. The USTX a strategy or a
+      // position bought is kept, so that trying the same deposit again deposits it rather than buying more.
+      const bought = rangeRun || strategyRun ? result.invested?.sharesMicros ?? reuse?.sharesMicros ?? null : null;
+      const added = Boolean(result.added || reuse?.added);
+      const unfinished = bought !== null && (rangeRun ? !result.opened : !result.deposited);
+      if (unfinished) setCarried({ key: planKey, sharesMicros: bought, added });
+      const out = [result.removed, result.withdrawn, result.cancelled, result.closed];
+      const partial = unfinished ? (rangeRun ? `${ustx(bought)} bought at the NAV are in your wallet. Try again to open the position with them: it will not buy more. `
+          : added ? `The constant-product pool's part is deposited; the v4 pool's part of the ${ustx(bought)} bought at the NAV is in your wallet. Try again to deposit it: it will not buy more. `
+          : `${ustx(bought)} bought at the NAV are in your wallet. Try again to deposit them: it will not buy more. `)
         : result.invested && !result.added ? `Your investment went through: ${ustx(result.invested.sharesMicros)} are in your wallet, ready to deposit with demo dollars. `
-        : (result.removed || result.withdrawn || result.cancelled) && !result.redeemed && take === "dollars" ? `Your liquidity was withdrawn: ${ustx((result.removed?.sharesMicros ?? 0n) + (result.withdrawn?.sharesMicros ?? 0n) + (result.cancelled?.sharesMicros ?? 0n))} and ${usd((result.removed?.dollarsMicros ?? 0n) + (result.withdrawn?.dollarsMicros ?? 0n) + (result.cancelled?.dollarsMicros ?? 0n))} are in your wallet. You can redeem the USTX on the USTX page. `
+        : out.some(Boolean) && !result.redeemed && take === "dollars" ? `Your liquidity was withdrawn: ${ustx(out.reduce((sum, part) => sum + (part?.sharesMicros ?? 0n), 0n))} and ${usd(out.reduce((sum, part) => sum + (part?.dollarsMicros ?? 0n), 0n))} are in your wallet. You can redeem the USTX on the USTX page. `
         : "";
-      setFailure({ message: `${partial}${liquidityErrorMessage(error)}`, hash: progress.lastHash });
+      // In the words of the contract the failed step called.
+      const step = progress.step ?? "";
+      const reason = /^(approveRange|open|close)/.test(step) ? rangeErrorMessage(error) : /^(approveV4|deposit|cancelV4|withdrawV4)/.test(step) ? v4ErrorMessage(error) : liquidityErrorMessage(error);
+      setFailure({ message: `${partial}${reason}`, hash: progress.lastHash });
       // So that trying again does not repeat the step that went through: the bought USTX waits in the
       // pair form, and a withdrawal that came out is not withdrawn again.
       if (result.invested && !result.added && !result.deposited && !strategyRun && !rangeRun) { setExpert(true); setMode("pair"); setPair({ anchor: "shares", text: plain(result.invested.sharesMicros) }); setDollarsText(""); }
@@ -736,9 +760,9 @@ function LiquidityPanel({ provider, chain, owner, reader, v4, range, onBusy, amo
     const v4Lp = v4Mine?.lp ?? 0n;
     const ownPositions = rangeAccount?.positions ?? [];
     const receipt = own && rangePlan
-      ? `A position of your own: ${rangePlan.investMicros > 0n ? `${usd(rangePlan.investMicros)} buys USTX for the bins above` : "no USTX"}${rangePlan.dollarsMicros > 0n ? `, ${usd(rangePlan.dollarsMicros)} for the bins below` : ""} · ${rangeConfirmations} wallet confirmations`
+      ? `A position of your own: ${rangePlan.investMicros > 0n ? reuse ? `the ${ustx(reuse.sharesMicros)} already bought for the bins above` : `${usd(rangePlan.investMicros)} buys USTX for the bins above` : "no USTX"}${rangePlan.dollarsMicros > 0n ? `, ${usd(rangePlan.dollarsMicros)} for the bins below` : ""} · ${rangeConfirmations} wallet confirmations`
       : mixed && strategyPlan
-      ? `${planQuote ? `${formatShares(planQuote.liquidity)} USTX-LP now, ` : ""}${strategyPlan.v4 ? "v4 LP tokens at the next NAV record" : ""} · ${strategyConfirmations} wallet confirmations`
+      ? `${reuse ? `With the ${ustx(reuse.sharesMicros)} already bought: ` : ""}${planQuote && !reuse?.added ? `${formatShares(planQuote.liquidity)} USTX-LP now, ` : ""}${strategyPlan.v4 ? "v4 LP tokens at the next NAV record" : ""} · ${strategyConfirmations} wallet confirmations`
       : splitQuote ? `You receive ${formatShares(splitQuote.liquidity)} USTX-LP · ${confirmations} wallet ${confirmations === 1 ? "confirmation" : "confirmations"}` : null;
     return shell(<>
       {!fresh && <p className="gmd-caption" role="status">Updating your balances from X Layer Testnet…</p>}

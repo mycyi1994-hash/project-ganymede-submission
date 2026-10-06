@@ -9,6 +9,7 @@
 import { FUND_DEPLOYMENT, FUND_EVENTS, POOL_EVENTS, atBlock, hexBlock, quantity, readBlock, words, type Rpc } from "./fund";
 import { LENDING_EVENTS } from "./lending";
 import { buyFeeMicros, sellFeeMicros } from "./liquidity";
+import { RANGE_ARBITRAGES } from "./range-liquidity";
 import { V4_EVENTS, V4_POOL_DEPLOYMENT, V4_SWAPPED_TOPIC, byToken } from "./v4-liquidity";
 
 /** GanymedeBasketFund's deployment block on X Layer Testnet: no market event is older. */
@@ -37,7 +38,11 @@ const SOURCES: Record<string, readonly string[]> = {
   [FUND_DEPLOYMENT.arbitrage]: [ACTIVITY_EVENTS.arbitraged],
   [FUND_DEPLOYMENT.lending]: [...Object.values(LENDING_EVENTS), ACTIVITY_EVENTS.liquidated],
   ...(V4 ? { [V4.router]: [V4_SWAPPED_TOPIC], [V4.hook]: [V4_EVENTS.deposited, V4_EVENTS.withdrawn] } : {}),
+  // The range pool's arbitrage reports each run with an event of the same signature as the
+  // constant-product pool's, which it is told apart from by its address.
+  ...Object.fromEntries(RANGE_ARBITRAGES.map(address => [address, [ACTIVITY_EVENTS.arbitraged]])),
 };
+const RANGE_ARBITRAGE = new Set(RANGE_ARBITRAGES);
 const ADDRESSES = Object.keys(SOURCES);
 const TOPICS = [...new Set(Object.values(SOURCES).flat())];
 
@@ -48,11 +53,15 @@ export type ActivityKind =
   | "buy" | "sell" | "addLiquidity" | "removeLiquidity"
   // Both in one transaction, by GanymedeNavArbitrage.
   | "arbitrage"
+  // In the range pool and at the fund in one transaction, by GanymedeRangeArbitrage.
+  | "rangeArbitrage"
   // In the Uniswap v4 pool held at the NAV: trades through its router, and its liquidity.
   | "v4Buy" | "v4Sell" | "v4Deposit" | "v4Withdraw"
   // In the lending market, named as in lib/xstocks/lending.ts.
   | "deposit" | "withdrawCollateral" | "borrow" | "repay" | "lend" | "withdraw" | "liquidate";
-const KINDS = new Set<string>(["invest", "redeem", "buy", "sell", "addLiquidity", "removeLiquidity", "arbitrage", "v4Buy", "v4Sell", "v4Deposit", "v4Withdraw", "deposit", "withdrawCollateral", "borrow", "repay", "lend", "withdraw", "liquidate"]);
+const KINDS = new Set<string>(["invest", "redeem", "buy", "sell", "addLiquidity", "removeLiquidity", "arbitrage", "rangeArbitrage", "v4Buy", "v4Sell", "v4Deposit", "v4Withdraw", "deposit", "withdrawCollateral", "borrow", "repay", "lend", "withdraw", "liquidate"]);
+/** The keeper's arbitrage, in either pool. */
+export const isArbitrage = (kind: ActivityKind) => kind === "arbitrage" || kind === "rangeArbitrage";
 
 export type MarketActivity = {
   kind: ActivityKind;
@@ -70,7 +79,7 @@ export type MarketActivity = {
   sharesMicros: bigint | null;
   /** The NAV the fund filled at, or the one an arbitrage or a liquidation used. */
   navMicros: bigint | null;
-  /** Arbitrage only: the demo dollars that came back, and whether it bought in the pool. */
+  /** Arbitrage only, in either pool: the demo dollars that came back, and whether it bought in the pool. */
   dollarsOutMicros: bigint | null;
   boughtInPool: boolean | null;
   /** Liquidation only: the borrower whose loan was repaid. */
@@ -81,8 +90,10 @@ const invalid = () => new Error("X Layer Testnet returned an invalid market even
 const HASH = /^0x[0-9a-f]{64}$/;
 
 type ChainLog = { address: string; topics: string[]; data: string; block: number; logIndex: number; hash: string };
+/** A decoded event; a range arbitrage's report keeps what it earned until its fund order is folded in. */
+type EventRow = MarketActivity & { earnedMicros?: bigint };
 /** A decoded event whose block time may still be missing: `row.at` is set once it is known. */
-type ChainEvent = { row: MarketActivity; time: number | null };
+type ChainEvent = { row: EventRow; time: number | null };
 
 /**
  * The market events in a log response for blocks `from` to `to`, checked and decoded; other logs
@@ -114,7 +125,7 @@ const indexed = (topic: string | undefined) => {
 };
 
 /** One event as a row of its own, before its block time is known. */
-function eventRow(log: ChainLog): MarketActivity {
+function eventRow(log: ChainLog): EventRow {
   const row = { hash: log.hash, block: log.block, logIndex: log.logIndex, at: "", account: indexed(log.topics[1]), dollarsMicros: null, sharesMicros: null, navMicros: null, dollarsOutMicros: null, boughtInPool: null, borrower: null };
   const [topic] = log.topics;
   switch (topic) {
@@ -125,6 +136,12 @@ function eventRow(log: ChainLog): MarketActivity {
     case ACTIVITY_EVENTS.liquidityAdded: { const [shares, dollars] = words(log.data, 3); return { ...row, kind: "addLiquidity", dollarsMicros: dollars, sharesMicros: shares }; }
     case ACTIVITY_EVENTS.liquidityRemoved: { const [shares, dollars] = words(log.data, 3); return { ...row, kind: "removeLiquidity", dollarsMicros: dollars, sharesMicros: shares }; }
     case ACTIVITY_EVENTS.arbitraged: {
+      if (RANGE_ARBITRAGE.has(log.address)) {
+        // The USTX it moved through the range pool and what it earned; the dollars come from its fund order.
+        const [bought, shares, earned, nav] = words(log.data, 4);
+        if (bought > 1n) throw invalid();
+        return { ...row, kind: "rangeArbitrage", sharesMicros: shares, navMicros: nav, boughtInPool: bought === 1n, earnedMicros: earned };
+      }
       const [bought, dollarsIn, dollarsOut, nav] = words(log.data, 4);
       if (bought > 1n) throw invalid();
       return { ...row, kind: "arbitrage", dollarsMicros: dollarsIn, dollarsOutMicros: dollarsOut, navMicros: nav, boughtInPool: bought === 1n };
@@ -162,15 +179,35 @@ function eventRow(log: ChainLog): MarketActivity {
 }
 
 const newestFirst = (a: MarketActivity, b: MarketActivity) => b.block - a.block || b.logIndex - a.logIndex;
-/** The arbitrage contract's own trade in the pool and order at the fund: the halves of its row. */
-const half = (row: MarketActivity) => row.account === FUND_DEPLOYMENT.arbitrage && ["buy", "sell", "invest", "redeem"].includes(row.kind);
+/**
+ * The arbitrage contracts' own trades in the pool and orders at the fund: the halves of their rows.
+ * The range pool's arbitrage leaves only its fund order, as its swap is the pool manager's event.
+ */
+const half = (row: MarketActivity) => (row.account === FUND_DEPLOYMENT.arbitrage && ["buy", "sell", "invest", "redeem"].includes(row.kind))
+  || (RANGE_ARBITRAGE.has(row.account) && (row.kind === "invest" || row.kind === "redeem"));
+
+/**
+ * A range arbitrage as one row: it bought USTX in the range pool and redeemed it at the fund, or
+ * invested at the fund and sold the USTX there. Its fund order gives the dollars, and what it earned
+ * the other side. A run that moved the price across a stretch with no liquidity traded nothing.
+ */
+function rangeArbitrageRow({ earnedMicros = 0n, ...report }: EventRow, order: MarketActivity | undefined): MarketActivity[] {
+  if (report.sharesMicros === 0n) return [];
+  const dollars = order?.dollarsMicros ?? null;
+  if (dollars === null) return [report];
+  // It earns what the fund paid less what the pool took: never more than the fund paid.
+  if (report.boughtInPool && earnedMicros > dollars) throw invalid();
+  return [report.boughtInPool
+    ? { ...report, dollarsMicros: dollars - earnedMicros, dollarsOutMicros: dollars }
+    : { ...report, dollarsMicros: dollars, dollarsOutMicros: dollars + earnedMicros }];
+}
 
 /**
  * Rows from decoded events, newest first. An arbitrage is one row: its pool trade and fund order
  * are folded into the Arbitraged event that follows them, which gains the USTX the pool traded.
  */
 function rowsFromEvents(events: ChainEvent[], times: Map<number, number>): MarketActivity[] {
-  const byTransaction = new Map<string, MarketActivity[]>();
+  const byTransaction = new Map<string, EventRow[]>();
   for (const { row, time } of [...events].sort((a, b) => a.row.block - b.row.block || a.row.logIndex - b.row.logIndex)) {
     const seconds = time ?? times.get(row.block);
     if (seconds === undefined) throw invalid();
@@ -184,6 +221,9 @@ function rowsFromEvents(events: ChainEvent[], times: Map<number, number>): Marke
       else if (row.kind === "arbitrage") {
         const pool = halves.find(item => item.kind === "buy" || item.kind === "sell");
         rows.push({ ...row, sharesMicros: pool?.sharesMicros ?? null });
+        halves = [];
+      } else if (row.kind === "rangeArbitrage") {
+        rows.push(...rangeArbitrageRow(row, halves.find(item => RANGE_ARBITRAGE.has(item.account))));
         halves = [];
       } else rows.push(row);
     }
@@ -266,6 +306,15 @@ export async function updateActivityIndex(index: ActivityIndex | null, rpc: Rpc,
     if (merged.length > ACTIVITY_KEEP) fromBlock = Math.max(fromBlock, rows[rows.length - 1].block + 1);
   };
   let chunks = options.chunks ?? ACTIVITY_CHUNKS_PER_RUN;
+  // Rows kept from before the range pool's arbitrage was folded in are its fund orders, under the
+  // contract's address. Their blocks are read again, so each becomes the arbitrage it was part of.
+  const stale = [...new Set(rows.filter(row => RANGE_ARBITRAGE.has(row.account)).map(row => row.block))].slice(0, chunks);
+  for (const block of stale) {
+    const again = await scanActivity(rpc, block, block, { attempts: INDEX_ATTEMPTS });
+    const replaced = new Set(rows.filter(row => row.block === block && RANGE_ARBITRAGE.has(row.account)).map(row => row.hash));
+    rows = mergeActivity(rows.filter(row => !replaced.has(row.hash)), again.filter(row => replaced.has(row.hash)), Infinity);
+    chunks -= 1;
+  }
   if (toBlock < head) {
     const end = Math.min(head, toBlock + chunks * CHUNK_BLOCKS);
     const more = await scanActivity(rpc, toBlock + 1, end, { attempts: INDEX_ATTEMPTS });
@@ -301,7 +350,7 @@ export type ActivityDay = {
   poolFeesMicros: bigint;
 };
 
-const TRADE_KINDS = new Set<ActivityKind>(["invest", "redeem", "buy", "sell", "arbitrage", "v4Buy", "v4Sell"]);
+const TRADE_KINDS = new Set<ActivityKind>(["invest", "redeem", "buy", "sell", "arbitrage", "rangeArbitrage", "v4Buy", "v4Sell"]);
 const LOAN_KINDS = new Set<ActivityKind>(["deposit", "withdrawCollateral", "borrow", "repay", "lend", "withdraw", "liquidate"]);
 
 /**
@@ -322,7 +371,7 @@ export function activityCounts(rows: MarketActivity[], sinceMs: number): Omit<Ac
   for (const row of rows) {
     if (Date.parse(row.at) < sinceMs) continue;
     if (TRADE_KINDS.has(row.kind)) { day.trades += 1; day.volumeMicros += row.dollarsMicros ?? 0n; }
-    if (row.kind === "arbitrage") {
+    if (isArbitrage(row.kind)) {
       day.arbitrages += 1;
       if (row.dollarsOutMicros !== null && row.dollarsMicros !== null && row.dollarsOutMicros > row.dollarsMicros) day.earnedMicros += row.dollarsOutMicros - row.dollarsMicros;
     }
@@ -364,7 +413,7 @@ const ORDER_KINDS = new Set<ActivityKind>(["invest", "redeem", "buy", "sell", "v
 
 /** A row worth marking on the NAV chart: the keeper's arbitrage, or an order of $1,000 or more. */
 export function isHighlight(row: MarketActivity): boolean {
-  return row.kind === "arbitrage" || (ORDER_KINDS.has(row.kind) && row.dollarsMicros !== null && row.dollarsMicros >= LARGE_ORDER_MICROS);
+  return isArbitrage(row.kind) || (ORDER_KINDS.has(row.kind) && row.dollarsMicros !== null && row.dollarsMicros >= LARGE_ORDER_MICROS);
 }
 
 /** Served marked rows, checked and newest first; empty when missing or malformed. */

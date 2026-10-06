@@ -1,6 +1,6 @@
 # Build provenance
 
-Production source revision: `3e35e3ad3aaf862f7a9db9e39d7328f338edfb3b`.
+Production source revision: `3ddacccd5f51f7e419c8f0722499c083993dd4ca`.
 
 This is a source snapshot, not a claim that the entire project was newly built for this event. The original repository remains private. The entries below were exported from its Git history; reviewers can inspect current implementations and tests, and request original history access from the team if needed. No old secrets, local environment files or full private Git history are published.
 
@@ -728,3 +728,11 @@ Production source: `3e35e3ad3aaf862f7a9db9e39d7328f338edfb3b`. App Worker versio
 Pools opens on Custom, the grid of blocks. A position of one's own reaches up to ±100%, as wide as the range hook takes (20 bins a side of up to about 5% each): a reach takes the bins it needs, fewer bins bring the reach in to what they cover, and the chart opens on the narrowest view that holds the position, counting a bin that straddles the 2% band for the part inside it. Bins more than 5% from the NAV trade once the NAV moves to them.
 
 Checks: `npm test` passed all 279 application tests and `npm run lint` reported no errors. On the public site at two widths, Custom was selected on arrival, ±50% took 10 bins with prices from $67.38 to $153.13 and a ±60% view, a ±100% reach took 15 bins, and 5 bins brought the reach to ±28%; twelve pages at two widths returned 200 with no page errors or horizontal overflow, legacy routes redirected and a forged identity header was refused. The latest NAV record on chain was still the one from 14:20 UTC. These are point-in-time observations, not continuous availability or a security audit.
+
+## A basket's chart counts its own holdings — 6 October 2026
+
+Production source: `3ddacccd5f51f7e419c8f0722499c083993dd4ca`. App Worker version: `864f4be9-d635-430b-abac-96f7092cbba6`; prior version: `9f92aa73-34c5-407c-80e2-19680bb8c0aa`. The keeper and the contracts are unchanged. Exported development commit: `14875df38c66a9c43f148ff3683003efc5cda3ff`, which adds only the release record and the build-period record to the production source.
+
+Portfolio's look-through chart said "Across 6 xStocks" whatever the basket held, though USTX has held nine since 4 October; it now counts the basket's holdings. The Dev Day notes now give the nine token contracts and the test counts on 6 October (279 application tests, 34 relayer tests, 116 contract tests) instead of those from the build period, and the design preview says nine as well.
+
+Checks: `npm test` passed all 279 application tests and `npm run lint` reported no errors. On the public site twelve pages at two widths returned 200 with no page errors or horizontal overflow, legacy routes redirected, a forged identity header was refused, and the served bundle no longer contained "Across 6 xStocks". X Layer Testnet was producing blocks holding only its system transaction, so the latest NAV record on chain was still the one from 14:20 UTC. These are point-in-time observations, not continuous availability or a security audit.

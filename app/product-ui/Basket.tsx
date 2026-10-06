@@ -96,7 +96,7 @@ export function AllocationDonut({ rows, totalMicros, label }: { rows: Slice[]; t
       <svg viewBox={`0 0 ${SIZE} ${SIZE}`} aria-hidden="true" onPointerLeave={() => setActive(null)}>
         {slices.map(slice => <path key={slice.symbol} d={arc(slice.start, slice.end)} fill={assetColors[slice.symbol] ?? "#526570"} className={active && active !== slice.symbol ? "is-muted" : ""} onPointerEnter={() => setActive(slice.symbol)} />)}
       </svg>
-      <figcaption aria-hidden="true">{focus ? <><span>{assetNames[focus.symbol] ?? focus.symbol}</span><strong>{formatUsdRounded(focus.valueMicros)}</strong><small>{percent(focus.weightBps)} of the basket</small></> : <><span>Across 6 xStocks</span><strong>{formatUsdRounded(totalMicros)}</strong><small>At OKX OnchainOS prices</small></>}</figcaption>
+      <figcaption aria-hidden="true">{focus ? <><span>{assetNames[focus.symbol] ?? focus.symbol}</span><strong>{formatUsdRounded(focus.valueMicros)}</strong><small>{percent(focus.weightBps)} of the basket</small></> : <><span>Across {rows.length} xStocks</span><strong>{formatUsdRounded(totalMicros)}</strong><small>At OKX OnchainOS prices</small></>}</figcaption>
     </figure>
     <ul className="gmd-allocation-legend" aria-label="Weights">{rows.map(row => <li key={row.symbol} style={assetStyle(row.symbol)} className={active === row.symbol ? "is-active" : ""} onPointerEnter={() => setActive(row.symbol)} onPointerLeave={() => setActive(null)}>
       <i aria-hidden="true" /><span><b>{assetNames[row.symbol] ?? row.symbol}</b><small>{row.symbol}</small></span><span><b>{percent(row.weightBps)}</b><small>{formatUsdRounded(row.valueMicros)}</small></span>

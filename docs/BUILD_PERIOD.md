@@ -82,6 +82,7 @@ Ganymede was selected as one of 30 finalists from 150 teams. The organizers conf
 | 2026-10-06 15:46 | `a81c181` | Custom on Pools draws a range position's shape in a grid of blocks, as on Meteora's DLMM Pro: a column per bin with the current price, undo and redo, presets in the same grid, ranges of ±1–10% with their prices, setups saved by name, and the chart drawn bin by bin |
 | 2026-10-06 16:33 | `9d8c2f8` | A tab opened before a deploy, whose build's files are gone, loads the page it was opening again instead of leaving Pools blank |
 | 2026-10-06 16:57 | `7e44a5b` | Pools shows the pool and its chart at the pool's own price while the NAV record is over an hour old, instead of loading for good |
+| 2026-10-06 17:23 | `3e35e3a` | Pools opens on Custom, and a position of one's own reaches up to ±100%, taking the bins it needs, with the chart fitted to it |
 
 ## Every commit in the build period (UTC)
 

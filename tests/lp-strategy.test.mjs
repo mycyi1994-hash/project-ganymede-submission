@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { DRAWN_LEVELS, DRAWN_MAX, DRAWN_STEP, allocateShares, binTicksFor, constantProductRange, drawingFrom, drawingProblem, fitDrawing, LP_STRATEGIES, ownAboveShare, ownBins, ownSides, planRange, planStrategy, strategyShape, strategyYear, workingNearNav } from "../lib/xstocks/lp-strategy.ts";
+import { DRAWN_LEVELS, DRAWN_MAX, DRAWN_STEP, allocateShares, binTicksFor, binsToReach, maxReachFor, constantProductRange, drawingFrom, drawingProblem, fitDrawing, LP_STRATEGIES, ownAboveShare, ownBins, ownSides, planRange, planStrategy, strategyShape, strategyYear, workingNearNav } from "../lib/xstocks/lp-strategy.ts";
 import { MULTICALL3, RangePriceMoved, assertRangePriceNear, openLimits, previewShape, previewWeights, rangeCalls, rangeErrorMessage, rangeFill, readAll, readRangeTick, shapeWeights } from "../lib/xstocks/range-liquidity.ts";
 import { decodeFunctionData, encodeFunctionResult, parseAbi } from "viem";
 
@@ -80,6 +80,20 @@ test("a position of one's own: its bins, its deposit and the hook's spread, Bid-
   assert.ok(bins[9].toUsd <= 100 && bins[10].fromUsd > 100.09);
   const curve = previewShape("curve", 30, 10, 0, 500, 0, 100);
   assert.ok(curve[9].value > curve[0].value * 9.9);
+});
+
+test("a wide range takes the bins it needs: each bin is at most 500 ticks, about 5%", () => {
+  // 5 bins a side reach about 28% above the price, 10 about 65%, 20 about 172%.
+  assert.ok(Math.abs(maxReachFor(5) - 28.4) < 0.1 && Math.abs(maxReachFor(10) - 64.9) < 0.1 && Math.abs(maxReachFor(20) - 171.8) < 0.1);
+  assert.equal(binsToReach(10, [5, 10, 15, 20]), 5);
+  assert.equal(binsToReach(50, [5, 10, 15, 20]), 10);
+  assert.equal(binsToReach(100, [5, 10, 15, 20]), 15);
+  assert.equal(binsToReach(500, [5, 10, 15, 20]), 20);
+  // With enough bins the reach is what was asked: ±50% in 10 bins of 410 ticks.
+  assert.equal(binTicksFor(50, 10), 410);
+  assert.ok(Math.abs((Math.pow(1.0001, 4100) - 1) * 100 - 50) < 1);
+  // With too few, each bin stops at 500 ticks.
+  assert.equal(binTicksFor(50, 5), 500);
 });
 
 test("a preset's weights, lowest price first, are the hook's: even, nearest heaviest, or farthest heaviest", () => {

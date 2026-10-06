@@ -1,6 +1,6 @@
 # Build provenance
 
-Production source revision: `7e44a5b7d7e04e9ac76070f02fa1f38a5cde7792`.
+Production source revision: `3e35e3ad3aaf862f7a9db9e39d7328f338edfb3b`.
 
 This is a source snapshot, not a claim that the entire project was newly built for this event. The original repository remains private. The entries below were exported from its Git history; reviewers can inspect current implementations and tests, and request original history access from the team if needed. No old secrets, local environment files or full private Git history are published.
 
@@ -720,3 +720,11 @@ Production source: `7e44a5b7d7e04e9ac76070f02fa1f38a5cde7792`. App Worker versio
 With the NAV record over an hour old, the fund's `currentNav` reverts, and Pools took the missing NAV for a read still under way, so the pool's value and its strategy chart kept loading. While the record is stale, Pools now values the pool at its own price, says so, and centres the chart on the pool's price with the fund's reason above it, until the next record.
 
 Checks: `npm test` passed all 278 application tests and `npm run lint` reported no errors. On the public site Pools showed the pool's value and chart, twelve pages at two widths returned 200 with no page errors or horizontal overflow, legacy routes redirected and a forged identity header was refused. X Layer Testnet was producing blocks holding only its system transaction, so the NAV record on chain was still the one from 14:20 UTC. These are point-in-time observations, not continuous availability or a security audit.
+
+## Pools opens on Custom, with wider ranges — 6 October 2026
+
+Production source: `3e35e3ad3aaf862f7a9db9e39d7328f338edfb3b`. App Worker version: `9f92aa73-34c5-407c-80e2-19680bb8c0aa`; prior version: `4ffa424b-4ffc-4666-a59a-d24d374c0095`. The keeper and the contracts are unchanged. Exported development commit: `d83dde879eac359ae11252cf71cf6712d004b4f8`, which adds only the release record and the build-period record to the production source.
+
+Pools opens on Custom, the grid of blocks. A position of one's own reaches up to ±100%, as wide as the range hook takes (20 bins a side of up to about 5% each): a reach takes the bins it needs, fewer bins bring the reach in to what they cover, and the chart opens on the narrowest view that holds the position, counting a bin that straddles the 2% band for the part inside it. Bins more than 5% from the NAV trade once the NAV moves to them.
+
+Checks: `npm test` passed all 279 application tests and `npm run lint` reported no errors. On the public site at two widths, Custom was selected on arrival, ±50% took 10 bins with prices from $67.38 to $153.13 and a ±60% view, a ±100% reach took 15 bins, and 5 bins brought the reach to ±28%; twelve pages at two widths returned 200 with no page errors or horizontal overflow, legacy routes redirected and a forged identity header was refused. The latest NAV record on chain was still the one from 14:20 UTC. These are point-in-time observations, not continuous availability or a security audit.

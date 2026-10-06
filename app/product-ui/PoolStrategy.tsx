@@ -6,7 +6,7 @@ import { poolValueMicros, type PoolLiquidity } from "@/lib/xstocks/liquidity";
 import { tickToUsd, v4ValueMicros, type V4Deployment, type V4Pool } from "@/lib/xstocks/v4-liquidity";
 import { previewWeights, type PresetShape, type RangePool } from "@/lib/xstocks/range-liquidity";
 import {
-  BID_ASK_RANGE, DRAWN_LEVELS, DRAWN_MAX, DRAWN_STEP, LP_STRATEGIES, binTicksFor, constantProductRange, drawingFrom, fitDrawing, ownAboveShare, ownBins, ownSides, strategyById, strategyShape, strategyYear,
+  BID_ASK_RANGE, DRAWN_LEVELS, DRAWN_MAX, DRAWN_STEP, LP_STRATEGIES, binTicksFor, binsToReach, constantProductRange, maxReachFor, drawingFrom, fitDrawing, ownAboveShare, ownBins, ownSides, strategyById, strategyShape, strategyYear,
   type OwnRange, type PriceRange, type RangeSides, type StrategyId,
 } from "@/lib/xstocks/lp-strategy";
 import { Icon } from "./Icons";
@@ -28,7 +28,8 @@ const money = (value: number, digits = 2) => `$${value.toLocaleString("en-US", {
 const signed = (ratio: number) => `${ratio > 0 ? "+" : ratio < 0 ? "−" : ""}${Math.abs(Math.round(ratio * 1000) / 10)}%`;
 
 export type StrategyChoice = { id: StrategyId; own: OwnRange };
-export const DEFAULT_CHOICE: StrategyChoice = { id: "spot", own: { shape: "curve", rangePercent: 2, bins: 10, sides: "both" } };
+// Pools opens on Custom: a position of one's own, drawn in the grid, as on DLMM Pro.
+export const DEFAULT_CHOICE: StrategyChoice = { id: "custom", own: { shape: "curve", rangePercent: 2, bins: 10, sides: "both" } };
 export const strategyPercent = (choice: StrategyChoice) => strategyById(choice.id).v4Percent;
 /** The position a range strategy opens, or null for a pooled one. */
 export const ownRangeOf = (choice: StrategyChoice): OwnRange | null => choice.id === "bid-ask" ? BID_ASK_RANGE : choice.id === "custom" ? choice.own : null;
@@ -72,7 +73,11 @@ type SavedSetup = { name: string; shape: OwnRange["shape"]; rangePercent: number
 const SAVED_SHAPES = "gmd-range-shapes";
 const SAVED_LIMIT = 8;
 const BIN_CHOICES = [5, 10, 15, 20];
-const REACH_PRESETS = [1, 2, 5, 10];
+// As wide as the hook takes: 20 bins a side of up to about 5% each. Swaps stay within 5% of the
+// NAV, so a wide range waits for the NAV to move to its far bins, and costs no more gas than a
+// narrow one of as many bins.
+const REACH_PRESETS = [2, 5, 10, 25, 50];
+const REACH_MAX = 100;
 const HISTORY_LIMIT = 60;
 
 /** Setups kept in this browser; nothing leaves it, and storage that refuses is no setups. Entries saved before a setup kept its reach and sides open at ±2% on both sides. */
@@ -85,7 +90,7 @@ function readSavedSetups(): SavedSetup[] {
       const shape = item.shape ?? "drawn";
       if (shape !== "drawn" && !PRESET_SHAPES.includes(shape)) return [];
       if (shape === "drawn" && !(Array.isArray(item.drawn) && item.drawn.length === 2 * item.bins)) return [];
-      const rangePercent = typeof item.rangePercent === "number" && item.rangePercent >= 0.5 && item.rangePercent <= 10 ? item.rangePercent : 2;
+      const rangePercent = typeof item.rangePercent === "number" && item.rangePercent >= 0.5 && item.rangePercent <= REACH_MAX ? item.rangePercent : 2;
       const sides: RangeSides = item.sides === "below" || item.sides === "above" ? item.sides : "both";
       return [{ name: item.name.slice(0, 24), shape, rangePercent, bins: item.bins, sides, ...(shape === "drawn" ? { drawn: fitDrawing(item.drawn, item.bins) } : {}) }];
     }).slice(0, SAVED_LIMIT);
@@ -244,7 +249,13 @@ function CustomRange({ own, onChange, priceUsd }: { own: OwnRange; onChange: (ne
   const columns = columnsOf(own);
   const half = own.bins;
   const pick = (shape: OwnRange["shape"]) => commit(shape === "drawn" ? { shape, drawn: own.drawn ?? columns } : { shape });
-  const setBins = (bins: number) => commit(own.shape === "drawn" || own.drawn ? { bins, drawn: fitDrawing(own.drawn ?? columns, bins) } : { bins });
+  // A reach takes the bins it needs (each at most about 5% wide); fewer bins bring the reach in to what they cover.
+  const binsPatch = (bins: number, from = current.current) => from.shape === "drawn" || from.drawn ? { bins, drawn: fitDrawing(from.drawn ?? columnsOf(from), bins) } : { bins };
+  const reachPatch = (rangePercent: number, from = current.current) => {
+    const bins = maxReachFor(from.bins) >= rangePercent ? from.bins : binsToReach(rangePercent, BIN_CHOICES);
+    return { rangePercent, ...(bins !== from.bins ? binsPatch(bins, from) : {}) };
+  };
+  const setBins = (bins: number) => commit({ ...binsPatch(bins), ...(maxReachFor(bins) < own.rangePercent ? { rangePercent: Math.floor(maxReachFor(bins) * 2) / 2 } : {}) });
   const mirror = (from: "below" | "above") => {
     const below = columns.slice(0, half), above = columns.slice(half);
     commit({ shape: "drawn", drawn: from === "below" ? [...below, ...[...below].reverse()] : [...[...above].reverse(), ...above] });
@@ -284,10 +295,10 @@ function CustomRange({ own, onChange, priceUsd }: { own: OwnRange; onChange: (ne
       <div><span>Max price</span><b>{highest !== null ? `$${highest.toFixed(2)}` : "—"}</b><small>{highest !== null ? percent(highest) : ""}</small></div>
     </div>
     <div className="gmd-strategy-row"><span>Range</span><div className="gmd-segmented" role="group" aria-label="Range from the price">
-      {REACH_PRESETS.map(reach => <button type="button" key={reach} aria-pressed={!customReach && own.rangePercent === reach} onClick={() => { setCustomReach(false); commit({ rangePercent: reach }); }}>±{reach}%</button>)}
+      {REACH_PRESETS.map(reach => <button type="button" key={reach} aria-pressed={!customReach && own.rangePercent === reach} onClick={() => { setCustomReach(false); commit(reachPatch(reach)); }}>±{reach}%</button>)}
       <button type="button" aria-pressed={customReach || !REACH_PRESETS.includes(own.rangePercent)} onClick={() => setCustomReach(true)}>Custom</button>
     </div></div>
-    {(customReach || !REACH_PRESETS.includes(own.rangePercent)) && <div className="gmd-strategy-row"><label htmlFor={`${id}-range`}>Reach <b>±{own.rangePercent}%</b></label><input id={`${id}-range`} type="range" min={0.5} max={10} step={0.5} value={own.rangePercent} onPointerDown={remember} onKeyDown={remember} onChange={event => { const next = { ...current.current, rangePercent: Number(event.target.value) }; current.current = next; onChange(next); }} /></div>}
+    {(customReach || !REACH_PRESETS.includes(own.rangePercent)) && <div className="gmd-strategy-row"><label htmlFor={`${id}-range`}>Reach <b>±{own.rangePercent}%</b></label><input id={`${id}-range`} type="range" min={0.5} max={REACH_MAX} step={0.5} value={own.rangePercent} onPointerDown={remember} onKeyDown={remember} onChange={event => { const next = { ...current.current, ...reachPatch(Number(event.target.value)) }; current.current = next; onChange(next); }} /></div>}
     <div className="gmd-strategy-row"><span>Bins each side</span><div className="gmd-segmented" role="group" aria-label="Bins each side">{BIN_CHOICES.map(bins => <button type="button" key={bins} aria-pressed={own.bins === bins} onClick={() => setBins(bins)}>{bins}</button>)}</div></div>
     <div className="gmd-strategy-row"><span>Sides</span><div className="gmd-segmented" role="group" aria-label="Sides">{(["both", "below", "above"] as const).map(option => <button type="button" key={option} aria-pressed={own.sides === option} onClick={() => commit({ sides: option })}>{SIDE_LABELS[option]}</button>)}</div></div>
     <div className="gmd-shape-saved">
@@ -299,7 +310,7 @@ function CustomRange({ own, onChange, priceUsd }: { own: OwnRange; onChange: (ne
         <button type="button" onClick={() => forget(item.name)} aria-label={`Forget the setup ${item.name}`}>×</button>
       </span>)}
     </div>
-    <p className="gmd-caption">{own.bins} bins of {(binTicksFor(own.rangePercent, own.bins) / 100).toFixed(1)}% {sides === "both" ? "on each side" : sides === "below" ? "below the price: demo dollars that buy USTX as it falls" : "above the price: USTX sold as it rises"}{own.shape === "drawn" ? `, each holding what its column shows${sides === "both" ? `: ${Math.round(share * 100)}% of the deposit buys USTX for the columns above` : ""}` : ""}.{own.rangePercent > 5 ? " Swaps keep the price within 5% of the NAV, so bins past it never trade." : ""}</p>
+    <p className="gmd-caption">{own.bins} bins of {(binTicksFor(own.rangePercent, own.bins) / 100).toFixed(1)}% {sides === "both" ? "on each side" : sides === "below" ? "below the price: demo dollars that buy USTX as it falls" : "above the price: USTX sold as it rises"}{own.shape === "drawn" ? `, each holding what its column shows${sides === "both" ? `: ${Math.round(share * 100)}% of the deposit buys USTX for the columns above` : ""}` : ""}.{own.rangePercent > 5 ? " Swaps keep the price within 5% of the NAV, so bins farther out trade once the NAV moves to them; a wide range costs no more gas than a narrow one of as many bins." : ""}</p>
   </div>;
 }
 
@@ -342,7 +353,8 @@ export function poolRanges(pool: PoolLiquidity | null, v4: V4Pool | null, deploy
 }
 
 type ChartBin = { from: number; to: number; side: "dollars" | "shares"; constantProduct: number; v4: number; own: number };
-const SPANS = [0.06, 0.24] as const;
+// The chart's views either side of the price; a wide position of one's own opens on the narrowest that holds it.
+const SPANS = [0.06, 0.24, 0.6, 1] as const;
 
 /** One chart for Pools: where your deposit would sit by price under the chosen strategy, or both pooled pools' liquidity. */
 export function StrategyChart({ choice, amountMicros, pool, v4, deployment, range, tall = false }: {
@@ -351,7 +363,7 @@ export function StrategyChart({ choice, amountMicros, pool, v4, deployment, rang
   const title = useId();
   const [hover, setHover] = useState<number | null>(null);
   const [view, setView] = useState<"mine" | "pools">("mine");
-  const [span, setSpan] = useState<number>(0.06);
+  const [pickedSpan, setSpan] = useState<number | null>(null);
   const [plotRef, W] = useWidth(900);
   const measured = useMeasuredResults();
   const assistant = useAsk();
@@ -368,12 +380,6 @@ export function StrategyChart({ choice, amountMicros, pool, v4, deployment, rang
   const pooledCp = own ? 0n : amountMicros - pooledV4;
   const mine = view === "mine";
   // Pooled pools: your share of each, or each whole pool.
-  const pooled = strategyShape({
-    navMicros: nav, span, step: span / 12,
-    constantProductMicros: mine ? pooledCp : constantProduct?.valueMicros ?? 0n,
-    v4Micros: mine ? pooledV4 : pegged?.valueMicros ?? 0n,
-    constantProduct, v4: pegged,
-  });
   // One's own position: the hook's spread, at the range pool's price (the NAV until it is read),
   // drawn bin by bin as the grid shows it.
   const priced = Boolean(own && mine);
@@ -383,13 +389,28 @@ export function StrategyChart({ choice, amountMicros, pool, v4, deployment, rang
     const layout = ownBins(own);
     return previewWeights(layout.weights, binTicksFor(own.rangePercent, own.bins), layout.binsBelow, layout.binsAbove, deposit - invest, invest, priceUsd);
   })() : [];
+  const fits = (option: number) => ownBars.every(item => item.fromUsd >= navPrice * (1 - option) - 1e-9 && item.toUsd <= navPrice * (1 + option) + 1e-9);
+  const fitSpan = priced ? SPANS.find(fits) ?? SPANS[SPANS.length - 1] : SPANS[0];
+  const span = pickedSpan ?? fitSpan;
+  // The two narrow views, and a wider one when one's own position needs it.
+  const spans = SPANS.filter(option => option <= SPANS[1] || option <= fitSpan || option === span);
+  const pooled = strategyShape({
+    navMicros: nav, span, step: span / 12,
+    constantProductMicros: mine ? pooledCp : constantProduct?.valueMicros ?? 0n,
+    v4Micros: mine ? pooledV4 : pegged?.valueMicros ?? 0n,
+    constantProduct, v4: pegged,
+  });
   const low = navPrice * (1 - span), high = navPrice * (1 + span);
   const bins: ChartBin[] = priced
     ? ownBars.filter(item => item.toUsd > low && item.fromUsd < high).map(item => ({ from: item.fromUsd, to: item.toUsd, side: item.side, constantProduct: 0, v4: 0, own: item.value }))
     : pooled.map(bin => ({ from: bin.from, to: bin.to, side: bin.side, constantProduct: bin.constantProduct, v4: bin.v4, own: 0 }));
   const clipped = priced && span < SPANS[SPANS.length - 1] && ownBars.some(item => item.value > 0 && (item.fromUsd < low || item.toUsd > high));
   const value = (bin: ChartBin) => bin.constantProduct + bin.v4 + bin.own;
-  const nearTotal = bins.filter(bin => bin.from >= navPrice * 0.98 - 1e-9 && bin.to <= navPrice * 1.02 + 1e-9).reduce((total, bin) => total + value(bin), 0);
+  // What sits within 2% of the price, a bin that straddles the edge counted for the part inside.
+  const nearTotal = bins.reduce((total, bin) => {
+    const inside = Math.min(bin.to, navPrice * 1.02) - Math.max(bin.from, navPrice * 0.98);
+    return inside > 0 && bin.to > bin.from ? total + value(bin) * Math.min(1, inside / (bin.to - bin.from)) : total;
+  }, 0);
   const shown = bins.reduce((total, bin) => total + value(bin), 0);
   const total = mine ? deposit : Number((constantProduct?.valueMicros ?? 0n) + (pegged?.valueMicros ?? 0n)) / 1e6;
   const year = mine && !own && measured ? strategyYear(pooledCp, pooledV4, measured) : null;
@@ -439,14 +460,14 @@ export function StrategyChart({ choice, amountMicros, pool, v4, deployment, rang
         <button type="button" aria-pressed={mine} onClick={() => { setView("mine"); setHover(null); }}>Your deposit</button>
         <button type="button" aria-pressed={!mine} onClick={() => { setView("pools"); setHover(null); }}>Whole pools</button>
       </div>
-      <div className="gmd-lq-range" role="group" aria-label="Price range">{SPANS.map(option => <button type="button" key={option} aria-pressed={span === option} onClick={() => { setSpan(option); setHover(null); }}>±{Math.round(option * 100)}%</button>)}</div>
+      <div className="gmd-lq-range" role="group" aria-label="Price range">{spans.map(option => <button type="button" key={option} aria-pressed={span === option} onClick={() => { setSpan(option); setHover(null); }}>±{Math.round(option * 100)}%</button>)}</div>
     </ChartHead>
     {stale && <p className="gmd-caption gmd-strategy-stale" role="status">{pool?.nav.navMicros === null ? pool.nav.reason : "The NAV record is over an hour old."} Until the next record, the chart is centred on the pool’s own price.</p>}
     <ul className="gmd-lq-legend">
       <li><i className="is-dollars" aria-hidden="true" />dUSD, buys USTX below the price</li>
       <li><i className="is-shares" aria-hidden="true" />USTX, sold above the price</li>
       {layered && <li><i className="is-cp" aria-hidden="true" />Lighter: the constant-product pool’s part</li>}
-      {clipped && <li className="gmd-strategy-clipped">Part of your position lies past ±{Math.round(span * 100)}%: see ±{Math.round(SPANS[SPANS.length - 1] * 100)}%</li>}
+      {clipped && <li className="gmd-strategy-clipped">Part of your position lies past ±{Math.round(span * 100)}%: see ±{Math.round(fitSpan * 100)}%</li>}
     </ul>
     <div className="gmd-lq-plot" ref={plotRef}>
       <svg viewBox={`0 0 ${W} ${H}`} role="img" aria-label={`${mine ? strategy.name : "Both pooled pools"}: ${money(shown)} by price from ${money(bins.length ? bins[0].from : low)} to ${money(bins.length ? bins[bins.length - 1].to : high)}; ${money(nearTotal)} within 2% of the NAV.`}>

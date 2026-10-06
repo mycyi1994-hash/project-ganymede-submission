@@ -44,6 +44,14 @@ export function binTicksFor(rangePercent: number, bins: number): number {
   return Math.max(10, Math.min(500, Math.round(ticks / 10) * 10));
 }
 
+/** The farthest `bins` bins a side reach above the price, in percent: the hook's bins are at most 500 ticks (about 5%) wide. */
+export const maxReachFor = (bins: number) => (Math.pow(1.0001, 500 * Math.max(1, bins)) - 1) * 100;
+
+/** The fewest bins a side, among `choices` (smallest first), that reach `rangePercent`; the most when none does. */
+export function binsToReach(rangePercent: number, choices: readonly number[]): number {
+  return choices.find(bins => maxReachFor(bins) >= rangePercent - 1e-9) ?? choices[choices.length - 1];
+}
+
 /**
  * A drawing fitted to `bins` columns a side: kept as it is when it has 2 × `bins` columns, otherwise
  * each side resampled along its length, so changing the bins keeps the picture. Each column is a

@@ -320,20 +320,25 @@ export function StrategyPicker({ value, onChange, range, priceUsd = null }: { va
   </div>;
 }
 
-/** Both pooled pools as price ranges, read from X Layer. */
+/**
+ * Both pooled pools as price ranges, read from X Layer, around `center`: the NAV, or while the NAV
+ * record is over an hour old and the fund refuses it, the constant-product pool's own price.
+ */
 export function poolRanges(pool: PoolLiquidity | null, v4: V4Pool | null, deployment: V4Deployment | null) {
   const nav = pool?.nav.navMicros ?? (v4 && v4.nav.answer !== null ? v4.nav.navMicros : null);
-  const cp = pool && nav !== null && pool.sharesMicros > 0n ? { ranges: constantProductRange(pool), price: Number(pool.dollarsMicros) / Number(pool.sharesMicros), valueMicros: poolValueMicros(pool, nav) } : null;
+  const poolPrice = pool && pool.sharesMicros > 0n ? pool.dollarsMicros * 1_000_000n / pool.sharesMicros : null;
+  const center = nav ?? poolPrice ?? (v4 ? v4.priceMicros : null);
+  const cp = pool && center !== null && pool.sharesMicros > 0n ? { ranges: constantProductRange(pool), price: Number(pool.dollarsMicros) / Number(pool.sharesMicros), valueMicros: poolValueMicros(pool, center) } : null;
   const toRange = (range: V4Pool["base"]): PriceRange | null => {
     if (!deployment || range.liquidity === 0n) return null;
     const a = tickToUsd(range.lower, deployment.assetIsCurrency0), b = tickToUsd(range.upper, deployment.assetIsCurrency0);
     return { lower: Math.min(a, b), upper: Math.max(a, b), liquidity: Number(range.liquidity) };
   };
-  const pegged = v4 && v4.nav.answer !== null && deployment ? {
+  const pegged = v4 && deployment && (v4.nav.answer !== null || center !== null) ? {
     ranges: [toRange(v4.base), toRange(v4.limit)].filter((range): range is PriceRange => range !== null),
-    price: Number(v4.priceMicros) / 1e6, valueMicros: v4ValueMicros(v4, v4.nav.answer),
+    price: Number(v4.priceMicros) / 1e6, valueMicros: v4ValueMicros(v4, v4.nav.answer ?? center!),
   } : null;
-  return { nav, constantProduct: cp, v4: pegged };
+  return { nav, center, constantProduct: cp, v4: pegged };
 }
 
 type ChartBin = { from: number; to: number; side: "dollars" | "shares"; constantProduct: number; v4: number; own: number };
@@ -352,9 +357,12 @@ export function StrategyChart({ choice, amountMicros, pool, v4, deployment, rang
   const assistant = useAsk();
   const strategy = strategyById(choice.id);
   const own = ownRangeOf(choice);
-  const { nav, constantProduct, v4: pegged } = poolRanges(pool, v4, deployment);
+  const { nav: recordedNav, center: nav, constantProduct, v4: pegged } = poolRanges(pool, v4, deployment);
   if (nav === null) return <div className="gmd-lq is-loading" aria-busy="true"><i className="gmd-skeleton gmd-lq-skeleton" aria-hidden="true" /></div>;
   const navPrice = Number(nav) / 1e6;
+  // While the NAV record is over an hour old, the chart centres on the pool's own price and says so.
+  const stale = recordedNav === null;
+  const mark = stale ? "the pool price" : "the NAV";
   const deposit = Number(amountMicros) / 1e6;
   const pooledV4 = own ? 0n : amountMicros * BigInt(strategy.v4Percent) / 100n;
   const pooledCp = own ? 0n : amountMicros - pooledV4;
@@ -417,7 +425,7 @@ export function StrategyChart({ choice, amountMicros, pool, v4, deployment, rang
   const drawnBars = own?.shape === "drawn" ? `; its columns, in blocks of ${DRAWN_LEVELS} at most, from the farthest below the price to the farthest above: ${ownBins(own).weights.map(weight => weight / DRAWN_STEP).join(" ")}` : "";
   const ownWords = own ? `my own position in the range pool: ${own.shape === "drawn" ? "a shape I drew block by block" : `${SHAPE_LABELS[own.shape]} shape`}, reaching ±${own.rangePercent}% from the price in ${own.bins} bins of ${(binTicksFor(own.rangePercent, own.bins) / 100).toFixed(1)}% ${ownSides(own) === "both" ? `on each side (${Math.round(ownAboveShare(own) * 100)}% of the deposit buys USTX at the NAV for the bins above)` : ownSides(own) === "below" ? "below the price only, all in demo dollars" : "above the price only, all in USTX bought at the NAV"}` : "";
   const describe = (bars: string) => own ? `${strategy.name} (${ownWords}${bars})` : `${strategy.name} (${strategy.v4Percent}% in the v4 pool held at the NAV, ${100 - strategy.v4Percent}% in the constant-product pool)`;
-  const figures = `For ${money(deposit)} of demo dollars, about ${money(nearTotal)} would sit within 2% of the NAV of ${money(navPrice)}.${year !== null ? ` At each pool's measured result for providers so far, a year would come to about ${formatUsdMicros(year < 0n ? -year : year, 2)}${year < 0n ? " lost" : ""}.` : ""}`;
+  const figures = `For ${money(deposit)} of demo dollars, about ${money(nearTotal)} would sit within 2% of ${mark} of ${money(navPrice)}.${year !== null ? ` At each pool's measured result for providers so far, a year would come to about ${formatUsdMicros(year < 0n ? -year : year, 2)}${year < 0n ? " lost" : ""}.` : ""}`;
   const fitted = (write: (described: string) => string) => { const full = write(describe(drawnBars)); return full.length <= ASK_LIMIT ? full : write(describe("")); };
   const questions = [
     { label: choice.id === "custom" ? "Explain my settings" : `Explain ${strategy.name} in detail`, question: fitted(described => `On Pools I chose the ${described} liquidity strategy. ${figures} Explain in detail and in plain words how it works, which trades I earn fees from, what I end up holding if the price falls or rises, and what happens when a new NAV record arrives.`) },
@@ -433,6 +441,7 @@ export function StrategyChart({ choice, amountMicros, pool, v4, deployment, rang
       </div>
       <div className="gmd-lq-range" role="group" aria-label="Price range">{SPANS.map(option => <button type="button" key={option} aria-pressed={span === option} onClick={() => { setSpan(option); setHover(null); }}>±{Math.round(option * 100)}%</button>)}</div>
     </ChartHead>
+    {stale && <p className="gmd-caption gmd-strategy-stale" role="status">{pool?.nav.navMicros === null ? pool.nav.reason : "The NAV record is over an hour old."} Until the next record, the chart is centred on the pool’s own price.</p>}
     <ul className="gmd-lq-legend">
       <li><i className="is-dollars" aria-hidden="true" />dUSD, buys USTX below the price</li>
       <li><i className="is-shares" aria-hidden="true" />USTX, sold above the price</li>
@@ -442,11 +451,11 @@ export function StrategyChart({ choice, amountMicros, pool, v4, deployment, rang
     <div className="gmd-lq-plot" ref={plotRef}>
       <svg viewBox={`0 0 ${W} ${H}`} role="img" aria-label={`${mine ? strategy.name : "Both pooled pools"}: ${money(shown)} by price from ${money(bins.length ? bins[0].from : low)} to ${money(bins.length ? bins[bins.length - 1].to : high)}; ${money(nearTotal)} within 2% of the NAV.`}>
         <rect className="gmd-strategy-near" x={x(-0.02)} y={top - 10} width={x(0.02) - x(-0.02)} height={plot + 10} />
-        <text className="gmd-lq-tick gmd-strategy-near-label" x={W / 2} y={top - 14} textAnchor="middle">Within 2% of the NAV: {money(nearTotal, 0)} of {money(total, 0)}</text>
+        <text className="gmd-lq-tick gmd-strategy-near-label" x={W / 2} y={top - 14} textAnchor="middle">Within 2% of {mark}: {money(nearTotal, 0)} of {money(total, 0)}</text>
         <line className="gmd-lq-base" x1={0} x2={W} y1={H - bottom} y2={H - bottom} />
         <g key={`${choice.id}-${view}-${span}-${own ? `${own.shape}${own.rangePercent}${own.bins}${own.sides}${own.shape === "drawn" ? "-drawn" : ""}` : ""}`}>{bins.map(drawBar)}</g>
         <line className="gmd-strategy-nav" x1={W / 2} x2={W / 2} y1={top - 4} y2={H - bottom} />
-        {ticks.map(move => <text key={move} className="gmd-lq-tick" x={x(move)} y={H - 9} textAnchor={move === -span ? "start" : move === span ? "end" : "middle"}>{move === 0 ? `NAV ${money(navPrice)}` : signed(move)}</text>)}
+        {ticks.map(move => <text key={move} className="gmd-lq-tick" x={x(move)} y={H - 9} textAnchor={move === -span ? "start" : move === span ? "end" : "middle"}>{move === 0 ? `${stale ? "Pool" : "NAV"} ${money(navPrice)}` : signed(move)}</text>)}
       </svg>
       {active && <div className={`gmd-chart-tip is-below${center(hover!) > 0.5 ? " is-left" : ""}`} style={{ left: `${center(hover!) * 100}%`, top: "3%" }} role="status">
         <b>{money(value(active), value(active) < 1 ? 4 : 2)}</b>
@@ -458,7 +467,7 @@ export function StrategyChart({ choice, amountMicros, pool, v4, deployment, rang
     </div>
     {mine && <>
       <dl className="gmd-strategy-facts">
-        <div><dt>Within 2% of the NAV</dt><dd>{money(nearTotal)}<small>{deposit > 0 ? `${Math.round(nearTotal / deposit * 100)}% of your deposit meets the trades there` : "—"}</small></dd></div>
+        <div><dt>Within 2% of {mark}</dt><dd>{money(nearTotal)}<small>{deposit > 0 ? `${Math.round(nearTotal / deposit * 100)}% of your deposit meets the trades there` : "—"}</small></dd></div>
         {own ? <div><dt>Your position</dt><dd>{own.shape === "drawn" ? "Your drawing" : SHAPE_LABELS[own.shape]} · ±{own.rangePercent}%<small>{own.bins} bins of {(binTicksFor(own.rangePercent, own.bins) / 100).toFixed(1)}% · {SIDE_LABELS[ownSides(own)].toLowerCase()}</small></dd></div>
           : <div><dt>Split</dt><dd>{strategy.v4Percent}% at the NAV<small>{100 - strategy.v4Percent}% even, in the constant-product pool</small></dd></div>}
         <div><dt>{own ? "Fees" : "A year at the measured results"}</dt><dd>{own ? "Yours alone" : year === null ? "—" : `${year < 0n ? "−" : "+"}${formatUsdMicros(year < 0n ? -year : year, 2)}`}<small>{own ? "Only trades that cross your bins pay you" : "Each pool’s result for providers so far, per dollar; not a forecast"}</small></dd></div>

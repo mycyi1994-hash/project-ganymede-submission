@@ -167,6 +167,8 @@ export function PoolsScreen() {
 function PoolSummary({ snapshot, v4, range, owner, growth, amount, strategy, onStrategy }: { snapshot: Snapshot | null; v4: V4Reader | null; range: RangeReader | null; owner: string | null; growth: { value: PoolYield | null; loaded: boolean }; amount: string; strategy: StrategyChoice; onStrategy: (next: StrategyChoice) => void }) {
   const pool = snapshot?.pool ?? null;
   const nav = pool?.nav.navMicros ?? null;
+  // While the NAV record is over an hour old the fund refuses it: the pool is valued at its own price.
+  const valuedAt = nav ?? (pool && pool.sharesMicros > 0n ? pool.dollarsMicros * ONE / pool.sharesMicros : null);
   const account = snapshot && snapshot.owner === owner ? snapshot.account : null;
   const mine = account && pool ? liquidityPosition(account.lpMicros, pool, nav) : null;
   const dollars = parseUsd(amount);
@@ -175,7 +177,7 @@ function PoolSummary({ snapshot, v4, range, owner, growth, amount, strategy, onS
     <h2 id="pool-summary-title">USTX / dUSD pool</h2>
     <div className="gmd-pools-summary-stats">
       <div><span>Fee APR</span><strong>{growth.value ? formatYield(growth.value.aprWad) : growth.loaded ? "—" : <Skeleton width={56} />}</strong><small>{growth.value ? windowLabel(growth.value) : "From the pool’s fees"}</small></div>
-      <div><span>In the pool</span><strong>{pool && nav !== null ? formatUsdRounded(poolValueMicros(pool, nav)) : <Skeleton width={72} />}</strong><small>USTX and demo dollars</small></div>
+      <div><span>In the pool</span><strong>{pool && valuedAt !== null ? formatUsdRounded(poolValueMicros(pool, valuedAt)) : pool ? "—" : <Skeleton width={72} />}</strong><small>{pool && nav === null ? "At the pool’s price: the NAV record is over an hour old" : "USTX and demo dollars"}</small></div>
       <div><span>Your liquidity</span><strong>{!owner ? "—" : !account || !mine ? <Skeleton width={56} /> : account.lpMicros === 0n ? "None yet" : mine.valueMicros !== null ? formatUsdRounded(mine.valueMicros) : `${formatSharesShort(account.lpMicros, 4)} USTX-LP`}</strong><small>{owner ? "In this wallet" : "Connect OKX Wallet"}</small></div>
     </div>
     {!owner && v4 && <StrategyPicker value={strategy} onChange={onStrategy} range={Boolean(range)} priceUsd={usdOf(range?.snapshot?.pool.priceMicros ?? nav)} />}

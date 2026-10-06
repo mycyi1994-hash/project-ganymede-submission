@@ -1,6 +1,6 @@
 # Build provenance
 
-Production source revision: `9d8c2f8859f53a2f3efc1614681a782aef38bab7`.
+Production source revision: `7e44a5b7d7e04e9ac76070f02fa1f38a5cde7792`.
 
 This is a source snapshot, not a claim that the entire project was newly built for this event. The original repository remains private. The entries below were exported from its Git history; reviewers can inspect current implementations and tests, and request original history access from the team if needed. No old secrets, local environment files or full private Git history are published.
 
@@ -712,3 +712,11 @@ Production source: `9d8c2f8859f53a2f3efc1614681a782aef38bab7`. App Worker versio
 A tab opened before a deploy still asks for the files of its own build, which the new deploy no longer serves, so moving to Pools from such a tab changed the address but left the page blank. A small script in the root layout now listens for Vite's `vite:preloadError` and loads the page the visitor was opening from the server, which hands it the new build, at most once per address a minute.
 
 Checks: `npm test` passed all 278 application tests and `npm run lint` reported no errors. On the public site, a Pools file failed once in a browser reopened `/pools` and drew it, a page with nothing failing did not reload, twelve pages at two widths returned 200 with no page errors or horizontal overflow, legacy routes redirected and a forged identity header was refused. X Layer Testnet resumed producing blocks at 15:50 UTC, but transactions submitted during its stall had not been included when this snapshot was made, so the latest NAV record on chain was still the one from 14:20 UTC. These are point-in-time observations, not continuous availability or a security audit.
+
+## Pools while the NAV record is stale — 6 October 2026
+
+Production source: `7e44a5b7d7e04e9ac76070f02fa1f38a5cde7792`. App Worker version: `4ffa424b-4ffc-4666-a59a-d24d374c0095`; prior version: `44c07952-ae21-4ac7-b92f-7d4d15a37cb1`. The keeper and the contracts are unchanged. Exported development commit: `cb98166fa161e0d80beabc28c1359ec135155ee8`, which adds only the release record and the build-period record to the production source.
+
+With the NAV record over an hour old, the fund's `currentNav` reverts, and Pools took the missing NAV for a read still under way, so the pool's value and its strategy chart kept loading. While the record is stale, Pools now values the pool at its own price, says so, and centres the chart on the pool's price with the fund's reason above it, until the next record.
+
+Checks: `npm test` passed all 278 application tests and `npm run lint` reported no errors. On the public site Pools showed the pool's value and chart, twelve pages at two widths returned 200 with no page errors or horizontal overflow, legacy routes redirected and a forged identity header was refused. X Layer Testnet was producing blocks holding only its system transaction, so the NAV record on chain was still the one from 14:20 UTC. These are point-in-time observations, not continuous availability or a security audit.

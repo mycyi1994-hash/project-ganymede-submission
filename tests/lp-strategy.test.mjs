@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { allocateShares, binTicksFor, constantProductRange, LP_STRATEGIES, planRange, planStrategy, strategyShape, strategyYear, workingNearNav } from "../lib/xstocks/lp-strategy.ts";
-import { MULTICALL3, previewShape, rangeCalls, rangeFill, readAll } from "../lib/xstocks/range-liquidity.ts";
+import { MULTICALL3, RangePriceMoved, assertRangePriceNear, previewShape, rangeCalls, rangeErrorMessage, rangeFill, readAll, readRangeTick } from "../lib/xstocks/range-liquidity.ts";
 import { decodeFunctionData, encodeFunctionResult, parseAbi } from "viem";
 
 const NAV = 100_000_000n; // $100
@@ -123,4 +123,25 @@ test("many reads go in a few multicalls, and one by one where there is no multic
   // An RPC that is down is not tried call by call.
   const down = async () => { throw new Error("fetch failed"); };
   await assert.rejects(readAll(down, calls.slice(0, 3), "0x1"), /fetch failed/);
+});
+
+test("a position opens only if the pool's price is still near the one the provider saw", async () => {
+  const deployment = { poolManager: "0x" + "1".repeat(40), hook: "0x" + "2".repeat(40), router: "0x" + "3".repeat(40), asset: "0x" + "4".repeat(40), dollar: "0x" + "5".repeat(40), assetIsCurrency0: true, poolId: "0x" + "6".repeat(64), stateSlot: "0x" + "7".repeat(64), arbitrage: "0x" + "8".repeat(40) };
+  // The pool's slot0: the price in the low 160 bits, the tick as an int24 above it.
+  const chainAt = (tick) => async (method, params) => {
+    if (method === "eth_chainId") return "0x7a0";
+    if (method === "eth_blockNumber") return "0x64";
+    assert.equal(method, "eth_call");
+    assert.equal(params[0].to, deployment.poolManager);
+    assert.ok(params[0].data.endsWith(deployment.stateSlot.slice(2)));
+    return `0x${((BigInt.asUintN(24, BigInt(tick)) << 160n) | (1n << 96n)).toString(16).padStart(64, "0")}`;
+  };
+  assert.equal(await readRangeTick(deployment, { rpc: chainAt(46_070) }), 46_070);
+  assert.equal(await readRangeTick(deployment, { rpc: chainAt(-1_234) }), -1_234);
+  await assertRangePriceNear(deployment, 46_050, { rpc: chainAt(46_080) });
+  await assertRangePriceNear(deployment, 46_050, { rpc: chainAt(46_020) });
+  await assert.rejects(assertRangePriceNear(deployment, 46_050, { rpc: chainAt(46_081) }), (error) => error instanceof RangePriceMoved && error.tick === 46_081);
+  const moved = await assertRangePriceNear(deployment, -10, { rpc: chainAt(-50) }).catch((error) => error);
+  assert.ok(moved instanceof RangePriceMoved);
+  assert.match(rangeErrorMessage(moved), /price moved before your position opened/);
 });

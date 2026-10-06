@@ -1,6 +1,6 @@
 # Build provenance
 
-Production source revision: `0e31e9f8c55f4ff8e2235bba6cd8ac2904f65bc9`.
+Production source revision: `1284a9db50ffe1c51c067c3173ff2c8f0f852e4c`.
 
 This is a source snapshot, not a claim that the entire project was newly built for this event. The original repository remains private. The entries below were exported from its Git history; reviewers can inspect current implementations and tests, and request original history access from the team if needed. No old secrets, local environment files or full private Git history are published.
 
@@ -662,3 +662,13 @@ Changes in these releases:
 Checks: `npm test` passed all 266 application tests, `npm run lint` reported no errors, and the onchain suite passed 112 tests. After deployment the 10:54 UTC activity index and the 10:55 UTC NAV records of USTX and all eight other products ran on the new version; twelve pages at two widths returned 200 with no page errors or horizontal overflow; legacy routes redirected; a forged identity header was refused; the three income pages showed the browser check as matched. These are point-in-time observations, not continuous availability or a security audit.
 
 Public-snapshot validation: clean `npm ci` and `npm test` passed all 266 application tests; clean relayer `npm ci`, typecheck and all 34 tests passed.
+
+## Range opens checked against the price seen — 6 October 2026
+
+Production source: `1284a9db50ffe1c51c067c3173ff2c8f0f852e4c`. App Worker version: `35a130d7-d437-4972-946a-cba1ffafe294`; prior version: `2a53e4c4-45f2-4fb1-9ca4-f306d343b05b`. Arbitrage keeper version: `d8398e4c-aab4-4b42-9116-7753bb554f07`, unchanged. Exported development commit: `a5ae0119c5dcc768acac962ea942d1fbf1817626`, which adds only the release record and the build-period record to the production source.
+
+The deployed range hook places a position's bins around the pool's price when the position opens and takes no price limit of its own. Pools now reads the pool's tick again just before the wallet opens and stops the open if it moved more than 30 ticks (about 0.3%) from the tick the provider saw; the USTX already bought stays in the wallet for the next try. A hook that refuses such an open itself is written, tested and rehearsed on a fork, and waits for its deployment on X Layer Testnet.
+
+Checks: `npm test` passed all 267 application tests, `npm run lint` reported no errors, and the onchain suite passed 112 tests. After deployment the 11:24 UTC activity index and the 11:25 UTC NAV records of USTX and all eight other products ran on the new version, legacy routes redirected and a forged identity header was refused. These are point-in-time observations, not continuous availability or a security audit.
+
+Public-snapshot validation: clean `npm ci` and `npm test` passed all 267 application tests; clean relayer `npm ci`, typecheck and all 34 tests passed.

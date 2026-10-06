@@ -6,7 +6,7 @@ import { productKey, toBytes32 } from "../../relayer/src/ids";
 import { type FundReceipt } from "../../lib/xstocks/fund";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
-import { RANGE_ARBITRAGES, RANGE_ERRORS, RANGE_EVENTS, RANGE_POOL_DEPLOYMENT, RANGE_SELECTORS, rangeCalls, rangeErrorMessage, rangeFill, readRangePool, type RangeDeployment } from "../../lib/xstocks/range-liquidity";
+import { RANGE_ARBITRAGES, RANGE_ERRORS, RANGE_EVENTS, RANGE_POOL_DEPLOYMENT, RANGE_SELECTORS, RangePriceMoved, assertRangePriceNear, rangeCalls, rangeErrorMessage, rangeFill, readRangePool, readRangeTick, type RangeDeployment } from "../../lib/xstocks/range-liquidity";
 import { ACTIVITY_EVENTS } from "../../lib/xstocks/activity";
 import { binTicksFor, planRange } from "../../lib/xstocks/lp-strategy";
 import { CREATE2_PROXY, CREATE2_PROXY_CODE, DYNAMIC_FEE_FLAG, deployRangeLiquidity, deployRwaLiquidity, poolIdOf, poolStateSlot } from "../scripts/_v4";
@@ -98,6 +98,15 @@ describe("App range pool client", () => {
 
     let { pool, account } = await readRangePool(deployment, provider.account.address, { rpc: appRpc });
     expect(pool.navMicros).to.equal(100n * USD);
+    // The tick Pools reads again before a position opens is the pool's own.
+    expect(await readRangeTick(deployment, { rpc: appRpc })).to.equal(pool.tick);
+    await assertRangePriceNear(deployment, pool.tick, { rpc: appRpc });
+    try {
+      await assertRangePriceNear(deployment, pool.tick + 100, { rpc: appRpc });
+      expect.fail("a price 100 ticks away passed");
+    } catch (error) {
+      expect(error).to.be.instanceOf(RangePriceMoved);
+    }
     expect(pool.priceMicros > 99_990_000n && pool.priceMicros < 100_010_000n, `price ${pool.priceMicros}`).to.equal(true);
     expect(account!.positions).to.deep.equal([]);
     expect(account!.dollarAllowanceMicros).to.equal(plan.dollarsMicros);

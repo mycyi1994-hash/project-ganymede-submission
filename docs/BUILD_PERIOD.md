@@ -75,6 +75,7 @@ Ganymede was selected as one of 30 finalists from 150 teams. The organizers conf
 | 2026-10-06 09:08 | `248b732` | What was left of the demo balance cleared from the developer page's sample response, the README, the stylesheet and the docs |
 | 2026-10-06 09:23 | `bf2d42e` | The developer page says which endpoints the OpenAPI document covers |
 | 2026-10-06 10:50 | `0e31e9f` | The remaining review items: the covered-call chart counts from today's NAV, the income products' browser check holds each record to its published terms, Pools reads every position of a wallet, Ask USTX and MCP read every product, and the funds API names each product's kind |
+| 2026-10-06 11:20 | `1284a9d` | Pools reads the range pool's price again just before the wallet opens and stops a position opening at a price the provider did not see; the hook's own limit waits on its redeploy |
 
 ## Every commit in the build period (UTC)
 

@@ -26,7 +26,7 @@ import { TxLink, sendFromWallet, useInjectedWallet, useWalletChain, type Provide
 import { TxSteps, WalletGate, orderDeadline, runPlan, useUnmountSignal, type PlanProgress, type PlanStep, type StepState, type TxStep } from "./LiquidityParts";
 import { V4_POOL_DEPLOYMENT, formatFeePips, v4Calls, v4ErrorMessage, v4Fill, v4ValueMicros, v4WithdrawEstimate, type V4Amounts } from "@/lib/xstocks/v4-liquidity";
 import { allocateShares, binTicksFor, planRange, planStrategy, strategyById } from "@/lib/xstocks/lp-strategy";
-import { RANGE_POOL_DEPLOYMENT, rangeCalls, rangeErrorMessage, rangeFill } from "@/lib/xstocks/range-liquidity";
+import { RANGE_POOL_DEPLOYMENT, RangePriceMoved, assertRangePriceNear, rangeCalls, rangeErrorMessage, rangeFill } from "@/lib/xstocks/range-liquidity";
 import { V4LiquidityPanel, V4PoolGuide, V4PoolOverview, useV4Pool, v4Position, type V4Reader } from "./PoolsV4";
 import { PoolResults } from "./PoolResults";
 import { DEFAULT_CHOICE, StrategyChart, StrategyPicker, ownRangeOf, strategyPercent, type StrategyChoice } from "./PoolStrategy";
@@ -514,8 +514,11 @@ function LiquidityPanel({ provider, chain, owner, reader, v4, range, onBusy, amo
       request: async () => { const least = minimums(); return liquidityCalls.add(shares(), dollars, least.shares, least.dollars, await orderDeadline()); },
       read: receipt => { const fill = liquidityFill(receipt); if (fill?.side !== "add") throw new Error("The deposit did not go through on X Layer Testnet."); result.added = fill; },
     });
-    if (rangeRun && rangePlan && rangeAccount && own && RANGE_POOL_DEPLOYMENT) {
+    if (rangeRun && rangePlan && rangeAccount && rangePool && own && RANGE_POOL_DEPLOYMENT) {
       const parts = rangePlan, deployment = RANGE_POOL_DEPLOYMENT, mineRange = rangeAccount, calls = rangeCalls(deployment), shape = own, carry = reuse;
+      // The position opens only near the price the provider saw when they pressed the button: the
+      // price is read again just before the wallet opens (the deployed hook takes no limit of its own).
+      const seenTick = rangePool.tick;
       if (parts.investMicros > 0n && !carry) {
         if (wallet.fundAllowanceMicros < parts.investMicros) plan.push({ key: "approveFund", label: "Approve demo dollars for the fund", approval: true, request: async () => fundCalls.approve(parts.investMicros) });
         plan.push({
@@ -534,7 +537,10 @@ function LiquidityPanel({ provider, chain, owner, reader, v4, range, onBusy, amo
       const binTicks = binTicksFor(shape.rangePercent, shape.bins);
       plan.push({
         key: "open", label: `Open your ${shape.shape === "bid-ask" ? "Bid-Ask" : shape.shape === "curve" ? "Curve" : "Spot"} position`, approval: false,
-        request: async () => calls.open(shape.shape, binTicks, shape.sides === "above" ? 0 : shape.bins, shape.sides === "below" ? 0 : shape.bins, { sharesMicros: shares(), dollarsMicros: parts.dollarsMicros }, await orderDeadline()),
+        request: async (progress) => {
+          await assertRangePriceNear(deployment, seenTick, { minBlock: progress.block });
+          return calls.open(shape.shape, binTicks, shape.sides === "above" ? 0 : shape.bins, shape.sides === "below" ? 0 : shape.bins, { sharesMicros: shares(), dollarsMicros: parts.dollarsMicros }, await orderDeadline());
+        },
         read: receipt => { const fill = rangeFill(receipt, deployment, from); if (!fill.opened) throw new Error("The position did not open on X Layer Testnet."); result.opened = fill.opened; },
       });
     } else if (strategyRun && strategyPlan && v4Account && V4_POOL_DEPLOYMENT) {
@@ -679,6 +685,8 @@ function LiquidityPanel({ provider, chain, owner, reader, v4, range, onBusy, amo
       const step = progress.step ?? "";
       const reason = /^(approveRange|open|close)/.test(step) ? rangeErrorMessage(error) : /^(approveV4|deposit|cancelV4|withdrawV4)/.test(step) ? v4ErrorMessage(error) : liquidityErrorMessage(error);
       setFailure({ message: `${partial}${reason}`, hash: progress.lastHash });
+      // A price that moved is read again now, so trying again is quoted at the new one.
+      if (error instanceof RangePriceMoved) range?.retry();
       // So that trying again does not repeat the step that went through: the bought USTX waits in the
       // pair form, and a withdrawal that came out is not withdrawn again.
       if (result.invested && !result.added && !result.deposited && !strategyRun && !rangeRun) { setExpert(true); setMode("pair"); setPair({ anchor: "shares", text: plain(result.invested.sharesMicros) }); setDollarsText(""); }

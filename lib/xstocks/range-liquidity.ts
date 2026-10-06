@@ -220,6 +220,42 @@ function positionDetail(deployment: RangeDeployment, base: PositionHead, binsRaw
   return { ...base, bins, amounts: byToken(deployment, a0, a1), fees: byToken(deployment, f0, f1) };
 }
 
+/**
+ * How far the pool's tick may move, from the one a provider saw, before their position opens: about
+ * 0.3%. The bins go around the price when the position opens, and the deployed hook takes no price
+ * limit of its own, so Pools reads the price again just before the wallet opens and stops the open
+ * if it moved further (assertRangePriceNear).
+ */
+export const RANGE_OPEN_SLIPPAGE_TICKS = 30;
+
+/** The pool's price moved, from the tick the provider saw, by more than RANGE_OPEN_SLIPPAGE_TICKS. */
+export class RangePriceMoved extends Error {
+  readonly seenTick: number;
+  readonly tick: number;
+  constructor(seenTick: number, tick: number) {
+    super("The pool’s price moved before your position opened. Review it again: the USTX you bought stays in your wallet.");
+    this.name = "RangePriceMoved";
+    this.seenTick = seenTick;
+    this.tick = tick;
+  }
+}
+
+/** The pool's tick now, at the newest block and not before `minBlock`. */
+export async function readRangeTick(deployment: RangeDeployment, options: { rpc?: Rpc; minBlock?: number } = {}): Promise<number> {
+  const rpc = options.rpc ?? fundRpc();
+  return atBlock(async () => {
+    const block = await readBlock(rpc, options.minBlock);
+    const [slot0] = words(await call(rpc, deployment.poolManager, `${RANGE_SELECTORS.extsload}${deployment.stateSlot.slice(2)}`, hexBlock(block)), 1);
+    return signedTick(slot0 >> 160n);
+  });
+}
+
+/** Throws RangePriceMoved unless the pool's tick is still within RANGE_OPEN_SLIPPAGE_TICKS of `seenTick`. */
+export async function assertRangePriceNear(deployment: RangeDeployment, seenTick: number, options: { rpc?: Rpc; minBlock?: number } = {}): Promise<void> {
+  const tick = await readRangeTick(deployment, options);
+  if (Math.abs(tick - seenTick) > RANGE_OPEN_SLIPPAGE_TICKS) throw new RangePriceMoved(seenTick, tick);
+}
+
 /** Calls to open and close positions; approvals go to the hook, which takes what the bins use. */
 export function rangeCalls(deployment: RangeDeployment) {
   const approve = (token: string, micros: bigint): TransactionCall => ({ to: token, data: `${FUND_SELECTORS.approve}${addressWord(deployment.hook)}${word(micros)}` });
@@ -265,6 +301,7 @@ export function rangeFill(receipt: FundReceipt, deployment: RangeDeployment, acc
 
 /** A customer-facing reason for a failed request to the range pool, unwrapped from the pool manager's WrappedError when a swap carried it. */
 export function rangeErrorMessage(error: unknown): string {
+  if (error instanceof RangePriceMoved) return error.message;
   const data = hookRevert(error);
   const known = data ? RANGE_ERRORS[data.slice(0, 10).toLowerCase()] : undefined;
   return known ?? fundErrorMessage(data ? { data } : error);

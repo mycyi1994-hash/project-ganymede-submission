@@ -36,10 +36,29 @@ interface ScheduledController {
 // dangerouslyAllowSVG: true in next.config.js and uncomment below:
 // const imageConfig: ImageConfig = { dangerouslyAllowSVG: true };
 
+// A fresh nonce for every request, on every script the pages write. The script policy built on it
+// (this site's own files, or inline with the nonce) is reported, not yet enforced: enforced, it also
+// refuses eval in a wallet's injected provider (measured with a test extension), so it waits for a
+// test with OKX Wallet itself, in the extension and in the OKX app. ('strict-dynamic' would also
+// refuse the module preloads React writes without the nonce.)
+function scriptNonce(): string {
+  return btoa(String.fromCharCode(...crypto.getRandomValues(new Uint8Array(16))));
+}
+
+const scriptPolicy = (nonce: string) => `script-src 'self' 'nonce-${nonce}'`;
+
+// vinext puts the nonce of the request's Content-Security-Policy header on every inline script it
+// writes, and the root layout reads x-nonce for its own; both are set here, whatever the client sent.
+function withNonce(request: Request, nonce: string): Request {
+  const headers = new Headers(request.headers);
+  headers.set("Content-Security-Policy", scriptPolicy(nonce));
+  headers.set("x-nonce", nonce);
+  return new Request(request, { headers });
+}
+
 // Headers on every response. Pages refuse to be framed, so another site cannot lay its own page
-// over a wallet prompt; the badges under /embed/ are made to be framed anywhere. Scripts are not
-// restricted here: the pages' inline scripts would need nonces first.
-function withSecurityHeaders(response: Response, pathname: string): Response {
+// over a wallet prompt; the badges under /embed/ are made to be framed anywhere.
+function withSecurityHeaders(response: Response, pathname: string, nonce: string): Response {
   const embeddable = pathname.startsWith("/embed/");
   const headers = new Headers(response.headers);
   headers.set("X-Content-Type-Options", "nosniff");
@@ -47,6 +66,7 @@ function withSecurityHeaders(response: Response, pathname: string): Response {
   headers.set("Strict-Transport-Security", "max-age=31536000");
   headers.set("Permissions-Policy", "camera=(), microphone=(), geolocation=(), payment=()");
   headers.set("Content-Security-Policy", `frame-ancestors ${embeddable ? "*" : "'none'"}; base-uri 'self'; object-src 'none'; form-action 'self'`);
+  headers.set("Content-Security-Policy-Report-Only", scriptPolicy(nonce));
   if (embeddable) headers.delete("X-Frame-Options");
   else headers.set("X-Frame-Options", "DENY");
   return new Response(response.body, { status: response.status, statusText: response.statusText, headers });
@@ -55,6 +75,7 @@ function withSecurityHeaders(response: Response, pathname: string): Response {
 const worker = {
   async fetch(request: Request, env: Env, ctx: ExecutionContext): Promise<Response> {
     const url = new URL(request.url);
+    const nonce = scriptNonce();
 
     if (url.pathname === "/_vinext/image") {
       const allowedWidths = [...DEFAULT_DEVICE_SIZES, ...DEFAULT_IMAGE_SIZES];
@@ -64,12 +85,12 @@ const worker = {
           const result = await env.IMAGES.input(body).transform(width > 0 ? { width } : {}).output({ format, quality });
           return result.response();
         },
-      }, allowedWidths), url.pathname);
+      }, allowedWidths), url.pathname, nonce);
     }
 
     // Public reads must not consume the database's write budget or start trades.
     // Pricing runs on the cron schedule or through the authenticated operator API.
-    return withSecurityHeaders(await handler.fetch(request, env, ctx), url.pathname);
+    return withSecurityHeaders(await handler.fetch(withNonce(request, nonce), env, ctx), url.pathname, nonce);
   },
 
   async scheduled(controller: ScheduledController, env: Env, ctx: ExecutionContext): Promise<void> {

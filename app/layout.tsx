@@ -31,10 +31,12 @@ export async function generateMetadata(): Promise<Metadata> {
 // cannot keep reloading the page.
 const RELOAD_ON_STALE_BUILD = `(function(){var target=null;addEventListener("click",function(e){var a=e.target&&e.target.closest&&e.target.closest("a[href]");if(a&&a.origin===location.origin)target={href:a.href,at:Date.now()}},true);addEventListener("vite:preloadError",function(event){var now=Date.now(),href=target&&now-target.at<15e3?target.href:location.href,key="gmd-stale-build",seen=null;try{seen=JSON.parse(sessionStorage.getItem(key)||"null")}catch(e){}if(seen&&seen.href===href&&now-seen.at<6e4)return;try{sessionStorage.setItem(key,JSON.stringify({href:href,at:now}))}catch(e){if(now-performance.timeOrigin<6e4)return}event.preventDefault();location.assign(href)})})();`;
 
-export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
+export default async function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
+  // The page's script nonce, set by the Worker for every request (worker/index.ts).
+  const nonce = (await headers()).get("x-nonce") ?? undefined;
   return (
     <html lang="en">
-      <head><script dangerouslySetInnerHTML={{ __html: RELOAD_ON_STALE_BUILD }} /></head>
+      <head><script nonce={nonce} dangerouslySetInnerHTML={{ __html: RELOAD_ON_STALE_BUILD }} /></head>
       <body>{children}</body>
     </html>
   );

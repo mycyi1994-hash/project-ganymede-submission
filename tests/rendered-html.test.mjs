@@ -34,7 +34,7 @@ test("a tab from before a deploy loads the page it was opening again, once, when
   // Pools did not open in such a tab: the Pools file of its build had gone with the deploy.
   for (const path of ["/", "/pools"]) {
     const html = await (await render(path)).text();
-    const script = html.match(/<script>(\(function\(\)\{var target=null;[\s\S]*?)<\/script>/)?.[1];
+    const script = html.match(/<script\b[^>]*>(\(function\(\)\{var target=null;[\s\S]*?)<\/script>/)?.[1];
     assert.ok(script, `${path} carries the stale-build handler`);
     assert.match(script, /addEventListener\("vite:preloadError"/);
     assert.match(script, /location\.assign\(href\)/);
@@ -325,4 +325,26 @@ test("pages refuse to be framed while the badges may be, and every response carr
   const moved = await render("/lab");
   assert.equal(moved.status, 307);
   assert.equal(moved.headers.get("x-content-type-options"), "nosniff");
+});
+
+test("every script carries the response's own nonce for the reported script policy, and a client cannot choose it", async () => {
+  const nonceOf = (response) => /^script-src 'self' 'nonce-([A-Za-z0-9+/=]+)'$/.exec(response.headers.get("content-security-policy-report-only") ?? "")?.[1];
+  for (const pathname of ["/", "/pools", "/embed/ustx"]) {
+    const response = await render(pathname);
+    const nonce = nonceOf(response);
+    assert.ok(nonce && nonce.length >= 22, `${pathname} has a script nonce`);
+    const scripts = (await response.text()).match(/<script\b[^>]*>/gi) ?? [];
+    assert.ok(scripts.length > 0, `${pathname} has scripts`);
+    for (const tag of scripts) assert.ok(tag.includes(`nonce="${nonce}"`), `${pathname}: ${tag} carries the nonce`);
+  }
+  // Two requests get two nonces, and one sent by the client is replaced.
+  const [first, second] = [nonceOf(await render("/")), nonceOf(await render("/"))];
+  assert.notEqual(first, second);
+  const workerUrl = new URL("../dist/server/index.js", import.meta.url);
+  workerUrl.searchParams.set("test", `${process.pid}-${Date.now()}-chosen`);
+  const { default: worker } = await import(workerUrl.href);
+  const chosen = await worker.fetch(new Request("http://localhost/", { headers: { accept: "text/html", "x-nonce": "chosen", "content-security-policy": "script-src 'nonce-chosen'" } }),
+    { ASSETS: { fetch: async () => new Response("Not found", { status: 404 }) } }, { waitUntil() {}, passThroughOnException() {} });
+  assert.notEqual(nonceOf(chosen), "chosen");
+  assert.doesNotMatch(await chosen.text(), /nonce="chosen"/);
 });

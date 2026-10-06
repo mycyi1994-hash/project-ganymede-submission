@@ -88,6 +88,7 @@ Ganymede was selected as one of 30 finalists from 150 teams. The organizers conf
 | 2026-10-06 19:25 | `eca3e9a` | Thirty judge questions checked against the code and the live site: security headers on every response; a delayed NAV record named on every screen; agents get each venue's gap to the NAV, warnings and the unsigned transactions a wallet signs (`prepare_ustx_order`); the range pool in the APIs; rate limits on `/mcp` |
 | 2026-10-06 19:37 | `80346dd` | A fund page whose records wait for X Layer shows its last verified NAV, marked delayed, instead of a dash |
 | 2026-10-06 19:52 | `9cd07e5` | The USTX holdings table fits a phone at 390, 375 and 360px |
+| 2026-10-06 20:27 | `73ecbfc` | Every script a page writes carries a nonce made for its response, and the script policy built on it is reported; enforcing it waits for a test with OKX Wallet |
 
 ## Every commit in the build period (UTC)
 

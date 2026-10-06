@@ -1,6 +1,6 @@
 # Build provenance
 
-Production source revision: `9cd07e56191f6add37bdab4aec480e483069888b`.
+Production source revision: `73ecbfcb82f42aadfa44e33d201f63327c735ca5`.
 
 This is a source snapshot, not a claim that the entire project was newly built for this event. The original repository remains private. The entries below were exported from its Git history; reviewers can inspect current implementations and tests, and request original history access from the team if needed. No old secrets, local environment files or full private Git history are published.
 
@@ -759,3 +759,11 @@ Thirty questions a panel of five judges might ask were checked against the code,
 - The range pool's hook has an invariant fuzz test of 1,000 random steps.
 
 Checks: `npm test` passed all 284 application tests and `npm run lint` reported no errors; the contracts' 117 tests passed. On the public site 24 page views (twelve pages at two widths) returned 200 with no page errors or horizontal overflow, axe reported no violations on eleven pages at two widths, the security headers were served, legacy routes redirected and a forged identity header was refused. The example agent found orders paused and a 9.81% gap, a fifth message in a batch was refused and the 31st call in a minute was limited, and Ask USTX answered a Korean question that USTX cannot be bought at the fund now. The relayer's and the keeper's transactions sent during the stall had still not been included, so the latest NAV record on chain was still the one from 14:20 UTC. These are point-in-time observations, not continuous availability or a security audit.
+
+## A nonce on every script, and the script policy reported — 6 October 2026
+
+Production source: `73ecbfcb82f42aadfa44e33d201f63327c735ca5`. App Worker version: `3dfba197-dff5-49b5-9cbe-1dd089e2836f`; prior version: `06f44c97-a2a3-40d5-aa8e-e7342266c317`. The keeper and the contracts are unchanged. Exported development commit: `dd62a57b7a5a10b97fbbde2c80e2043883a6a10f`, which adds only the release record and the build-period record to the production source.
+
+The Worker makes a nonce for every request and hands it to the framework, which puts it on every inline script and module preload it writes; the root layout puts it on its own inline script, and a nonce a client sends is replaced. Responses report `script-src 'self' 'nonce-…'` in `Content-Security-Policy-Report-Only`. Enforcing it was tried first on preview versions that took no traffic: every page ran with no refusals and a test extension's wallet provider still loaded, but that provider could no longer use `new Function`, which it can on a site without the policy, so enforcing waits for a test with OKX Wallet's extension and app. SECURITY.md describes the headers and the reported policy.
+
+Checks: `npm test` passed all 285 application tests and `npm run lint` reported no errors. On the public site the reported policy and the enforced headers were served; in the first pass right after the deploy one of 22 page views logged one error, and two further passes over the 22 views found no refusals, console errors or inline scripts without the nonce. Client navigation, the badge's check, legacy redirects and the refusal of a forged identity header worked. These are point-in-time observations, not continuous availability or a security audit.

@@ -25,6 +25,8 @@ const SHARE = 1_000_000n;
 const NAV = 100n * USD;
 const HOUR = 3_600n;
 const SPOT = 0, CURVE = 1, BID_ASK = 2;
+/** Ticks that bound no price: TickMath's limits, for opens that do not test the caller's limit. */
+const ANY_TICK = [-887_272, 887_272] as const;
 
 const selector = (signature: string) => toFunctionSelector(signature).slice(2);
 
@@ -107,7 +109,7 @@ async function deploy() {
   async function open(wallet: typeof admin, shape: number, binTicks: number, below: number, above: number, ustx: bigint, dollars: bigint) {
     // Bins below the price hold currency1, above it currency0: with USTX as currency0 that is dUSD below.
     const [amount0, amount1] = assetIsCurrency0 ? [ustx, dollars] : [dollars, ustx];
-    const hash = await hook.write.open([shape, binTicks, below, above, amount0, amount1, await deadline()], { account: wallet.account });
+    const hash = await hook.write.open([shape, binTicks, below, above, amount0, amount1, ...ANY_TICK, await deadline()], { account: wallet.account });
     const receipt = await publicClient.waitForTransactionReceipt({ hash });
     const opened = parseEventLogs({ abi: hook.abi, logs: receipt.logs, eventName: "PositionOpened" })[0];
     return { id: opened.args.id, used0: opened.args.amount0, used1: opened.args.amount1, receipt };
@@ -193,6 +195,27 @@ describe("GanymedeRangeLiquidityHook", () => {
     expect((await hook.read.positionAmounts([id]))[0]).to.equal(0n);
   });
 
+  it("opens only while the pool's price is within the caller's limits, so a price moved first cannot place the bins", async () => {
+    const { hook, router, key, lp, trader, prepare, open, buyUstx, slot0, pair } = await deploy();
+    await prepare(lp, 3_000n * USD);
+    await prepare(trader, 0n);
+    // Liquidity for the trade below to meet, so it moves the price a little, inside the NAV's band.
+    await open(lp, SPOT, 20, 10, 10, 10n * SHARE, 1_000n * USD);
+    const [amount0, amount1] = pair(5n * SHARE, 500n * USD);
+    const { tick } = await slot0();
+    // Limits that leave out the price now refuse the position.
+    await expectRevert(hook.write.open([SPOT, 20, 5, 5, amount0, amount1, tick + 1, tick + 50, await deadline()], { account: lp.account }), "PriceOutsideLimit(int24,int24,int24)");
+    // Another trade moves the price within the NAV's band before the position is mined: it is refused
+    // at the limits the provider saw, rather than opened around the moved price.
+    await router.write.swapExactInput([key, buyUstx, 100n * USD, 0n, await deadline()], { account: trader.account });
+    const moved = (await slot0()).tick;
+    expect(Math.abs(moved - tick) > 10, `moved ${tick} → ${moved}`).to.equal(true);
+    await expectRevert(hook.write.open([SPOT, 20, 5, 5, amount0, amount1, tick - 10, tick + 10, await deadline()], { account: lp.account }), "PriceOutsideLimit(int24,int24,int24)");
+    // Within its limits it opens around the price it found.
+    await hook.write.open([SPOT, 20, 5, 5, amount0, amount1, moved - 10, moved + 10, await deadline()], { account: lp.account });
+    expect((await hook.read.positionsOf([lp.account.address])).length).to.equal(2);
+  });
+
   it("refuses liquidity outside its own, positions away from the NAV, bad shapes, and swaps on a stale NAV or out of the band", async () => {
     const { hook, router, key, lp, trader, prepare, open, publish, buyUstx, managerAddress, publicClient } = await deploy();
     const helper = modifyLiquidityTestArtifact();
@@ -201,15 +224,15 @@ describe("GanymedeRangeLiquidityHook", () => {
     await expectRevert(outsider.write.modifyLiquidity([key, { tickLower: 45_000, tickUpper: 47_000, liquidityDelta: 10n ** 9n, salt: `0x${"00".repeat(32)}` as Hex }, "0x"]), "LiquidityThroughHook");
     await prepare(lp, 3_000n * USD);
     await prepare(trader, 0n);
-    await expectRevert(hook.write.open([SPOT, 15, 2, 2, 1n * SHARE, 100n * USD, await deadline()], { account: lp.account }), "InvalidShape");
-    await expectRevert(hook.write.open([SPOT, 50, 21, 0, 0n, 100n * USD, await deadline()], { account: lp.account }), "InvalidShape");
-    await expectRevert(hook.write.open([SPOT, 50, 2, 0, 0n, 0n, await deadline()], { account: lp.account }), "InvalidAmount");
+    await expectRevert(hook.write.open([SPOT, 15, 2, 2, 1n * SHARE, 100n * USD, ...ANY_TICK, await deadline()], { account: lp.account }), "InvalidShape");
+    await expectRevert(hook.write.open([SPOT, 50, 21, 0, 0n, 100n * USD, ...ANY_TICK, await deadline()], { account: lp.account }), "InvalidShape");
+    await expectRevert(hook.write.open([SPOT, 50, 2, 0, 0n, 0n, ...ANY_TICK, await deadline()], { account: lp.account }), "InvalidAmount");
     const { id } = await open(lp, SPOT, 100, 6, 6, 10n * SHARE, 1_000n * USD);
     // A swap that would leave the price more than 5% from the NAV reverts.
     await expectRevert(router.write.swapExactInput([key, buyUstx, 5_000n * USD, 0n, await deadline()], { account: trader.account }), "OutsideBand(int24,int24)");
     // With the NAV 3% away, no position opens until the price follows it.
     await publish(103n * USD);
-    await expectRevert(hook.write.open([SPOT, 50, 2, 2, 1n * SHARE, 100n * USD, await deadline()], { account: lp.account }), "PriceAwayFromNav(int24,int24)");
+    await expectRevert(hook.write.open([SPOT, 50, 2, 2, 1n * SHARE, 100n * USD, ...ANY_TICK, await deadline()], { account: lp.account }), "PriceAwayFromNav(int24,int24)");
     // A stale NAV stops swaps but never a close.
     await time.increase(2n * HOUR);
     await expectRevert(router.write.swapExactInput([key, buyUstx, 10n * USD, 0n, await deadline()], { account: trader.account }), "NavTooOld(uint256)");
@@ -246,7 +269,7 @@ describe("GanymedeRangeLiquidityHook", () => {
     await prepare(lp, 2_000n * USD);
     // No position at all, and the NAV moves 2%: a position cannot open until the price follows.
     await publish(102n * USD);
-    await expectRevert(hook.write.open([SPOT, 20, 5, 5, 1n * SHARE, 100n * USD, BigInt(await time.latest()) + 3n * HOUR], { account: lp.account }), "PriceAwayFromNav(int24,int24)");
+    await expectRevert(hook.write.open([SPOT, 20, 5, 5, 1n * SHARE, 100n * USD, ...ANY_TICK, BigInt(await time.latest()) + 3n * HOUR], { account: lp.account }), "PriceAwayFromNav(int24,int24)");
     const { result } = await arbitrage.simulate.arbitrage([0n], { account: keeper.account });
     expect(result).to.equal(0n);
     const before = await dollar.read.balanceOf([keeper.account.address]);
@@ -271,7 +294,7 @@ describe("GanymedeRangeLiquidityHook", () => {
     // The NAV falls 3%. Selling USTX into those bids down to NAV / (1 − fee) receives about $1.37,
     // under the fund's $10 minimum investment, and no position can open meanwhile.
     await publish(97n * USD);
-    await expectRevert(hook.write.open([SPOT, 50, 2, 2, 1n * SHARE, 100n * USD, await deadline()], { account: lp.account }), "PriceAwayFromNav(int24,int24)");
+    await expectRevert(hook.write.open([SPOT, 50, 2, 2, 1n * SHARE, 100n * USD, ...ANY_TICK, await deadline()], { account: lp.account }), "PriceAwayFromNav(int24,int24)");
     // The caller makes up the difference only from demo dollars they have approved to the arbitrage.
     await expectRevert(arbitrage.simulate.arbitrage([0n], { account: keeper.account }), "InsufficientAllowance");
     await dollar.write.claim({ account: keeper.account });

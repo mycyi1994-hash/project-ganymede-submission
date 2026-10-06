@@ -204,11 +204,19 @@ higher and runs the arbitrage, then closes the Bid-Ask position with its fees. `
 did the same deployment and seeding on X Layer Testnet on 4 October 2026, with the user's approval, and
 recorded both contracts in `deployments/xlayer-testnet.json`; the app pins the pool in
 `../lib/xstocks/range-liquidity.ts` (checked by `test/AppRangeClient.test.ts`) and the keeper runs the
-arbitrage through `RANGE_ARBITRAGE_ADDRESS`.
+arbitrage through `RANGE_ARBITRAGE_ADDRESS`. On 6 October, with the user's approval,
+`RANGE_REPLACE=<recorded hook> npm run deploy:range` replaced it with a hook whose `open()` takes a
+price limit (hook `0x79b7985e025dbab36cffbfd82863b4f2f50128c0`, arbitrage
+`0xf76fa2ff202613556e6f30e3dda130a2fa10c593`): it deployed and seeded the new pair, closed the
+administrator's seed positions in the old hook, and kept the old hook under `replaced` in the record. It
+refuses to replace a hook in which another wallet holds an open position, since the app reads only the
+recorded one; `npm run fork:range` with the same variable rehearses it.
 
-Known limits, from the 4 October audit: `open()` takes no expected price, so a position opens around
-wherever the price is within 1% of the NAV (the app refuses to send one when the pool is more than
-0.95% away); bins can reach past the 5% band, where they never trade; a paused fund stops payouts of
+Known limits, from the 4 October audit: `open()` took no expected price, so a position opened around
+wherever the price was within 1% of the NAV (the app refuses to send one when the pool is more than
+0.95% away). Since the 6 October hook it takes `minTick` and `maxTick` and reverts with
+`PriceOutsideLimit` unless the pool's tick is within them; Pools sends the tick the provider saw, give
+or take 30 (about 0.3%). Bins can reach past the 5% band, where they never trade; a paused fund stops payouts of
 USTX, closing included. The first arbitrage contract reverted where no position lay between the
 price and the NAV; it was replaced (`npm run deploy:range-arbitrage`) by one that moves the price across
 such a stretch for nothing, which the keeper sends when the call returns a profit of 0. It also sends
@@ -219,7 +227,8 @@ that arbitrage reverted (`Unprofitable(0)`). The third arbitrage, deployed on 6 
 user's approval (`0x58571aa0519a82f1d3839cae5392dfb060c5d572`), draws what the pool pays short of the
 fund's need from the caller's approved demo dollars instead: the rest of the $10 minimum when
 selling, repaid in USTX worth more at the NAV, or a rounding remainder of up to a cent when buying.
-The keeper approves its demo dollars to it once.
+The keeper approves its demo dollars to it once. The arbitrage deployed with the 6 October hook
+(`0xf76fa2ff202613556e6f30e3dda130a2fa10c593`) is the same contract for the new pool.
 
 ## Uniswap v4 liquidity for USTX (fork of X Layer Testnet)
 

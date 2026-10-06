@@ -310,11 +310,11 @@ test("the keeper claims demo dollars for the range arbitrage when it holds under
 
 test("reads the range pool's price against the NAV from the hook and Uniswap's PoolManager", async (t) => {
   // The pool on X Layer Testnet as `npm run deploy:range` recorded it (lib/xstocks/range-liquidity.ts).
-  const arbitrage = "0x58571aa0519a82f1d3839cae5392dfb060c5d572";
-  const hook = "0x7964c50943c3ea9338d6653b91b872f147fe28c0";
+  const arbitrage = "0xf76fa2ff202613556e6f30e3dda130a2fa10c593";
+  const hook = "0x79b7985e025dbab36cffbfd82863b4f2f50128c0";
   const manager = "0xe83eee508ce92832488dd9f574ad329a1203641c";
-  const poolId = "0x2ffd6b32d25902cf1bc6714ae74cb0afb2711e2cab38e265d58b2de78afee7a1";
-  const stateSlot = "0xc0ae777922c57e236a9da6e9779173cb9f76b12252cdb71b7aaef76b2aca6510";
+  const poolId = "0x3fff3b1249469f8cf04040da6608c6b2501f4f1eb607f3ccea0029c37dff9f7e";
+  const stateSlot = "0xa5898aef90ba0b680c0012f761e869bda74617f9e28a31325cb810add587291b";
   // A NAV of $100 (USTX and demo dollars both have six decimals) and a pool 1% under it in square-root terms.
   const navSqrt = 10n * 2n ** 96n;
   const poolSqrt = navSqrt * 99n / 100n;

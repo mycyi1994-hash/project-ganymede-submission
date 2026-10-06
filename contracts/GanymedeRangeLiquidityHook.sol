@@ -133,6 +133,7 @@ contract GanymedeRangeLiquidityHook is IHooks, IUnlockCallback {
     error Expired();
     error SlippageExceeded();
     error PriceAwayFromNav(int24 tick, int24 navTick);
+    error PriceOutsideLimit(int24 tick, int24 minTick, int24 maxTick);
     error NavUnavailable();
     error NavTooOld(uint256 updatedAt);
     error NavInFuture(uint256 updatedAt);
@@ -208,15 +209,25 @@ contract GanymedeRangeLiquidityHook is IHooks, IUnlockCallback {
     ///         price, funded with up to `amount1` of currency1, and `binsAbove` above it, funded with
     ///         up to `amount0` of currency0 (both approved to this contract), each side spread by
     ///         `shape`. The interval the price is in is left out, so every bin holds one token. Needs
-    ///         a NAV at most MAX_NAV_AGE old and the price within OPEN_TICKS of it. Takes only what
-    ///         the bins use, which is at most the amounts given; PositionOpened records it.
-    function open(Shape shape, int24 binTicks, uint8 binsBelow, uint8 binsAbove, uint256 amount0, uint256 amount1, uint256 deadline)
-        external
-        nonReentrant
-        beforeDeadline(deadline)
-        returns (uint256 id)
-    {
+    ///         a NAV at most MAX_NAV_AGE old and the price within OPEN_TICKS of it. The bins are placed
+    ///         around the price when the position opens, so the caller also bounds that price: the
+    ///         pool's tick must be within [minTick, maxTick], or a price moved before the transaction
+    ///         is mined (by anyone, within the NAV's band) cannot place the bins elsewhere. Takes only
+    ///         what the bins use, which is at most the amounts given; PositionOpened records it.
+    function open(
+        Shape shape,
+        int24 binTicks,
+        uint8 binsBelow,
+        uint8 binsAbove,
+        uint256 amount0,
+        uint256 amount1,
+        int24 minTick,
+        int24 maxTick,
+        uint256 deadline
+    ) external nonReentrant beforeDeadline(deadline) returns (uint256 id) {
         _checkShape(binTicks, binsBelow, binsAbove, amount0, amount1);
+        (, int24 tick, , ) = poolManager.getSlot0(poolId);
+        if (tick < minTick || tick > maxTick) revert PriceOutsideLimit(tick, minTick, maxTick);
         Position memory position = Position(msg.sender, shape, 0, binTicks, binsBelow, binsAbove, true);
         id = abi.decode(poolManager.unlock(abi.encode(Action.Open, abi.encode(position, amount0, amount1))), (uint256));
     }

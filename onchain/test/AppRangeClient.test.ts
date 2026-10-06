@@ -6,7 +6,7 @@ import { productKey, toBytes32 } from "../../relayer/src/ids";
 import { type FundReceipt } from "../../lib/xstocks/fund";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
-import { RANGE_ARBITRAGES, RANGE_ERRORS, RANGE_EVENTS, RANGE_POOL_DEPLOYMENT, RANGE_SELECTORS, RangePriceMoved, assertRangePriceNear, rangeCalls, rangeErrorMessage, rangeFill, readRangePool, readRangeTick, type RangeDeployment } from "../../lib/xstocks/range-liquidity";
+import { RANGE_ARBITRAGES, RANGE_ERRORS, RANGE_EVENTS, RANGE_POOL_DEPLOYMENT, RANGE_SELECTORS, RangePriceMoved, assertRangePriceNear, openLimits, rangeCalls, rangeErrorMessage, rangeFill, readRangePool, readRangeTick, type RangeDeployment } from "../../lib/xstocks/range-liquidity";
 import { ACTIVITY_EVENTS } from "../../lib/xstocks/activity";
 import { binTicksFor, planRange } from "../../lib/xstocks/lp-strategy";
 import { CREATE2_PROXY, CREATE2_PROXY_CODE, DYNAMIC_FEE_FLAG, deployRangeLiquidity, deployRwaLiquidity, poolIdOf, poolStateSlot } from "../scripts/_v4";
@@ -111,7 +111,7 @@ describe("App range pool client", () => {
     expect(account!.positions).to.deep.equal([]);
     expect(account!.dollarAllowanceMicros).to.equal(plan.dollarsMicros);
 
-    const opened = rangeFill(await send(calls.open("bid-ask", binTicksFor(3, 10), 10, 10, { sharesMicros: plan.sharesMicros, dollarsMicros: plan.dollarsMicros }, await deadline())), deployment, provider.account.address);
+    const opened = rangeFill(await send(calls.open("bid-ask", binTicksFor(3, 10), 10, 10, { sharesMicros: plan.sharesMicros, dollarsMicros: plan.dollarsMicros }, await deadline(), openLimits(pool.tick))), deployment, provider.account.address);
     expect(opened.opened?.id).to.equal(1n);
     expect(opened.opened!.amounts.sharesMicros <= plan.sharesMicros && opened.opened!.amounts.sharesMicros > plan.sharesMicros - 30n).to.equal(true);
     expect(opened.opened!.amounts.dollarsMicros <= plan.dollarsMicros && opened.opened!.amounts.dollarsMicros > plan.dollarsMicros - 30n).to.equal(true);
@@ -145,9 +145,10 @@ describe("App range pool client", () => {
     await send(calls.approveDollars(maxUint256));
     // 22 positions of $20 each in one bin of demo dollars: more than the 20 the app used to read. The
     // dollars' bin is below the tick when USTX is currency0, as on X Layer Testnet, and above it otherwise.
+    const { pool } = await readRangePool(deployment, null, { rpc: appRpc });
     const [below, above] = deployment.assetIsCurrency0 ? [1, 0] : [0, 1];
     for (let index = 0; index < 22; index++) {
-      await send(calls.open("spot", 20, below, above, { sharesMicros: 0n, dollarsMicros: 20n * USD }, await deadline()));
+      await send(calls.open("spot", 20, below, above, { sharesMicros: 0n, dollarsMicros: 20n * USD }, await deadline(), openLimits(pool.tick)));
     }
     let { account } = await readRangePool(deployment, provider.account.address, { rpc: appRpc });
     expect(account!.positions.map(position => position.id)).to.deep.equal(Array.from({ length: 22 }, (_, index) => BigInt(index + 1)));
@@ -156,6 +157,13 @@ describe("App range pool client", () => {
     for (let read = 0; read < 2; read++) {
       ({ account } = await readRangePool(deployment, provider.account.address, { rpc: appRpc }));
       expect(account!.positions.map(position => position.id)).to.deep.equal(Array.from({ length: 21 }, (_, index) => BigInt(index + 2)));
+    }
+    // Limits that leave out the price refuse the position, in words.
+    try {
+      await send(calls.open("spot", 20, below, above, { sharesMicros: 0n, dollarsMicros: 20n * USD }, await deadline(), { minTick: pool.tick + 40, maxTick: pool.tick + 80 }));
+      expect.fail("opened outside the limits");
+    } catch (error) {
+      expect(rangeErrorMessage(error)).to.match(/price moved before your position opened/);
     }
   });
 

@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { allocateShares, binTicksFor, constantProductRange, LP_STRATEGIES, planRange, planStrategy, strategyShape, strategyYear, workingNearNav } from "../lib/xstocks/lp-strategy.ts";
-import { MULTICALL3, RangePriceMoved, assertRangePriceNear, previewShape, rangeCalls, rangeErrorMessage, rangeFill, readAll, readRangeTick } from "../lib/xstocks/range-liquidity.ts";
+import { MULTICALL3, RangePriceMoved, assertRangePriceNear, openLimits, previewShape, rangeCalls, rangeErrorMessage, rangeFill, readAll, readRangeTick } from "../lib/xstocks/range-liquidity.ts";
 import { decodeFunctionData, encodeFunctionResult, parseAbi } from "viem";
 
 const NAV = 100_000_000n; // $100
@@ -84,11 +84,16 @@ test("a position of one's own: its bins, its deposit and the hook's spread, Bid-
 
 test("the range pool's calls and events: open, close and what they paid, by token", () => {
   const deployment = { poolManager: "0x" + "1".repeat(40), hook: "0x" + "2".repeat(40), router: "0x" + "3".repeat(40), asset: "0x" + "4".repeat(40), dollar: "0x" + "5".repeat(40), assetIsCurrency0: true, poolId: "0x" + "6".repeat(64), stateSlot: "0x" + "7".repeat(64), arbitrage: "0x" + "8".repeat(40) };
-  const open = rangeCalls(deployment).open("bid-ask", 30, 10, 10, { sharesMicros: 5_000_000n, dollarsMicros: 500_000_000n }, 1_800_000_000);
+  // The position opens only while the pool's tick is within 30 of the one the provider saw.
+  const open = rangeCalls(deployment).open("bid-ask", 30, 10, 10, { sharesMicros: 5_000_000n, dollarsMicros: 500_000_000n }, 1_800_000_000, openLimits(46_050));
   assert.equal(open.to, deployment.hook);
-  assert.ok(open.data.startsWith("0xa9229268"));
+  assert.ok(open.data.startsWith("0x0dd51d63"));
   const words = open.data.slice(10).match(/.{64}/g).map(word => BigInt(`0x${word}`));
-  assert.deepEqual(words, [2n, 30n, 10n, 10n, 5_000_000n, 500_000_000n, 1_800_000_000n]);
+  assert.deepEqual(words, [2n, 30n, 10n, 10n, 5_000_000n, 500_000_000n, 46_020n, 46_080n, 1_800_000_000n]);
+  // A tick below zero goes in as an int24 does in the ABI, in two's complement.
+  const below = rangeCalls(deployment).open("spot", 20, 1, 0, { sharesMicros: 0n, dollarsMicros: 1_000_000n }, 1_800_000_000, openLimits(-10));
+  const limits = below.data.slice(10).match(/.{64}/g).slice(6, 8).map(word => BigInt.asIntN(256, BigInt(`0x${word}`)));
+  assert.deepEqual(limits, [-40n, 20n]);
   const word = value => BigInt(value).toString(16).padStart(64, "0");
   const owner = "0x" + "9".repeat(40);
   const receipt = { logs: [

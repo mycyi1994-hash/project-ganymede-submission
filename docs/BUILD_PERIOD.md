@@ -77,6 +77,7 @@ Ganymede was selected as one of 30 finalists from 150 teams. The organizers conf
 | 2026-10-06 10:50 | `0e31e9f` | The remaining review items: the covered-call chart counts from today's NAV, the income products' browser check holds each record to its published terms, Pools reads every position of a wallet, Ask USTX and MCP read every product, and the funds API names each product's kind |
 | 2026-10-06 11:20 | `1284a9d` | Pools reads the range pool's price again just before the wallet opens and stops a position opening at a price the provider did not see; the hook's own limit waits on its redeploy |
 | 2026-10-06 12:07 | `a8b64c3` | The income products' records are traced to the sales, fixing, knock-ins and observations they rest on, each checked against its own transaction on X Layer; those records are archived and go on chain before any later record |
+| 2026-10-06 12:47 | `42fd707` | The range hook redeployed with the user's approval, so a position opens only within the price limits the provider's wallet sends; the app, the keeper and the records pin the new hook and arbitrage |
 
 ## Every commit in the build period (UTC)
 

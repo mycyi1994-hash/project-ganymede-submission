@@ -107,6 +107,8 @@ export interface Deployment {
       poolId: string;
       seedTransaction?: string;
       constructorArgs: unknown[];
+      /** Earlier range hooks this one replaced, oldest first, with their arbitrage and the closing of their seed positions. */
+      replaced?: Array<{ address: string; poolId: string; deployedAt: string; seedTransaction?: string; arbitrage?: string; replacedAt: string; closeTransactions?: string[] }>;
     };
     GanymedeRangeArbitrage?: { address: string; deployedAt: string; deploymentTransaction: string; constructorArgs: unknown[] };
   };

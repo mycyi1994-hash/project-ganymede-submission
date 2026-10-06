@@ -11,11 +11,18 @@
  * has liquidity to show and trades have liquidity to meet. Demo dollars and USTX have no value. The
  * user approved this deployment on 4 October 2026 (AGENTS.md asks for approval).
  *
+ * With RANGE_REPLACE set to the recorded hook's address it replaces that hook, as on 6 October 2026
+ * with the user's approval, when positions began to open only within the caller's tick limits: a new
+ * hook and arbitrage, seeded the same way, then the administrator's seed positions in the replaced
+ * hook closed. The record keeps the replaced hook under `replaced`. It refuses while another wallet
+ * holds an open position in the replaced hook, since Pools reads only the recorded one; on chain, any
+ * position there can still be closed at any NAV.
+ *
  * On the in-process `hardhat` network it runs the same routine on a fork of X Layer Testnet with
  * the administrator impersonated, then rehearses a trade, a NAV move with the keeper's arbitrage,
  * and closing a position; nothing is broadcast and the record is not written.
  *
- * Run: npm run fork:range, then npm run deploy:range
+ * Run: npm run fork:range, then npm run deploy:range (each with RANGE_REPLACE=<recorded hook> to replace it)
  */
 import hre from "hardhat";
 import { writeFileSync } from "node:fs";
@@ -33,6 +40,8 @@ const SHAPES = [
 const SEED_BIN_TICKS = 20;
 const SEED_BINS = 10;
 const SEED_SIDE_DOLLARS = 500_000_000n;
+/** How far from the pool's opening tick a seed may open: nothing else trades a pool this new. */
+const SEED_TICK_SLACK = 10;
 
 async function main() {
   // `hardhat` forks in process and rehearses; `localhost` is a forked node (`npx hardhat node --fork …`)
@@ -44,7 +53,12 @@ async function main() {
   const deployment = loadDeployment(rail);
   const { GanymedeDemoDollar: dollarRecord, GanymedeBasketFund: fundRecord, GanymedeNavFeed: feedRecord, UniswapV4PoolManager: managerRecord, GanymedeV4Router: routerRecord } = deployment.contracts;
   if (!dollarRecord || !fundRecord || !feedRecord || !managerRecord || !routerRecord) throw new Error("The fund, NAV feed, pool manager and router must be recorded first.");
-  if (!fork && deployment.contracts.GanymedeRangeLiquidityHook?.seedTransaction) throw new Error(`A seeded range hook is already recorded at ${deployment.contracts.GanymedeRangeLiquidityHook.address}.`);
+  const recorded = deployment.contracts.GanymedeRangeLiquidityHook;
+  const replacing = recorded?.seedTransaction ? recorded : undefined;
+  if (replacing && process.env.RANGE_REPLACE?.toLowerCase() !== replacing.address.toLowerCase()) {
+    if (!fork) throw new Error(`A seeded range hook is already recorded at ${replacing.address}; set RANGE_REPLACE=${replacing.address} to replace it.`);
+  }
+  const replace = replacing && process.env.RANGE_REPLACE?.toLowerCase() === replacing.address.toLowerCase() ? replacing : undefined;
 
   if (fork) {
     if (rehearse) await hre.network.provider.request({ method: "hardhat_reset", params: [{ forking: { jsonRpcUrl: process.env.XLAYER_RPC_URL || rail.rpcUrl } }] });
@@ -71,10 +85,22 @@ async function main() {
   if (now - updatedAt > 1_800n) throw new Error(`The USTX NAV was recorded ${now - updatedAt} s ago; check the NAV record first.`);
   console.log(`${fork ? "fork of " : ""}${rail.name}, admin ${adminAddress}`);
   console.log(`pool manager ${managerAddress}, NAV ${formatUnits(answer, 8)} (${now - updatedAt} s old)\n`);
+  if (replace) {
+    // Pools reads only the recorded hook, so a position another wallet holds open in the replaced one
+    // would drop out of its view. The replacement waits until there is none.
+    const replaced = await hre.viem.getContractAt("GanymedeRangeLiquidityHook", replace.address as Address);
+    const others: string[] = [];
+    const next = await replaced.read.nextPositionId();
+    for (let id = 1n; id < next; id += 1n) {
+      const [owner, , , , , , open] = await replaced.read.positions([id]);
+      if (open && owner.toLowerCase() !== adminAddress.toLowerCase()) others.push(`#${id} (${owner})`);
+    }
+    if (others.length) throw new Error(`Other wallets hold open positions in ${replace.address}: ${others.join(", ")}. Pools reads only the recorded hook, so replace it once they are closed.`);
+  }
 
   let nonce = await publicClient.getTransactionCount({ address: adminAddress, blockTag: "pending" });
-  let hookAddress = deployment.contracts.GanymedeRangeLiquidityHook?.address as Address | undefined;
-  let arbitrageAddress = deployment.contracts.GanymedeRangeArbitrage?.address as Address | undefined;
+  let hookAddress = replace ? undefined : (recorded?.address as Address | undefined);
+  let arbitrageAddress = replace ? undefined : (deployment.contracts.GanymedeRangeArbitrage?.address as Address | undefined);
   if (fork || !hookAddress || !arbitrageAddress) {
     const hookArtifact = await hre.artifacts.readArtifact("GanymedeRangeLiquidityHook");
     const arbitrageArtifact = await hre.artifacts.readArtifact("GanymedeRangeArbitrage");
@@ -91,10 +117,15 @@ async function main() {
     if (!fork) {
       const deployedAt = new Date().toISOString();
       const hook = await hre.viem.getContractAt("GanymedeRangeLiquidityHook", hookAddress);
+      const replaced = [
+        ...(recorded?.replaced ?? []),
+        ...(replace ? [{ address: replace.address, poolId: replace.poolId, deployedAt: replace.deployedAt, seedTransaction: replace.seedTransaction, arbitrage: deployment.contracts.GanymedeRangeArbitrage?.address, replacedAt: deployedAt }] : []),
+      ];
       deployment.contracts.GanymedeRangeLiquidityHook = {
         address: hookAddress, deployedAt, deploymentTransaction: deployed.hook.hash, create2Deployer: CREATE2_PROXY, salt: deployed.hook.salt,
         poolId: await retry(() => hook.read.poolId(), value => /^0x[0-9a-f]{64}$/i.test(value)),
         constructorArgs: [managerAddress, fundAddress, dollarAddress, feedAddress],
+        ...(replaced.length ? { replaced } : {}),
       };
       deployment.contracts.GanymedeRangeArbitrage = { address: arbitrageAddress, deployedAt, deploymentTransaction: deployed.arbitrage.hash, constructorArgs: [hookAddress, fundAddress] };
       writeFileSync(deploymentPath(rail), `${JSON.stringify(deployment, null, 2)}\n`);
@@ -131,17 +162,33 @@ async function main() {
   const assetIsCurrency0 = BigInt(fundAddress) < BigInt(dollarAddress);
   const [amount0, amount1] = assetIsCurrency0 ? [perPosition, SEED_SIDE_DOLLARS] : [SEED_SIDE_DOLLARS, perPosition];
   let seedTransaction: Hash | undefined;
+  const poolId = await hook.read.poolId();
+  // Each seed opens only at the price the pool opened at, as the app asks of every provider.
+  const { tick: seedTick } = await readSlot0(publicClient, managerAddress, poolId);
   for (const { name, shape } of SHAPES) {
     const deadline = (await publicClient.getBlock()).timestamp + 900n;
-    const receipt = await send(`open ${name}`, options => hook.write.open([shape, SEED_BIN_TICKS, SEED_BINS, SEED_BINS, amount0, amount1, deadline], options), 4_500_000n);
+    const receipt = await send(`open ${name}`, options => hook.write.open([shape, SEED_BIN_TICKS, SEED_BINS, SEED_BINS, amount0, amount1, seedTick - SEED_TICK_SLACK, seedTick + SEED_TICK_SLACK, deadline], options), 4_500_000n);
     seedTransaction ??= receipt.transactionHash;
   }
 
-  const poolId = await hook.read.poolId();
   const slot = await readSlot0(publicClient, managerAddress, poolId);
   const [answerNow] = await hook.read.nav();
   console.log(`\n  pool price ${sqrtPriceToUsd(slot.sqrtPriceX96, assetIsCurrency0).toFixed(4)}, NAV ${formatUnits(answerNow, 8)}, ${(await hook.read.positionsOf([adminAddress])).length} positions`);
   if (slot.sqrtPriceX96 !== navSqrtPriceX96(answer, 8, 6, 6, assetIsCurrency0)) console.log("  (the pool opened at the NAV of its deployment block)");
+
+  // The replaced hook's seed positions, the administrator's own, are closed; anyone else's stays theirs to close.
+  const closeTransactions: Hash[] = [];
+  if (replace) {
+    console.log(`\nclosing the administrator's positions in the replaced hook ${replace.address}...`);
+    const old = await hre.viem.getContractAt("GanymedeRangeLiquidityHook", replace.address as Address);
+    for (const id of await old.read.positionsOf([adminAddress])) {
+      const [, , , , , , open] = await old.read.positions([id]);
+      if (!open) continue;
+      const deadline = (await publicClient.getBlock()).timestamp + 900n;
+      const receipt = await send(`close position ${id}`, options => old.write.close([id, 0n, 0n, deadline], options), 3_000_000n);
+      closeTransactions.push(receipt.transactionHash);
+    }
+  }
 
   if (fork && !rehearse) {
     console.log(`\nforked node: hook ${hookAddress}, arbitrage ${arbitrageAddress}, pool ${await hook.read.poolId()}; nothing was broadcast to X Layer.`);
@@ -174,6 +221,8 @@ async function main() {
   }
 
   deployment.contracts.GanymedeRangeLiquidityHook!.seedTransaction = seedTransaction;
+  const history = deployment.contracts.GanymedeRangeLiquidityHook!.replaced;
+  if (closeTransactions.length && history?.length) history[history.length - 1].closeTransactions = closeTransactions;
   writeFileSync(deploymentPath(rail), `${JSON.stringify(deployment, null, 2)}\n`);
   console.log(`\nwrote ${deploymentPath(rail)}`);
   const pin = {

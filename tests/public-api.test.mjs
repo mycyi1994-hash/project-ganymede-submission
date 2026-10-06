@@ -68,9 +68,9 @@ test("the public NAV API serves the X Layer record to any origin and never write
     assert.equal(body.verify.page, "https://ganymede.test/products/ustx/transparency");
     assert.equal(body.shares.token, "0x77eaeba1366bde7818da12d3cbdbea0a2ee97596");
     assert.equal(body.shares.paidWith.symbol, "dUSD");
-    // The recorded count is split into its two kinds; the wallet part is null when the chain cannot be read here.
+    // Every share is in a wallet; that part is null when the chain cannot be read here.
     assert.equal(body.shares.outstanding.recordedMicros, "152083351");
-    assert.equal(body.shares.outstanding.inDemoBalancesMicros, "0");
+    assert.equal(body.shares.outstanding.inDemoBalancesMicros, undefined, "the server's demo balances are retired");
     assert.ok(body.shares.outstanding.inWalletsMicros === null || /^\d+$/.test(body.shares.outstanding.inWalletsMicros));
     assert.equal(body.feed.address, "0x292c56c5290cc7b73e3ee33c2c2688eb3e04c3c8");
     assert.equal(body.feed.decimals, 8);

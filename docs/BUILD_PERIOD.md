@@ -70,6 +70,11 @@ Ganymede was selected as one of 30 finalists from 150 teams. The organizers conf
 | 2026-10-04 16:59 | `d64177b` | Simplified for the live demo; a contract audit found no fund-loss issue and replaced the range arbitrage so it also crosses a stretch with no position in it |
 | 2026-10-06 07:42 | `c96a6a2` | Review fixes: fund and USTX demo order ids kept apart, the range arbitrage shown and counted as the keeper's, safe settlement of the autocallable note, per-visitor allowances, Pools retries that reuse what was bought, and a steady NAV on the USTX page |
 | 2026-10-06 08:19 | `0f5a1c6` | The range arbitrage replaced with the user's approval, so the caller makes up what the pool pays short of the fund's $10 minimum and the pool always comes back to the NAV |
+| 2026-10-06 08:35 | `c95eed7` | Ask USTX answers follow-up questions after long answers; the strategy cards fit the Pools panel; the connected wallet is one line on Portfolio |
+| 2026-10-06 08:54 | `62cdc5d` | The server's $10,000 demo balance retired at the user's request: investing runs only with dUSD from a wallet on X Layer Testnet, and the other funds say investing is not open yet |
+| 2026-10-06 09:08 | `248b732` | What was left of the demo balance cleared from the developer page's sample response, the README, the stylesheet and the docs |
+| 2026-10-06 09:23 | `bf2d42e` | The developer page says which endpoints the OpenAPI document covers |
+| 2026-10-06 10:50 | `0e31e9f` | The remaining review items: the covered-call chart counts from today's NAV, the income products' browser check holds each record to its published terms, Pools reads every position of a wallet, Ask USTX and MCP read every product, and the funds API names each product's kind |
 
 ## Every commit in the build period (UTC)
 

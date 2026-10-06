@@ -366,6 +366,8 @@
 .gmd-wallet-message:empty { display: none; }
 .gmd-wallet-address { display: grid; gap: 4px; flex: 1 1 320px; min-width: 0; }
 .gmd-wallet-address code { font-size: 14px; overflow-wrap: anywhere; }
+.gmd-wallet-inline { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 10px; margin: -6px 0 0; font-size: 13px; color: var(--gmd-copy); }
+.gmd-wallet-inline code { font-size: 13px; color: var(--gmd-ink); }
 .gmd-wallet-holdings,.gmd-plan { border: 1px solid var(--gmd-line); border-radius: 12px; background: #fff; padding: 24px; margin-top: 20px; }
 .gmd-app .gmd-wallet-holdings .gmd-section-heading { display: flex; justify-content: space-between; align-items: baseline; gap: 8px 12px; flex-wrap: wrap; margin-bottom: 12px; }
 .gmd-wallet-holdings .gmd-section-heading span { font-size: 13px; color: var(--gmd-copy); }
@@ -662,7 +664,7 @@
   .gmd-wallet-bar > .gmd-button { width: 100%; }
 }
 
-/* Demo investing: order panel, demo account and recent orders */
+/* The order panel */
 .gmd-app .gmd-order-panel .gmd-segmented { width: 100%; margin-bottom: 18px; }
 .gmd-app .gmd-order-panel .gmd-segmented button { flex: 1; font-size: 14px; min-height: 36px; }
 .gmd-app .gmd-detail-aside .gmd-order-panel + .gmd-order-panel { margin-top: 16px; }
@@ -693,24 +695,14 @@
 .gmd-tx-steps small { font-size: 13px; color: var(--gmd-copy); }
 .gmd-tx-steps a { font-size: 13px; }
 @media (prefers-reduced-motion: no-preference) { .gmd-tx-steps li.is-chain > span { animation: gmd-pulse 1.4s ease-in-out infinite; } }
-.gmd-app .gmd-demo-portfolio { margin-block: 8px 44px; }
-.gmd-app .gmd-demo-portfolio > .gmd-section-heading { align-items: flex-end; margin-bottom: 18px; }
-.gmd-app .gmd-demo-portfolio .gmd-section-heading p { margin-top: 6px; font-size: 14px; color: var(--gmd-copy); }
-.gmd-app .gmd-demo-portfolio .gmd-position-table { margin-top: 16px; }
 .gmd-app .gmd-empty-note { padding: 22px 24px; font-size: 14px; color: var(--gmd-copy); }
 .gmd-position-actions { display: flex; gap: 8px; flex-wrap: wrap; }
-.gmd-app .gmd-demo-activity { margin-top: 26px; }
-.gmd-app .gmd-demo-activity .gmd-section-heading { margin-bottom: 4px; align-items: baseline; }
-.gmd-app .gmd-demo-activity h3 { font-size: 17px; }
-.gmd-app .gmd-demo-activity .gmd-section-heading > span { font-size: 13px; color: var(--gmd-copy); }
 .gmd-activity-rows > .gmd-activity-row { display: grid; grid-template-columns: 38px 1fr auto; gap: 14px; align-items: center; padding: 16px 0; border-bottom: 1px solid var(--gmd-line); }
 .gmd-activity-rows > .gmd-activity-row > span:nth-child(3) { text-align: right; }
-.gmd-app .gmd-demo-activity .gmd-text-button { width: auto; margin-top: 12px; }
 .gmd-app .gmd-wallet-heading { margin-top: 8px; }
 .gmd-app .gmd-wallet-heading p { margin-top: 6px; font-size: 14px; color: var(--gmd-copy); }
 @media (max-width: 640px) {
   .gmd-activity-rows > .gmd-activity-row { grid-template-columns: 32px 1fr auto; gap: 10px; }
-  .gmd-app .gmd-demo-portfolio > .gmd-section-heading { flex-wrap: wrap; align-items: flex-start; }
 }
 
 /* Fund figures, look-through basket and recent activity */
@@ -1743,14 +1735,6 @@ a.gmd-pool-pair:hover b { text-decoration: underline; text-underline-offset: 3px
 .gmd-navmove svg { cursor: crosshair; touch-action: pan-y; }
 @media (max-width:860px) { .gmd-pools-visuals { grid-template-columns: 1fr; } }
 
-/* The order panel's route: from the wallet on X Layer, or from the demo balance, with the one action that changes it. */
-.gmd-invest-route { display: grid; gap: 4px; padding: 10px 12px; margin-bottom: 14px; border-radius: 8px; background: var(--gmd-bg); font-size: 13px; }
-.gmd-invest-route p { display: flex; align-items: center; gap: 8px; margin: 0; color: var(--gmd-copy); }
-.gmd-invest-route p i { flex: 0 0 8px; height: 8px; border-radius: 50%; background: #9aa9af; }
-.gmd-invest-route.is-chain p i { background: var(--gmd-accent); }
-.gmd-invest-route b { color: var(--gmd-ink); }
-.gmd-invest-route .gmd-text-button { justify-self: start; font-size: 13px; }
-
 /* Pools pictures, second pass: zoom, explain with AI, the deposit flow, the full-width view and their motion. */
 .gmd-lq-head { align-items: center; }
 .gmd-lq-head h3 { margin-inline-end: auto; }
@@ -1981,6 +1965,8 @@ a.gmd-pool-pair:hover b { text-decoration: underline; text-underline-offset: 3px
 
 /* Five strategies, and Custom's own-position settings. */
 .gmd-strategy-options.is-5 { grid-template-columns: repeat(5, minmax(0,1fr)); }
+/* The side panel is too narrow for five across: two a row, Custom on its own. */
+.gmd-liquidity-panel .gmd-strategy-options.is-5 { grid-template-columns: repeat(2, minmax(0,1fr)); }
 .gmd-liquidity-panel .gmd-strategy-options.is-5 .is-custom { grid-column: 1 / -1; }
 .gmd-strategy-custom { display: grid; gap: 10px; padding: 12px; border-radius: 10px; background: var(--gmd-soft); }
 .gmd-strategy-row { display: grid; grid-template-columns: 96px minmax(0,1fr); align-items: center; gap: 8px; font-size: 12px; color: var(--gmd-copy); }

@@ -395,6 +395,21 @@ export function activityDay(index: ActivityIndex, nowMs: number): ActivityDay {
   return { complete, since: new Date(sinceMs).toISOString(), ...activityCounts(index.rows, sinceMs) };
 }
 
+/** Orders at the fund over the same window as activityDay, the arbitrage's folded in elsewhere: the dollars in and out, and how many. */
+export type FundFlows = { investedMicros: bigint; redeemedMicros: bigint; orders: number; complete: boolean; since: string };
+
+export function fundFlows(index: ActivityIndex, nowMs: number): FundFlows {
+  const { complete, since } = activityDay(index, nowMs);
+  const from = Date.parse(since);
+  let investedMicros = 0n, redeemedMicros = 0n, orders = 0;
+  for (const row of index.rows) {
+    if (Date.parse(row.at) < from) continue;
+    if (row.kind === "invest") { investedMicros += row.dollarsMicros ?? 0n; orders += 1; }
+    else if (row.kind === "redeem") { redeemedMicros += row.dollarsMicros ?? 0n; orders += 1; }
+  }
+  return { investedMicros, redeemedMicros, orders, complete, since };
+}
+
 /** The figures with rows read after them added: a page's own reads of the newest blocks. */
 export function withNewerRows(day: ActivityDay, newer: MarketActivity[]): ActivityDay {
   const more = activityCounts(newer, Date.parse(day.since));

@@ -12,26 +12,26 @@ import { BasketTable, useRecordComposition } from "./Basket";
 import { Icon, Skeleton } from "./Icons";
 import Holdings from "./Holdings";
 
-// Fund figures for USTX: size and shares outstanding from the NAV record on X Layer, investors
-// across wallets (read from the fund contract) and demo balances, and 24-hour flows of demo-balance
-// orders. Demo dollars only; totals, never single orders.
+// Fund figures for USTX, all from X Layer Testnet: size and shares outstanding from the NAV record,
+// the wallets holding USTX from the fund contract, and the last 24 hours of orders at the fund from
+// its events. Demo dollars (dUSD) only; totals, never single orders.
 
-type Split = { sharesMicros: string; investors: number };
-type FundSnapshot = { sharesOutstandingMicros: string; investors: number; ordersToday: number; last24h: { investedMicros: string; redeemedMicros: string; orders: number }; demo?: Split; wallets?: Split | null };
+type Flows = { investedMicros: string; redeemedMicros: string; orders: number; complete: boolean; since: string };
+type FundSnapshot = { sharesOutstandingMicros: string; investors: number; last24h: Flows | null };
 
 const digits = (value: unknown): value is string => typeof value === "string" && /^\d{1,30}$/.test(value);
 const day = (value: string) => new Date(value).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric", timeZone: "UTC" });
 
 function decodeFund(value: unknown): FundSnapshot {
   const body = value as FundSnapshot;
-  const flows = body?.last24h;
-  if (!body || !digits(body.sharesOutstandingMicros) || !Number.isSafeInteger(body.investors) || !Number.isSafeInteger(body.ordersToday) || !flows || !digits(flows.investedMicros) || !digits(flows.redeemedMicros) || !Number.isSafeInteger(flows.orders)) throw new Error("The fund response is incomplete.");
-  const split = (value: unknown): Split | undefined => { const item = value as Split; return item && digits(item.sharesMicros) && Number.isSafeInteger(item.investors) ? { sharesMicros: item.sharesMicros, investors: item.investors } : undefined; };
-  return { ...body, demo: split(body.demo), wallets: split(body.wallets) ?? null };
+  if (!body || !digits(body.sharesOutstandingMicros) || !Number.isSafeInteger(body.investors)) throw new Error("The fund response is incomplete.");
+  const flows = body.last24h;
+  const last24h = flows && digits(flows.investedMicros) && digits(flows.redeemedMicros) && Number.isSafeInteger(flows.orders) && typeof flows.since === "string" ? { investedMicros: flows.investedMicros, redeemedMicros: flows.redeemedMicros, orders: flows.orders, complete: flows.complete === true, since: flows.since } : null;
+  return { sharesOutstandingMicros: body.sharesOutstandingMicros, investors: body.investors, last24h };
 }
 
-/** Loads the public fund totals, refreshing every minute and after an order on this page. */
-function useDemoFund() {
+/** Loads the fund totals, refreshing every minute and after an order on this page. */
+function useFundTotals() {
   const [state, setState] = useState<{ fund: FundSnapshot | null; loadedAt: number; failed: boolean }>({ fund: null, loadedAt: 0, failed: false });
   useEffect(() => {
     let active: AbortController | null = null;
@@ -39,7 +39,7 @@ function useDemoFund() {
       active?.abort();
       const controller = new AbortController();
       active = controller;
-      fetch("/api/demo/fund", { cache: "no-store", signal: controller.signal })
+      fetch("/api/fund", { cache: "no-store", signal: controller.signal })
         .then(async response => { if (!response.ok) throw new Error("unavailable"); return decodeFund(await response.json()); })
         .then(fund => { if (active === controller) setState({ fund, loadedAt: Date.now(), failed: false }); })
         .catch(() => { if (active === controller && !controller.signal.aborted) setState(previous => ({ ...previous, failed: true })); });
@@ -70,18 +70,18 @@ function usePoolMarket() {
 
 function useFundFigures() {
   const { data, loading } = useMarket();
-  const demo = useDemoFund();
+  const totals = useFundTotals();
   const record = data?.onchain?.effectiveAt && !data.onchainError ? data.onchain : null;
   const nav = record ? BigInt(record.navPerShareMicros) : null;
   const recorded = record && digits(record.sharesOutstandingMicros) ? BigInt(record.sharesOutstandingMicros) : 0n;
-  const live = demo.fund ? BigInt(demo.fund.sharesOutstandingMicros) : null;
-  // The count recorded on X Layer with this NAV; before the first such record, the ledger's own total.
+  const live = totals.fund ? BigInt(totals.fund.sharesOutstandingMicros) : null;
+  // The count recorded on X Layer with this NAV; before the first such record, the fund contract's own total.
   const shares = recorded > 0n ? recorded : live;
   const size = nav !== null && shares !== null ? fundValueMicros(shares, nav) : null;
   const since = data ? sinceFirstRecord(publicationHistory(data)) : null;
   // Before the first reads return: placeholders, not dashes. A later refresh keeps the figures shown.
-  const pending = (!data && loading) || (!demo.fund && !demo.failed);
-  return { ...demo, record, shares, onChain: recorded > 0n, size, since, pending, marketPending: !data && loading };
+  const pending = (!data && loading) || (!totals.fund && !totals.failed);
+  return { ...totals, record, shares, onChain: recorded > 0n, size, since, pending, marketPending: !data && loading };
 }
 
 const tone = (percent: number | undefined) => percent === undefined || Math.round(percent * 100) === 0 ? "" : percent > 0 ? "gmd-positive" : "gmd-negative";
@@ -89,7 +89,7 @@ const tone = (percent: number | undefined) => percent === undefined || Math.roun
 /** Three headline figures for the market card; the chart above it shows the return. */
 export function FundStats() {
   const figures = useFundFigures();
-  const flows = figures.fund?.last24h;
+  const flows = figures.fund?.last24h ?? null;
   const net = flows ? BigInt(flows.investedMicros) - BigInt(flows.redeemedMicros) : null;
   const wait = (width: number) => figures.pending ? <Skeleton width={width} /> : "—";
   return <dl className="gmd-fund-stats" aria-label="USTX fund figures" aria-busy={figures.pending}>
@@ -138,14 +138,15 @@ export function FundOverview() {
   const entry = record ? [data?.latest?.publication, ...(data?.history ?? [])].find(item => item?.holdingsHash.toLowerCase() === record.holdingsHash.toLowerCase()) : null;
   const tx = entry?.txHash && /^0x[0-9a-f]{64}$/i.test(entry.txHash) ? entry.txHash : null;
   const unavailable = figures.failed && !fund;
-  const net = fund ? BigInt(fund.last24h.investedMicros) - BigInt(fund.last24h.redeemedMicros) : null;
+  const flows = fund?.last24h ?? null;
+  const net = flows ? BigInt(flows.investedMicros) - BigInt(flows.redeemedMicros) : null;
   return <section id="overview" className="gmd-fund" aria-labelledby="fund-title">
     <header className="gmd-section-heading"><div><h2 id="fund-title">Fund overview</h2></div></header>
     {unavailable && <p className="gmd-inline-error" role="status">Fund figures are unavailable right now. The NAV and verification are not affected.</p>}
     <div className="gmd-fund-grid" aria-busy={figures.pending}>
       <article><span>Fund size</span><strong>{figures.size === null ? figures.pending ? <Skeleton width={96} /> : "—" : formatUsdRounded(figures.size)}</strong><small>{figures.shares === null ? figures.pending ? <Skeleton width="80%" /> : "Unavailable" : `${formatSharesShort(figures.shares)} shares, recorded on X Layer`}</small></article>
-      <article><span>Investors</span><strong>{fund ? fund.investors.toLocaleString("en-US") : figures.pending ? <Skeleton width={40} /> : "—"}</strong><small>{!fund ? figures.pending ? <Skeleton width="70%" /> : "Unavailable" : fund.wallets ? `${fund.wallets.investors.toLocaleString("en-US")} on X Layer` : "Accounts holding USTX"}</small></article>
-      <article><span>Net flows, 24h</span><strong className={net === null || net === 0n ? "" : net > 0n ? "gmd-positive" : "gmd-negative"}>{net === null ? figures.pending ? <Skeleton width={80} /> : "—" : `${net > 0n ? "+" : ""}${formatUsdRounded(net)}`}</strong><small>{fund ? `${formatUsdRounded(fund.last24h.investedMicros)} in · ${formatUsdRounded(fund.last24h.redeemedMicros)} out` : figures.pending ? <Skeleton width="85%" /> : "Unavailable"}</small></article>
+      <article><span>Investors</span><strong>{fund ? fund.investors.toLocaleString("en-US") : figures.pending ? <Skeleton width={40} /> : "—"}</strong><small>{!fund ? figures.pending ? <Skeleton width="70%" /> : "Unavailable" : "Wallets holding USTX on X Layer"}</small></article>
+      <article><span>Net flows, 24h</span><strong className={net === null || net === 0n ? "" : net > 0n ? "gmd-positive" : "gmd-negative"}>{net === null ? figures.pending ? <Skeleton width={80} /> : "—" : `${net > 0n ? "+" : ""}${formatUsdRounded(net)}`}</strong><small>{flows ? `${formatUsdRounded(flows.investedMicros)} in · ${formatUsdRounded(flows.redeemedMicros)} out${flows.complete ? "" : ` since ${shortTime(flows.since)}`}` : figures.pending ? <Skeleton width="85%" /> : "Unavailable"}</small></article>
       <article><span>Since launch</span><strong className={tone(since?.percent)}>{since ? signedPercent(since.percent) : figures.marketPending ? <Skeleton width={72} /> : "—"}</strong><small>{since ? `From ${formatUsdRounded(since.first.micros)} on ${day(since.first.at)}` : figures.marketPending ? <Skeleton width="60%" /> : "Unavailable"}</small></article>
     </div>
     {pool.market && pool.market.priceMicros > 0n && <PremiumGauge market={pool.market} />}

@@ -20,6 +20,48 @@ const USTX = productKey("us-tech-x");
 const signature = (item: { name: string; inputs: readonly { type: string }[] }) => `${item.name}(${item.inputs.map(input => input.type).join(",")})`;
 const appRpc = (method: string, params: unknown[]) => method === "eth_chainId" ? Promise.resolve("0x7a0") : hre.network.provider.request({ method, params });
 
+/** A local fund, NAV feed, PoolManager and range hook as `npm run deploy:range` sets them up, and the app's pin for them. */
+async function setup() {
+  const [admin, relayer, provider] = await hre.viem.getWalletClients();
+  const publicClient = await hre.viem.getPublicClient();
+  const registry = await hre.viem.deployContract("GanymedeNavRegistry", [admin.account.address, relayer.account.address]);
+  const dollar = await hre.viem.deployContract("GanymedeDemoDollar", [admin.account.address]);
+  const fund = await hre.viem.deployContract("GanymedeBasketFund", ["Ganymede US Tech Basket", "USTX", dollar.address, registry.address, USTX, admin.account.address]);
+  await dollar.write.setMinter([fund.address]);
+  const feed = await hre.viem.deployContract("GanymedeNavFeed", [registry.address, USTX, "USTX / USD"]);
+  await time.increase(60);
+  await registry.write.publishNav([USTX, 100n * USD, 0n, toBytes32("11".repeat(32)), BigInt(await time.latest())], { account: relayer.account });
+  await hre.network.provider.request({ method: "hardhat_setCode", params: [CREATE2_PROXY, CREATE2_PROXY_CODE] });
+  const read = async (name: string) => { const artifact = await hre.artifacts.readArtifact(name); return { abi: artifact.abi, bytecode: artifact.bytecode as Hex }; };
+  const base = await deployRwaLiquidity({
+    wallet: admin, publicClient, hookArtifact: await read("GanymedeRwaLiquidityHook"), routerArtifact: await read("GanymedeV4Router"),
+    asset: fund.address, dollar: dollar.address, feed: feed.address, name: "Ganymede USTX-dUSD v4 LP", symbol: "USTX-V4LP",
+  });
+  const range = await deployRangeLiquidity({
+    wallet: admin, publicClient, hookArtifact: await read("GanymedeRangeLiquidityHook"), arbitrageArtifact: await read("GanymedeRangeArbitrage"),
+    poolManager: base.poolManager.address, asset: fund.address, dollar: dollar.address, feed: feed.address,
+  });
+  const assetIsCurrency0 = BigInt(fund.address) < BigInt(dollar.address);
+  const poolId = poolIdOf({
+    currency0: getAddress(assetIsCurrency0 ? fund.address : dollar.address), currency1: getAddress(assetIsCurrency0 ? dollar.address : fund.address),
+    fee: DYNAMIC_FEE_FLAG, tickSpacing: 10, hooks: getAddress(range.hook.address),
+  });
+  // What `npm run deploy:range` records and the app pins.
+  const deployment: RangeDeployment = {
+    poolManager: base.poolManager.address.toLowerCase(), hook: range.hook.address.toLowerCase(), router: base.router.address.toLowerCase(),
+    asset: fund.address.toLowerCase(), dollar: dollar.address.toLowerCase(), assetIsCurrency0, poolId: poolId.toLowerCase(), stateSlot: poolStateSlot(poolId),
+    arbitrage: range.arbitrage.address.toLowerCase(),
+  };
+  const send = async (request: { to: string; data: string }) => {
+    const hash = await provider.sendTransaction({ to: request.to as Address, data: request.data as Hex });
+    const receipt = await publicClient.waitForTransactionReceipt({ hash });
+    expect(receipt.status).to.equal("success");
+    return { hash, block: Number(receipt.blockNumber), status: "success", logs: receipt.logs.map(log => ({ address: log.address, topics: [...log.topics], data: log.data })) } as FundReceipt;
+  };
+  const deadline = async () => Number(await time.latest()) + 600;
+  return { admin, provider, publicClient, dollar, fund, deployment, send, deadline };
+}
+
 describe("App range pool client", () => {
   it("uses the selectors, events and errors of the compiled range hook", async () => {
     const hook = (await hre.artifacts.readArtifact("GanymedeRangeLiquidityHook")).abi as readonly AbiItem[];
@@ -43,43 +85,7 @@ describe("App range pool client", () => {
   });
 
   it("opens, reads and closes a Bid-Ask position with the app's own calls", async () => {
-    const [admin, relayer, provider] = await hre.viem.getWalletClients();
-    const publicClient = await hre.viem.getPublicClient();
-    const registry = await hre.viem.deployContract("GanymedeNavRegistry", [admin.account.address, relayer.account.address]);
-    const dollar = await hre.viem.deployContract("GanymedeDemoDollar", [admin.account.address]);
-    const fund = await hre.viem.deployContract("GanymedeBasketFund", ["Ganymede US Tech Basket", "USTX", dollar.address, registry.address, USTX, admin.account.address]);
-    await dollar.write.setMinter([fund.address]);
-    const feed = await hre.viem.deployContract("GanymedeNavFeed", [registry.address, USTX, "USTX / USD"]);
-    await time.increase(60);
-    await registry.write.publishNav([USTX, 100n * USD, 0n, toBytes32("11".repeat(32)), BigInt(await time.latest())], { account: relayer.account });
-    await hre.network.provider.request({ method: "hardhat_setCode", params: [CREATE2_PROXY, CREATE2_PROXY_CODE] });
-    const read = async (name: string) => { const artifact = await hre.artifacts.readArtifact(name); return { abi: artifact.abi, bytecode: artifact.bytecode as Hex }; };
-    const base = await deployRwaLiquidity({
-      wallet: admin, publicClient, hookArtifact: await read("GanymedeRwaLiquidityHook"), routerArtifact: await read("GanymedeV4Router"),
-      asset: fund.address, dollar: dollar.address, feed: feed.address, name: "Ganymede USTX-dUSD v4 LP", symbol: "USTX-V4LP",
-    });
-    const range = await deployRangeLiquidity({
-      wallet: admin, publicClient, hookArtifact: await read("GanymedeRangeLiquidityHook"), arbitrageArtifact: await read("GanymedeRangeArbitrage"),
-      poolManager: base.poolManager.address, asset: fund.address, dollar: dollar.address, feed: feed.address,
-    });
-    const assetIsCurrency0 = BigInt(fund.address) < BigInt(dollar.address);
-    const poolId = poolIdOf({
-      currency0: getAddress(assetIsCurrency0 ? fund.address : dollar.address), currency1: getAddress(assetIsCurrency0 ? dollar.address : fund.address),
-      fee: DYNAMIC_FEE_FLAG, tickSpacing: 10, hooks: getAddress(range.hook.address),
-    });
-    // What `npm run deploy:range` records and the app pins.
-    const deployment: RangeDeployment = {
-      poolManager: base.poolManager.address.toLowerCase(), hook: range.hook.address.toLowerCase(), router: base.router.address.toLowerCase(),
-      asset: fund.address.toLowerCase(), dollar: dollar.address.toLowerCase(), assetIsCurrency0, poolId: poolId.toLowerCase(), stateSlot: poolStateSlot(poolId),
-      arbitrage: range.arbitrage.address.toLowerCase(),
-    };
-    const send = async (request: { to: string; data: string }) => {
-      const hash = await provider.sendTransaction({ to: request.to as Address, data: request.data as Hex });
-      const receipt = await publicClient.waitForTransactionReceipt({ hash });
-      expect(receipt.status).to.equal("success");
-      return { hash, block: Number(receipt.blockNumber), status: "success", logs: receipt.logs.map(log => ({ address: log.address, topics: [...log.topics], data: log.data })) } as FundReceipt;
-    };
-    const deadline = async () => Number(await time.latest()) + 600;
+    const { admin, provider, dollar, fund, deployment, send, deadline } = await setup();
 
     // As the one button does it: half the deposit buys USTX at the NAV, the other half fills the bins below.
     await dollar.write.claim({ account: provider.account });
@@ -121,6 +127,27 @@ describe("App range pool client", () => {
     expect(closed.closed?.id).to.equal(1n);
     expect(closed.closed!.amounts.sharesMicros + 2n >= position.amounts.sharesMicros).to.equal(true);
     expect((await readRangePool(deployment, provider.account.address, { rpc: appRpc })).account!.positions).to.deep.equal([]);
+  });
+
+  it("reads every open position of a wallet, however many it has opened", async () => {
+    const { provider, dollar, deployment, send, deadline } = await setup();
+    await dollar.write.claim({ account: provider.account });
+    const calls = rangeCalls(deployment);
+    await send(calls.approveDollars(maxUint256));
+    // 22 positions of $20 each in one bin of demo dollars: more than the 20 the app used to read. The
+    // dollars' bin is below the tick when USTX is currency0, as on X Layer Testnet, and above it otherwise.
+    const [below, above] = deployment.assetIsCurrency0 ? [1, 0] : [0, 1];
+    for (let index = 0; index < 22; index++) {
+      await send(calls.open("spot", 20, below, above, { sharesMicros: 0n, dollarsMicros: 20n * USD }, await deadline()));
+    }
+    let { account } = await readRangePool(deployment, provider.account.address, { rpc: appRpc });
+    expect(account!.positions.map(position => position.id)).to.deep.equal(Array.from({ length: 22 }, (_, index) => BigInt(index + 1)));
+    // The oldest closes; the next reads skip it and still list every other one.
+    await send(calls.close(1n, { sharesMicros: 0n, dollarsMicros: 0n }, await deadline()));
+    for (let read = 0; read < 2; read++) {
+      ({ account } = await readRangePool(deployment, provider.account.address, { rpc: appRpc }));
+      expect(account!.positions.map(position => position.id)).to.deep.equal(Array.from({ length: 21 }, (_, index) => BigInt(index + 2)));
+    }
   });
 
   it("points at the recorded deployment", () => {

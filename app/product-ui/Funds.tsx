@@ -5,12 +5,9 @@ import { useEffect, useId, useState } from "react";
 import type { FundDetail, FundSummary } from "@/lib/funds/api";
 import { fundKind, otherFund, universeToken, type FundDefinition, type FundKind } from "@/lib/funds/catalog";
 import { formatUsdMicros } from "@/lib/nav-display";
-import { DEMO_ORDER_EVENT, formatShares, parseShares } from "@/lib/demo/format";
-import { parseUsd } from "@/lib/xstocks/wallet";
 import { shortTime } from "@/lib/product-market";
 import { PROOF_DEPLOYMENT } from "@/lib/xstocks/proof";
 import { verifyFundSnapshot, type FundVerification } from "@/lib/funds/verification";
-import type { FundPosition } from "@/lib/funds/demo";
 import { useFundResource } from "./useFundResource";
 import type { SeriesPoint } from "@/lib/xstocks/series";
 import { AssetMark, Icon, assetStyle } from "./Icons";
@@ -75,10 +72,6 @@ export function FundList({ selectedId, onSelect, controls, kinds, selectable = f
 
 export type FundAccount = { cashMicros: string; positions: { fundId: string; sharesMicros: string; costMicros: string }[]; orders: { id: string; fundId: string; side: "subscribe" | "redeem"; usdMicros: string; sharesMicros: string; navMicros: string; createdAt: string }[]; minOrderMicros: string };
 
-export function useFundAccount(fundId: string) {
-  return useFundResource<FundAccount>(`/api/funds/account?fund=${encodeURIComponent(fundId)}`);
-}
-
 /**
  * Never keep one fund's badge for another. The same fund's last check stays while its refreshed
  * response is checked, so its value and order panel do not blank on every refresh.
@@ -104,16 +97,15 @@ export function FundMarketPreview({ definition }: { definition: FundDefinition }
   const composition = check.composition ?? null;
   const record = check.record ?? null;
   const loading = !fund && !error;
-  const value = record && fund ? BigInt(fund.demo.sharesMicros) * BigInt(record.navPerShareMicros) / 1_000_000n : null;
   const status = error ? "Price unavailable" : { matched: "NAV checked on X Layer", checking: "Confirming the price…", failed: "Price needs attention", unavailable: "Price confirmation unavailable" }[check.result];
   const points = (fund?.series ?? []).map(([at, micros]) => ({ at: new Date(at * 1_000).toISOString(), micros, hash: "" }));
   const weights = new Map(composition?.holdings.map(row => [row.symbol, Number(BigInt(row.valueMicros) * 1_000_000n / BigInt(composition.navPerShareMicros)) / 10_000]));
   return <>
     <div className="gmd-market-primary">
-      <div className="gmd-feature-title"><div className="gmd-product-identity is-compact"><div className="gmd-product-monogram" aria-hidden="true"><i /><i /><i /><i /><i /><i /></div><div><span className="gmd-ticker">{definition.ticker} <span>Equity basket</span></span><h2>{definition.name}</h2><p>{definition.description}</p></div></div><Link prefetch={false} className="gmd-button" href={`${definition.href}#investment`}>Invest <Icon name="arrow" size={18} /></Link></div>
+      <div className="gmd-feature-title"><div className="gmd-product-identity is-compact"><div className="gmd-product-monogram" aria-hidden="true"><i /><i /><i /><i /><i /><i /></div><div><span className="gmd-ticker">{definition.ticker} <span>Equity basket</span></span><h2>{definition.name}</h2><p>{definition.description}</p></div></div><Link prefetch={false} className="gmd-button" href={definition.href}>View fund <Icon name="arrow" size={18} /></Link></div>
       <div className="gmd-nav-summary"><div><span className="gmd-label">NAV per share <span>/ USD</span></span><strong className="gmd-value">{record ? formatUsdMicros(record.navPerShareMicros, 4) : loading ? <><i className="gmd-skeleton is-hero" aria-hidden="true" /><span className="gmd-sr-only">Loading</span></> : "—"}</strong></div><div className="gmd-nav-meta"><OkxSource>Priced by OKX OnchainOS</OkxSource><span role="status" className={`gmd-status ${check.result === "matched" ? "is-positive" : "is-waiting"}`}><i />{status}</span>{record && <time dateTime={record.effectiveAt ?? undefined}>{shortTime(record.effectiveAt)}</time>}</div></div>
       {error && <div className="gmd-data-notice" role="status"><span>This fund could not be loaded just now.</span><button type="button" onClick={() => void reload()}>Try again</button></div>}
-      <dl className="gmd-fund-stats" aria-label={`${definition.ticker} fund figures`} aria-busy={loading}><div><dt>Fund size</dt><dd>{value === null ? "—" : formatUsdMicros(value.toString(), 2)}</dd></div><div><dt>Investors</dt><dd>{fund ? fund.demo.investors.toLocaleString("en-US") : "—"}</dd></div><div><dt>Assets</dt><dd>{definition.constituents.length}</dd></div></dl>
+      <dl className="gmd-fund-stats" aria-label={`${definition.ticker} fund figures`} aria-busy={loading}><div><dt>Assets</dt><dd>{definition.constituents.length}</dd></div><div><dt>Recorded on X Layer</dt><dd>Every 5 minutes</dd></div><div><dt>Investing</dt><dd>Not open yet</dd></div></dl>
       <MarketChart points={points} loading={loading} showActivity={false} historyLabel="Past 7 days" />
       <div className="gmd-feature-bottom"><span>Equal weight <i /> Rebalanced quarterly <i /> Min. $10</span><span className="gmd-badge">Demo fund</span></div>
     </div>
@@ -130,66 +122,24 @@ export function FundMarketPreview({ definition }: { definition: FundDefinition }
   </>;
 }
 
-export function FundOrder({ fund, nav, account, buyOnly = false, closed = null }: { fund: Pick<FundDetail, "id" | "ticker">; nav: string | null; account: FundAccount | null; buyOnly?: boolean; closed?: string | null }) {
-  const [side, setSide] = useState<"buy" | "sell">("buy");
-  const [amount, setAmount] = useState("1,000");
-  const [busy, setBusy] = useState(false);
-  const [message, setMessage] = useState<{ ok: boolean; text: string } | null>(null);
-  const [attempt, setAttempt] = useState<{ key: string; id: string } | null>(null);
-  const held = BigInt(account?.positions.find(position => position.fundId === fund.id)?.sharesMicros ?? "0");
-  const cash = BigInt(account?.cashMicros ?? "0");
-  const usd = side === "buy" ? parseUsd(amount) : null;
-  const shares = side === "sell" ? parseShares(amount) : null;
-  const order = side === "buy" ? { fundId: fund.id, side: "subscribe", usdMicros: usd?.toString() } : { fundId: fund.id, side: "redeem", sharesMicros: shares?.toString() };
-  const orderKey = JSON.stringify(order);
-  const retry = attempt?.key === orderKey;
-  const navMicros = nav ? BigInt(nav) : null;
-  const problem = closed ? closed : !navMicros ? "Waiting for a verified, current NAV." : side === "buy"
-    ? (usd === null ? "Enter an amount in dollars, such as 1,000." : usd < 10_000_000n ? "The minimum order is $10." : usd > cash ? "That is more than your demo cash." : null)
-    : (held === 0n ? "You hold none of this fund yet." : shares === null || shares === 0n ? "Enter a number of shares, up to six decimals." : shares > held ? "That is more than the shares you hold." : null);
-  const estimate = navMicros && !problem ? (side === "buy" ? `${formatShares(usd! * 1_000_000n / navMicros)} ${fund.ticker}` : formatUsdMicros(shares! * navMicros / 1_000_000n, 2)) : "—";
-  async function submit() {
-    if (busy || (!retry && (problem || !account))) return;
-    setBusy(true); setMessage(null);
-    try {
-      const current = retry ? attempt! : { key: orderKey, id: crypto.randomUUID() };
-      setAttempt(current);
-      const response = await fetch("/api/funds/orders", { method: "POST", credentials: "same-origin", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ ...order, clientOrderId: current.id }) });
-      const body = await response.json().catch(() => ({})) as { order?: { usdMicros: string; sharesMicros: string; navMicros: string }; error?: string };
-      if (!response.ok || !body.order) throw new Error(body.error ?? "The order could not be filled.");
-      setAttempt(null);
-      setMessage({ ok: true, text: side === "buy" ? `Bought ${formatShares(body.order.sharesMicros)} ${fund.ticker} for ${formatUsdMicros(body.order.usdMicros, 2)} at ${formatUsdMicros(body.order.navMicros, 4)}.` : `Redeemed ${formatShares(body.order.sharesMicros)} ${fund.ticker} for ${formatUsdMicros(body.order.usdMicros, 2)} at ${formatUsdMicros(body.order.navMicros, 4)}.` });
-      setAmount(side === "buy" ? "1,000" : "");
-      window.dispatchEvent(new Event(DEMO_ORDER_EVENT));
-    } catch (error) {
-      setMessage({ ok: false, text: `${error instanceof Error ? error.message : "The order could not be confirmed."} Retry the same order to check its result.` });
-    } finally { setBusy(false); }
-  }
+/**
+ * The order panel of a product not yet investable: investing runs only on chain, with the demo
+ * dollars (dUSD) in a visitor's own wallet on X Layer Testnet, and only USTX has its share token so far.
+ */
+export function FundClosed({ ticker, note }: { ticker: string; note?: string | null }) {
   return <aside id="investment" className="gmd-fund-order" aria-labelledby="fund-order-title">
-    <h2 id="fund-order-title">Invest in {fund.ticker}</h2>
-    <p className="gmd-caption">Use your shared demo balance to buy at this fund’s latest NAV.</p>
-    <div className="gmd-wallet-balances"><div><span>Demo cash</span><b>{account ? formatUsdMicros(account.cashMicros, 2) : "—"}</b><small>no value</small></div><div><span>{fund.ticker} held</span><b>{formatShares(held)}</b><small>{navMicros && held > 0n ? formatUsdMicros(held * navMicros / 1_000_000n, 2) : "shares"}</small></div></div>
-    {!buyOnly && <div className="gmd-segmented" role="group" aria-label="Order type">
-      <button type="button" disabled={busy} aria-pressed={side === "buy"} onClick={() => { setSide("buy"); setAmount("1,000"); setMessage(null); }}>Buy</button>
-      <button type="button" disabled={busy} aria-pressed={side === "sell"} onClick={() => { setSide("sell"); setAmount(""); setMessage(null); }}>Redeem</button>
-    </div>}
-    <div className="gmd-order-input">
-      <label htmlFor="fund-amount">{side === "buy" ? "You pay" : "Shares to redeem"}</label>
-      <div><input disabled={busy} id="fund-amount" inputMode="decimal" autoComplete="off" value={amount} onChange={event => { setAmount(event.target.value); setMessage(null); }} aria-invalid={Boolean(problem)} aria-describedby="fund-help" /><span>{side === "buy" ? "USD" : fund.ticker}</span></div>
-      <p id="fund-help">{problem ?? (side === "buy" ? `Estimated: ${estimate}` : `Estimated proceeds: ${estimate}`)}</p>
-    </div>
-    {side === "sell" && held > 0n && <div className="gmd-order-presets" aria-label="Amounts to redeem"><button type="button" disabled={busy} onClick={() => setAmount(formatShares(held / 2n).replace(/,/g, ""))}>Half</button><button type="button" disabled={busy} onClick={() => setAmount(formatShares(held).replace(/,/g, ""))}>All</button></div>}
-    <button type="button" className="gmd-button" disabled={busy || (!retry && (Boolean(problem) || !account))} onClick={() => void submit()}>{busy ? "Placing the order…" : retry ? "Retry same order" : side === "buy" ? "Buy with demo dollars" : "Redeem shares"}</button>
-    {message && <p className={message.ok ? "gmd-fund-filled" : "gmd-inline-error"} role={message.ok ? "status" : "alert"}>{message.text}</p>}
+    <h2 id="fund-order-title">Invest in {ticker}</h2>
+    <p>{note ?? `Investing in ${ticker} is not open yet. Its value is recorded on X Layer every five minutes, so you can follow it and check it here.`}</p>
+    <p className="gmd-caption">Investing runs only on X Layer Testnet, with demo dollars (dUSD) in your own wallet. USTX is open now: invest from OKX Wallet, trade it in two pools and borrow against it.</p>
+    <Link className="gmd-button" prefetch={false} href="/products/ustx#investment">Invest in USTX <Icon name="arrow" size={17} /></Link>
   </aside>;
 }
 
-/** One fund's page: its NAV and record, its holdings, the browser's check and a demo order. */
+/** One fund's page: its NAV and record, its holdings, the browser's check, and investing not open yet. */
 export function FundScreen({ id }: { id: string }) {
   const definition = otherFund(id);
   const { data, error: failed } = useFundResource<{ fund: FundDetail }>(`/api/v1/funds?id=${encodeURIComponent(id)}`);
   const fund = data?.fund ?? null;
-  const { data: account, error: accountError } = useFundAccount(id);
   const check = useFundCheck(fund, id);
   useEffect(() => { if (definition) document.title = `${definition.name} (${definition.ticker}) · Ganymede`; }, [definition]);
   const composition = check.composition;
@@ -200,7 +150,6 @@ export function FundScreen({ id }: { id: string }) {
     <Link className="gmd-breadcrumb" prefetch={false} href="/"><Icon name="back" size={16} />All funds</Link>
     <div className="gmd-page-heading"><div><span className="gmd-ticker">{definition.ticker} <span>Equity basket</span></span><h1>{definition.name}</h1><p>{definition.description}</p></div><span className="gmd-badge">Demo fund</span></div>
     {failed && <p className="gmd-inline-error" role="status">This fund could not be read just now. Reload the page in a moment.</p>}
-    {accountError && <p className="gmd-inline-error" role="status">{accountError}</p>}
     <div className="gmd-fund-layout">
       <div className="gmd-fund-main">
         <section className="gmd-fund-hero" aria-label={`${definition.name} NAV`}>
@@ -231,27 +180,10 @@ export function FundScreen({ id }: { id: string }) {
           <div><dt>Method</dt><dd>Equal weight at each quarterly rebalance; weights move with prices between rebalances</dd></div>
           <div><dt>Prices</dt><dd>OKX OnchainOS, xStocks on X Layer mainnet</dd></div>
           <div><dt>Records</dt><dd>Price history published on X Layer Testnet every five minutes</dd></div>
-          <div><dt>Investors</dt><dd>{fund ? `${fund.demo.investors} demo ${fund.demo.investors === 1 ? "balance" : "balances"}` : "—"}</dd></div>
-          <div><dt>How to invest</dt><dd>Use your demo balance. Wallet investing, liquidity pools and borrowing are available with USTX</dd></div>
+          <div><dt>How to invest</dt><dd>Not open yet. Investing runs only on X Layer Testnet, from your own wallet; it is open for USTX, with its pools and borrowing</dd></div>
         </dl><p className="gmd-caption">A demo fund on X Layer Testnet. Demo dollars and fund shares have no value, and nothing here is an offer or investment advice.</p></section>
       </div>
-      <FundOrder key={id} fund={definition} nav={nav} account={account} />
+      <FundClosed ticker={definition.ticker} />
     </div>
   </>;
-}
-
-/** The other funds held with this browser's demo balance, on Portfolio. */
-export function FundHoldings({ positions, funds }: { positions: FundPosition[]; funds: FundSummary[] | null }) {
-  const rows = positions.map(position => {
-    const fund = funds?.find(item => item.id === position.fundId);
-    const value = fund?.nav ? BigInt(position.sharesMicros) * BigInt(fund.nav.perShareMicros) / 1_000_000n : null;
-    return { position, fund, value };
-  });
-  if (!rows.length) return null;
-  const total = rows.some(row => row.value === null) ? null : rows.reduce((sum, row) => sum + row.value!, 0n);
-  return <section className="gmd-proof-history gmd-fund-portfolio" aria-labelledby="fund-portfolio-title"><header className="gmd-section-heading"><div><h2 id="fund-portfolio-title">Other funds</h2><p>Held with your demo balance, valued at each fund&rsquo;s latest NAV on X Layer.</p></div><span className="gmd-count">{total === null ? "Valuation pending" : formatUsdMicros(total, 2)}</span></header>
-    <div className="gmd-data-table-scroll"><table className="gmd-table"><thead><tr><th>Fund</th><th>Shares</th><th>Value</th><th>Return</th></tr></thead><tbody>
-      {rows.map(({ position, fund, value }) => { const cost = BigInt(position.costMicros); const change = value !== null && cost > 0n ? Number((value - cost) * 10_000n / cost) / 100 : null; return <tr key={position.fundId}><th scope="row"><Link prefetch={false} href={fund?.href ?? `/funds/${position.fundId}`}>{fund?.name ?? position.fundId}</Link></th><td>{formatShares(position.sharesMicros)} {fund?.ticker}</td><td>{value === null ? "—" : formatUsdMicros(value, 2)}</td><td className={tone(change)}>{percent(change)}</td></tr>; })}
-    </tbody></table></div>
-  </section>;
 }

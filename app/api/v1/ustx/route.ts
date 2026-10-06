@@ -35,7 +35,7 @@ export async function GET(request: Request) {
   const settlement = new SettlementClient(env);
   try {
     const { value: read, stale: memoryStale } = await cachedRead("ustx-nav", () => navForRequest(env, NAV_STALE_MS), { freshMs: NAV_FRESH_MS, staleMs: NAV_STALE_MS });
-    const { record, transactionHash, calculatedAt, demo, wallets } = read.body;
+    const { record, transactionHash, calculatedAt, wallets } = read.body;
     const stale = memoryStale || read.stale;
     return json({
       product: { id: XSTOCKS_PRODUCT.id, ticker: "USTX", name: "US Tech Basket", constituents: XSTOCKS_CONSTITUENTS.map(constituent => constituent.symbol) },
@@ -79,8 +79,7 @@ export async function GET(request: Request) {
         outstanding: {
           recordedMicros: record.sharesOutstandingMicros,
           inWalletsMicros: wallets?.sharesMicros ?? null,
-          inDemoBalancesMicros: demo?.sharesOutstandingMicros ?? null,
-          rule: "The NAV record counts both kinds of shares. Shares in wallets are this token: they trade in the pool and serve as loan collateral. Shares in demo balances stay in the Ganymede app and issue nothing on chain. The two parts are read now; the recorded count is as of the NAV.",
+          rule: "Every share is this token, held in wallets: it trades in the pools and serves as loan collateral. inWalletsMicros is read now; the recorded count is as of the NAV.",
         },
       },
       feed: {

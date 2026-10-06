@@ -1,7 +1,8 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { allocateShares, binTicksFor, constantProductRange, LP_STRATEGIES, planRange, planStrategy, strategyShape, strategyYear, workingNearNav } from "../lib/xstocks/lp-strategy.ts";
-import { previewShape, rangeCalls, rangeFill } from "../lib/xstocks/range-liquidity.ts";
+import { MULTICALL3, previewShape, rangeCalls, rangeFill, readAll } from "../lib/xstocks/range-liquidity.ts";
+import { decodeFunctionData, encodeFunctionResult, parseAbi } from "viem";
 
 const NAV = 100_000_000n; // $100
 const cp = { sharesMicros: 50_000_000n, dollarsMicros: 5_000_000_000n }; // 50 USTX, $5,000: at the NAV
@@ -98,4 +99,28 @@ test("the range pool's calls and events: open, close and what they paid, by toke
   assert.deepEqual(fill.opened, { id: 7n, amounts: { sharesMicros: 4_999_990n, dollarsMicros: 499_999_990n } });
   assert.deepEqual(fill.closed, { id: 3n, amounts: { sharesMicros: 1_000_000n, dollarsMicros: 2_000_000n } });
   assert.deepEqual(rangeFill(receipt, deployment, "0x" + "a".repeat(40)), { opened: null, closed: null });
+});
+
+test("many reads go in a few multicalls, and one by one where there is no multicall", async () => {
+  const abi = parseAbi(["function aggregate3((address target, bool allowFailure, bytes callData)[] calls) payable returns ((bool success, bytes returnData)[] returnData)"]);
+  const answer = (data) => `0x${data.slice(2, 10).padStart(64, "0")}`;
+  const calls = Array.from({ length: 250 }, (_, index) => ({ to: "0x" + "2".repeat(40), data: `0x${(index + 1).toString(16).padStart(8, "0")}` }));
+  const seen = [];
+  const withMulticall = async (method, [request]) => {
+    seen.push(request.to);
+    if (request.to !== MULTICALL3) return answer(request.data);
+    const { args: [inner] } = decodeFunctionData({ abi, data: request.data });
+    return encodeFunctionResult({ abi, functionName: "aggregate3", result: inner.map((item) => ({ success: true, returnData: answer(item.callData) })) });
+  };
+  const read = await readAll(withMulticall, calls, "0x1");
+  assert.deepEqual(read, calls.map((item) => answer(item.data)));
+  assert.deepEqual(seen, [MULTICALL3, MULTICALL3, MULTICALL3], "250 reads in three requests");
+  // Without Multicall3 the chain answers 0x, and every read goes on its own.
+  seen.length = 0;
+  const withoutMulticall = async (method, [request]) => { seen.push(request.to); return request.to === MULTICALL3 ? "0x" : answer(request.data); };
+  assert.deepEqual(await readAll(withoutMulticall, calls.slice(0, 12), "0x1"), calls.slice(0, 12).map((item) => answer(item.data)));
+  assert.equal(seen.length, 13);
+  // An RPC that is down is not tried call by call.
+  const down = async () => { throw new Error("fetch failed"); };
+  await assert.rejects(readAll(down, calls.slice(0, 3), "0x1"), /fetch failed/);
 });

@@ -17,7 +17,6 @@ import { parseFundComposition } from "../xstocks/proof";
 import { SERIES_LIMIT, type SeriesPoint } from "../xstocks/series";
 import { FUND_INCEPTION_NAV_MICROS, INCOME_FUNDS, OTHER_FUNDS, fundConstituents, universeToken, type FundDefinition } from "./catalog";
 import { runIncomeCycle } from "../income/cycle";
-import { ensureFundDemoTables, FundDemoLedger, type FundDb } from "./demo";
 
 export const fundStateKey = (fundId: string, part: "basket" | "latest" | "history" | "confirmed" | "rebalance" | "series") => `fund:${fundId}:${part}`;
 export const HISTORY_LIMIT = 12;
@@ -104,9 +103,6 @@ export function fundPoolCheck(composition: Composition, pools: PoolPrices | null
 export async function runFundsCycle(env: EngineEnv, repo: EngineRepository, settlement: SettlementClient, now = new Date().toISOString(), sources: { fetcher?: typeof fetch; poolPrices?: () => Promise<PoolPrices>; wait?: (ms: number) => Promise<void> } = {}): Promise<FundsCycleResult> {
   const warnings: string[] = [];
   let navsPublished = 0;
-  const db = (repo as Partial<EngineRepository> & { db?: FundDb }).db ?? (env.DB as unknown as FundDb);
-  try { await ensureFundDemoTables(db); } catch (error) { warnings.push(`Fund demo tables not ready: ${error instanceof Error ? error.message : "unknown error"}`); }
-  const demo = new FundDemoLedger(db);
   for (const fund of [...OTHER_FUNDS, ...INCOME_FUNDS]) {
     try { await reconcile(repo, settlement, fund); } catch (error) { warnings.push(`${fund.ticker} reconcile: ${error instanceof Error ? error.message : "unknown error"}`); }
   }
@@ -154,8 +150,8 @@ export async function runFundsCycle(env: EngineEnv, repo: EngineRepository, sett
           await repo.saveSettlement(request, result);
           await repo.setState(fundStateKey(fund.id, "rebalance"), JSON.stringify({ ...evidence, status: result.status, txHash: result.txHash, error: result.error }));
         }
-        const sharesOutstandingMicros = await demo.sharesOutstanding(fund.id).catch(() => "0");
-        const pending: Publication = { asOf: evaluation.composition.asOf, calculatedAt: now, navPerShareMicros: evaluation.composition.navPerShareMicros, sharesOutstandingMicros, holdingsHash: evaluation.holdingsHash, canonical: evaluation.canonical, status: "queued", txHash: null, error: null };
+        // No shares are issued: the fund's NAV is recorded, and investing in it is not open.
+        const pending: Publication = { asOf: evaluation.composition.asOf, calculatedAt: now, navPerShareMicros: evaluation.composition.navPerShareMicros, sharesOutstandingMicros: "0", holdingsHash: evaluation.holdingsHash, canonical: evaluation.canonical, status: "queued", txHash: null, error: null };
         // The document is stored before the transaction, so an on-chain hash always has its document.
         const history = (await read<Publication[]>(repo, fundStateKey(fund.id, "history"), [])).filter((entry) => entry.holdingsHash !== pending.holdingsHash);
         await repo.setState(fundStateKey(fund.id, "history"), JSON.stringify([pending, ...history].slice(0, HISTORY_LIMIT)));
@@ -176,7 +172,7 @@ export async function runFundsCycle(env: EngineEnv, repo: EngineRepository, sett
     }
   }
   // The income products, from the same prices (lib/income/cycle.ts).
-  const income = await runIncomeCycle(repo, settlement, demo, quotes, now, maxQuoteAgeMinutes(env), pools);
+  const income = await runIncomeCycle(repo, settlement, quotes, now, maxQuoteAgeMinutes(env), pools);
   navsPublished += income.published;
   warnings.push(...income.warnings);
   return { navsPublished, warnings };

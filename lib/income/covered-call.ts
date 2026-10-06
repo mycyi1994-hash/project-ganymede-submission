@@ -12,7 +12,8 @@
 import { callPrice, YEAR_MS } from "./options";
 import type { CoveredCallTerms } from "./terms";
 
-export type CallLeg = { strike: number; soldAt: string; expiresAt: string; premium: number };
+/** A sold call: its strike, when it was sold and expires, the premium per unit, and (since 6 October 2026) the ETF price it was sold at. */
+export type CallLeg = { strike: number; soldAt: string; expiresAt: string; premium: number; spot?: number };
 export type CoveredCallState = { units: number; cash: number; call: CallLeg; startedAt: string; rolls: number };
 
 export type CoveredCallDocument = {
@@ -44,7 +45,7 @@ function sell(terms: CoveredCallTerms, units: number, cash: number, price: numbe
   const strike = round(price * (1 + terms.moneyness), 2);
   const expiresAt = new Date(Date.parse(asOf) + terms.tenorDays * 86_400_000).toISOString();
   const premium = round(callPrice(price, strike, terms.tenorDays / 365, terms.volatility, terms.rate), 6);
-  return { cash: round(cash + units * premium, 6), call: { strike, soldAt: asOf, expiresAt, premium } };
+  return { cash: round(cash + units * premium, 6), call: { strike, soldAt: asOf, expiresAt, premium, spot: price } };
 }
 
 /** The fund at a new price: started, rolled at expiry, or marked. */
@@ -71,6 +72,19 @@ export function stepCoveredCall(productId: string, terms: CoveredCallTerms, prev
   const { navMicros, callValue } = coveredCallNav(base);
   const document: CoveredCallDocument = { product: productId, kind: "covered-call", ...base, call: { ...state.call, value: callValue }, startedAt: state.startedAt, rolls: state.rolls, navPerShareMicros: navMicros.toString() };
   return { state, document, rolled };
+}
+
+/**
+ * The fund's return from this record's NAV to the call's expiry if the ETF moves `move` from this
+ * record's price by then: the ETF and the cash, less what the call settles for, over the NAV now. At
+ * inception that is the premium plus the move up to the strike; once the ETF has moved, it counts
+ * from today, so a flat ETF earns only what the call is still worth over its settlement.
+ */
+export function coveredCallReturn(document: CoveredCallDocument, move: number): number {
+  const nav = Number(document.navPerShareMicros) / 1e6;
+  if (!(nav > 0)) return 0;
+  const price = document.underlying.price * (1 + move);
+  return (document.units * price + document.cash - document.units * Math.max(price - document.call.strike, 0)) / nav - 1;
 }
 
 /** Premium of the current call as a share of the fund, and that a year if every month paid the same. */

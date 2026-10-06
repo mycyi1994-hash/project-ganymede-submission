@@ -1,7 +1,7 @@
-/** Display helpers shared by the demo investing screens. Shares use six decimals, like the NAV. */
+/** Display helpers for share amounts on the product screens. Shares use six decimals, like the NAV. */
 const SHARE = 1_000_000n;
 
-/** Fired on window after a demo order fills, so fund figures on the page refresh. */
+/** Fired on window, with its block, after a wallet transaction (an order, a loan step or a pool action) is mined, so figures on the page refresh. */
 export const DEMO_ORDER_EVENT = "ganymede:demo-order";
 
 export function formatShares(micros: string | bigint): string {

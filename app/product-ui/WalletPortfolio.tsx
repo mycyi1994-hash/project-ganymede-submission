@@ -1,7 +1,6 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { DemoPortfolio } from "./DemoInvest";
 import { WalletFundPosition } from "./WalletFund";
 import { parseComposition } from "@/lib/xstocks/proof";
 import { readBalances, tokenExplorerUrl, type WalletBalances } from "@/lib/xstocks/mainnet";
@@ -14,11 +13,13 @@ import { useRecordCheck } from "./useRecordCheck";
 import { Icon } from "./Icons";
 
 const percent = (bps: number) => `${(bps / 100).toFixed(2)}%`;
+const shortAddress = (value: string) => `${value.slice(0, 6)}…${value.slice(-4)}`;
 
+/** Whose holdings these are: one line once an address is set (the header already shows a connected wallet), or the ways to set one. */
 function AddressBar() {
   const { address, source, busy, message, connect, watch, clearWatch } = useWalletAccount();
   const [input, setInput] = useState("");
-  if (address) return <section className="gmd-wallet-bar" aria-label="Address"><div className="gmd-wallet-address"><span>{source === "watch" ? "Viewing a public address" : "Connected wallet"}</span><code>{address}</code></div><button type="button" className="gmd-small-button" onClick={() => { clearWatch(); setInput(""); }}>Use another address</button><p className="gmd-caption">Viewing balances does not move funds. Manage your USTX from its product page.</p></section>;
+  if (address) return <p className="gmd-wallet-inline">{source === "watch" ? "Viewing" : "Your wallet"} <code title={address}>{shortAddress(address)}</code><button type="button" className="gmd-text-button" onClick={() => { clearWatch(); setInput(""); }}>{source === "watch" ? "Clear" : "View another address"}</button></p>;
   return <section className="gmd-wallet-bar" aria-label="Address"><button type="button" className="gmd-button" disabled={busy} onClick={() => void connect()}><Icon name="wallet" size={17} />{busy ? "Connecting…" : "Connect OKX Wallet"}</button><form className="gmd-wallet-form" onSubmit={event => { event.preventDefault(); watch(input); }}><label htmlFor="portfolio-address">Or view any public address</label><div><input id="portfolio-address" value={input} onChange={event => setInput(event.target.value)} placeholder="0x…" spellCheck={false} autoComplete="off" /><button type="submit" className="gmd-small-button">View</button></div></form><p role="status" className="gmd-wallet-message">{message}</p><p className="gmd-caption">Connecting lets you view your holdings. It does not request a payment or signature.</p></section>;
 }
 
@@ -67,8 +68,7 @@ export default function WalletPortfolio() {
 
   return <>
     <div className="gmd-page-heading"><div><h1>Portfolio</h1><p>Your USTX and your xStocks on X Layer, valued at OKX OnchainOS prices.</p></div></div>
-    <DemoPortfolio />
-    <header id="wallet" className="gmd-section-heading gmd-wallet-heading"><div><h2>Your wallet on X Layer</h2><p>View your USTX on Testnet and your xStocks on X Layer mainnet. Connect OKX Wallet or enter a public address.</p></div></header>
+    <header id="wallet" className="gmd-section-heading gmd-wallet-heading"><div><h2>Your wallet on X Layer</h2><p>{address ? "Your USTX on X Layer Testnet and your xStocks on X Layer mainnet." : "View your USTX on Testnet and your xStocks on X Layer mainnet. Connect OKX Wallet or enter a public address."}</p></div></header>
     <AddressBar />
     {address && <WalletFundPosition address={address} />}
     {address && <section className="gmd-wallet-holdings" aria-labelledby="holdings-title" aria-live="polite"><header className="gmd-section-heading"><h2 id="holdings-title">xStock holdings</h2><span>{current ? `Block ${current.blockNumber.toLocaleString("en-US")} · ${shortTime(current.blockTime)} · X Layer mainnet` : failure ? "Not read" : "Reading balances…"}</span></header>

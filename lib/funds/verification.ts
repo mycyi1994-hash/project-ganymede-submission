@@ -3,7 +3,9 @@ import { otherFund } from "./catalog";
 import type { Composition } from "../xstocks/basket";
 import { readLatestNav, type OnchainNav } from "../xstocks/onchain";
 import { PROOF_DEPLOYMENT, verifyFundComposition } from "../xstocks/proof";
-import { DEMO_NAV_MAX_AGE_MS } from "../demo/ledger";
+
+/** A record older than this is not current: the fund and the lending market refuse it too. */
+export const NAV_MAX_AGE_MS = 60 * 60_000;
 
 export type FundVerification =
   | { result: "matched"; detail: string; record: OnchainNav; composition: Composition }
@@ -30,7 +32,7 @@ export async function verifyFundSnapshot(fund: FundDetail, fundId: string, optio
   if (fund.nav?.perShareMicros !== record.navPerShareMicros || Math.floor(Date.parse(fund.nav.asOf) / 1_000) !== Math.floor(Date.parse(record.effectiveAt) / 1_000)) {
     return { result: "failed", detail: "The page's NAV or timestamp differs from the record on X Layer. Waiting for a matching update." };
   }
-  if ((options.now ?? Date.now()) - Date.parse(record.effectiveAt) > DEMO_NAV_MAX_AGE_MS) {
+  if ((options.now ?? Date.now()) - Date.parse(record.effectiveAt) > NAV_MAX_AGE_MS) {
     return { result: "unavailable", detail: "The latest NAV is over an hour old. Orders are paused until a fresh record is available." };
   }
   return { result: "matched", detail: "Your browser read this fund's record on X Layer, hashed its holdings document and recalculated the NAV shown here: they match.", record, composition: checks.composition };

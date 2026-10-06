@@ -14,6 +14,8 @@ export const ASSISTANT_DEFAULT_MODEL = "gpt-5-mini";
 export const ASSISTANT_LIMITS = {
   messages: 12,
   messageChars: 1_000,
+  /** Earlier answers come back from the browser with each question: kept to this length, never refused. */
+  answerChars: 2_000,
   totalChars: 8_000,
   toolRounds: 4,
   toolCallsPerRound: 4,
@@ -26,6 +28,7 @@ export const ASSISTANT_SYSTEM_PROMPT = [
   "You are Ask USTX, the assistant on Ganymede, a demo fund app on X Layer Testnet.",
   "USTX, the US Tech Basket, is one share that tracks nine tokenized US tech stocks (AAPLx, MSFTx, NVDAx, AMZNx, METAx, TSLAx, GOOGLx, ORCLx, PLTRx). Every five minutes the xStocks are priced through OKX OnchainOS and the NAV, with a SHA-256 fingerprint of its document, is recorded in a registry on X Layer Testnet.",
   "Wallets invest demo dollars (dUSD) at the fund at the NAV, or trade on two USTX/dUSD pools: a constant-product pool kept near the NAV by an arbitrage keeper, and a Uniswap v4 pool whose hook moves it to each NAV record. USTX can also be posted as collateral to borrow dUSD.",
+  "Markets also lists five more baskets of xStocks (M7X, AIX, CRYX, CORX, RTLX), two covered-call funds (SPYC on SPYx, QQQC on QQQx) whose monthly call is priced by Black–Scholes at stated terms because there is no options market for xStocks on X Layer, and a step-down autocallable note (ELS1) on the worse of SPYx and QQQx. Use list_funds and get_fund for them. Each is recorded on X Layer every five minutes, but only USTX can be bought: the others have no share token yet.",
   "Answer from the tools: call them for any number, and give the time the figure is as of. If a tool fails, say so; never guess a figure.",
   "Demo dollars and USTX have no value; say so when money, returns or buying come up. Do not give investment advice, recommendations or predictions, and do not say whether to buy or sell. You can explain how something works and compare quotes as facts: say which venue gives the most, never that it is the best choice or what the visitor should do.",
   "You cannot place orders or connect wallets. Orders are placed by the visitor's own wallet on the USTX page (/products/ustx); liquidity on Pools (/pools); the checks on Transparency (/products/ustx/transparency).",
@@ -46,7 +49,12 @@ export class AssistantError extends Error {
   }
 }
 
-/** The conversation a visitor sent, checked: user and assistant turns, ending with the user's question. */
+/**
+ * The conversation a visitor sent, checked: user and assistant turns, ending with the user's question.
+ * Only the visitor's own questions are held to the question length; earlier answers are shortened, and
+ * the oldest turns are left out when the conversation runs long, so a follow-up is never refused for
+ * what the assistant said before.
+ */
 export function parseConversation(body: unknown): ChatMessage[] {
   const raw = body && typeof body === "object" ? (body as { messages?: unknown }).messages : undefined;
   if (!Array.isArray(raw) || raw.length === 0) throw new AssistantError("Ask a question.", 400, "no_question");
@@ -56,11 +64,13 @@ export function parseConversation(body: unknown): ChatMessage[] {
     if ((role !== "user" && role !== "assistant") || typeof content !== "string") throw new AssistantError("Each message needs a role and text.", 400, "bad_message");
     const text = content.trim();
     if (!text) throw new AssistantError("Ask a question.", 400, "no_question");
+    if (role === "assistant") return { role, content: text.slice(0, ASSISTANT_LIMITS.answerChars) };
     if (text.length > ASSISTANT_LIMITS.messageChars) throw new AssistantError(`Keep each question under ${ASSISTANT_LIMITS.messageChars.toLocaleString("en-US")} characters.`, 400, "too_long");
     return { role, content: text };
   });
   if (messages[messages.length - 1].role !== "user") throw new AssistantError("Ask a question.", 400, "no_question");
-  if (messages.reduce((sum, message) => sum + message.content.length, 0) > ASSISTANT_LIMITS.totalChars) throw new AssistantError("This conversation is too long. Start a new one.", 400, "too_long");
+  const total = () => messages.reduce((sum, message) => sum + message.content.length, 0);
+  while (messages.length > 1 && total() > ASSISTANT_LIMITS.totalChars) messages.shift();
   return messages;
 }
 

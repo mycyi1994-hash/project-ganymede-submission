@@ -1,4 +1,4 @@
-import { decodeAbiParameters } from "viem";
+import { decodeAbiParameters, decodeFunctionResult, encodeFunctionData, parseAbi } from "viem";
 import {
   FUND_SELECTORS, addressWord, atBlock, call, fundErrorMessage, fundRpc, hexBlock, isRevert, readBlock, word, words,
   type FundReceipt, type Rpc, type TransactionCall,
@@ -115,7 +115,45 @@ const signedTick = (value: bigint) => { const raw = Number(value & 0xffffffn); r
 const byToken = (deployment: V4Deployment, amount0: bigint, amount1: bigint): V4Amounts =>
   deployment.assetIsCurrency0 ? { sharesMicros: amount0, dollarsMicros: amount1 } : { sharesMicros: amount1, dollarsMicros: amount0 };
 
-/** The pool and, with `account`, that wallet's open positions, read at one block. */
+/** Position ids known to be closed, per hook: a closed position never opens again, so later reads skip it. */
+const CLOSED_POSITIONS = new Map<string, Set<bigint>>();
+
+/** Multicall3, at its usual address on X Layer Testnet: many reads in one eth_call. */
+export const MULTICALL3 = "0xca11bde05977b3631167028862be2a173976ca11";
+const MULTICALL_ABI = parseAbi(["function aggregate3((address target, bool allowFailure, bytes callData)[] calls) payable returns ((bool success, bytes returnData)[] returnData)"]);
+/** Reads per multicall, and per round of single reads where there is no multicall. */
+const MULTICALL_READS = 100;
+const SINGLE_READS = 10;
+
+/**
+ * Each call's return data at `tag`: through Multicall3 a hundred at a time, so a wallet's whole
+ * history of positions takes a few requests, or one by one, ten at a time, where it is not deployed
+ * (a local chain) or will not run them. A read that reverts throws, as `call` does.
+ */
+export async function readAll(rpc: Rpc, calls: readonly { to: string; data: string }[], tag: string): Promise<string[]> {
+  const results: string[] = [];
+  for (let start = 0; start < calls.length; start += MULTICALL_READS) {
+    const chunk = calls.slice(start, start + MULTICALL_READS);
+    let answers: readonly { success: boolean; returnData: string }[] | null = null;
+    try {
+      const data = encodeFunctionData({ abi: MULTICALL_ABI, functionName: "aggregate3", args: [chunk.map(item => ({ target: item.to as `0x${string}`, allowFailure: false, callData: item.data as `0x${string}` }))] });
+      const raw = await call(rpc, MULTICALL3, data, tag);
+      if (typeof raw === "string" && raw !== "0x") answers = decodeFunctionResult({ abi: MULTICALL_ABI, functionName: "aggregate3", data: raw as `0x${string}` });
+    } catch (error) {
+      if (!isRevert(error)) throw error;
+    }
+    if (answers && answers.length === chunk.length && answers.every(answer => answer.success)) {
+      results.push(...answers.map(answer => answer.returnData));
+      continue;
+    }
+    for (let next = 0; next < chunk.length; next += SINGLE_READS) {
+      results.push(...await Promise.all(chunk.slice(next, next + SINGLE_READS).map(item => call(rpc, item.to, item.data, tag).then(value => value as string))));
+    }
+  }
+  return results;
+}
+
+/** The pool and, with `account`, every open position of that wallet, read at one block. */
 export async function readRangePool(deployment: RangeDeployment, account: string | null, options: { rpc?: Rpc; minBlock?: number } = {}): Promise<{ pool: RangePool; account: RangeAccount | null }> {
   const rpc = options.rpc ?? fundRpc();
   const block = await readBlock(rpc, options.minBlock);
@@ -147,22 +185,32 @@ export async function readRangePool(deployment: RangeDeployment, account: string
       call(rpc, hook, `${RANGE_SELECTORS.positionsOf}${owner}`, tag),
     ]);
     const [ids] = decodeAbiParameters([{ type: "uint256[]" }], idsRaw as `0x${string}`);
-    // The latest 20 positions are enough for a wallet's view.
-    const positions = (await Promise.all(ids.slice(-20).map(id => readPosition(rpc, deployment, id, tag)))).filter(position => position.open);
+    // Every position the wallet ever opened, oldest first; those already seen closed are skipped.
+    const closed = CLOSED_POSITIONS.get(hook) ?? new Set<bigint>();
+    CLOSED_POSITIONS.set(hook, closed);
+    const unseen = ids.filter(id => !closed.has(id));
+    const heads = (await readAll(rpc, unseen.map(id => ({ to: hook, data: `${RANGE_SELECTORS.positions}${word(id)}` })), tag)).map((raw, index) => positionHead(unseen[index], raw));
+    for (const head of heads) if (!head.open) closed.add(head.id);
+    const open = heads.filter(head => head.open);
+    const details = await readAll(rpc, open.flatMap(head => [
+      { to: hook, data: `${RANGE_SELECTORS.binsOf}${word(head.id)}` },
+      { to: hook, data: `${RANGE_SELECTORS.positionAmounts}${word(head.id)}` },
+    ]), tag);
+    const positions = open.map((head, index) => positionDetail(deployment, head, details[2 * index], details[2 * index + 1]));
     return { pool, account: { dollarsMicros: dollars, sharesMicros: shares, assetAllowanceMicros: assetAllowance, dollarAllowanceMicros: dollarAllowance, positions } };
   });
 }
 
-async function readPosition(rpc: Rpc, deployment: RangeDeployment, id: bigint, tag: string): Promise<RangePosition> {
-  const hook = deployment.hook;
-  const [owner, shape, , binTicks, below, above, open] = words(await call(rpc, hook, `${RANGE_SELECTORS.positions}${word(id)}`, tag), 7);
-  void owner;
-  const base = { id, shape: SHAPES[Number(shape)] ?? "spot", binTicks: signedTick(binTicks), binsBelow: Number(below), binsAbove: Number(above), open: open === 1n };
-  if (!base.open) return { ...base, bins: [], amounts: { sharesMicros: 0n, dollarsMicros: 0n }, fees: { sharesMicros: 0n, dollarsMicros: 0n } };
-  const [binsRaw, amountsRaw] = await Promise.all([
-    call(rpc, hook, `${RANGE_SELECTORS.binsOf}${word(id)}`, tag),
-    call(rpc, hook, `${RANGE_SELECTORS.positionAmounts}${word(id)}`, tag),
-  ]);
+type PositionHead = Pick<RangePosition, "id" | "shape" | "binTicks" | "binsBelow" | "binsAbove" | "open">;
+
+/** A position's shape and whether it is open, from the hook's `positions(id)`. */
+function positionHead(id: bigint, raw: string): PositionHead {
+  const [, shape, , binTicks, below, above, open] = words(raw, 7);
+  return { id, shape: SHAPES[Number(shape)] ?? "spot", binTicks: signedTick(binTicks), binsBelow: Number(below), binsAbove: Number(above), open: open === 1n };
+}
+
+/** An open position's bins, tokens and fees, from the hook's `binsOf(id)` and `positionAmounts(id)`. */
+function positionDetail(deployment: RangeDeployment, base: PositionHead, binsRaw: string, amountsRaw: string): RangePosition {
   const [lowers, uppers, liquidity] = decodeAbiParameters([{ type: "int24[]" }, { type: "int24[]" }, { type: "uint128[]" }], binsRaw as `0x${string}`);
   const [a0, a1, f0, f1] = words(amountsRaw, 4);
   const bins = lowers.map((lower, index) => {

@@ -123,7 +123,7 @@ export function TxLink({ hash, children = "OKX Explorer" }: { hash: string; chil
   return <a className="gmd-inline-tx" href={fundExplorer.tx(hash)} target="_blank" rel="noreferrer">{children}<Icon name="external" size={12} /><span className="gmd-sr-only"> (opens in a new tab)</span></a>;
 }
 
-export function WalletInvest({ tabs, onUseDemo }: { tabs: ReactNode; onUseDemo: () => void }) {
+export function WalletInvest() {
   const provider = useInjectedWallet();
   const { address, source, busy: connecting, message, connect } = useWalletAccount();
   const connected = source === "wallet" && Boolean(address);
@@ -297,22 +297,21 @@ export function WalletInvest({ tabs, onUseDemo }: { tabs: ReactNode; onUseDemo: 
   const heading = phase === "filled" ? "Order filled" : phase === "working" ? "Confirm in your wallet" : phase === "review" && venue ? REVIEW_HEADINGS[side][venue] : "Invest in USTX";
   const head = <div className="gmd-order-heading"><h2 id="invest-title">{heading}</h2><Icon name="wallet" /></div>;
 
-  if (!provider) return <>{head}{tabs}<div className="gmd-wallet-gate">
+  if (!provider) return <>{head}<div className="gmd-wallet-gate">
     <p>Invest from your own wallet on X Layer Testnet. Install the OKX Wallet extension, or open this page in the OKX app’s browser.</p>
     <div className="gmd-wallet-gate-actions"><OkxAppLink className="gmd-button" /><a className="gmd-button is-secondary" href="https://www.okx.com/web3" target="_blank" rel="noreferrer">Get OKX Wallet <Icon name="external" size={16} /><span className="gmd-sr-only"> (opens in a new tab)</span></a></div>
-    <button type="button" className="gmd-text-button" onClick={onUseDemo}>Try it with a demo balance instead</button>
   </div></>;
-  if (!connected) return <>{head}{tabs}<div className="gmd-wallet-gate">
+  if (!connected) return <>{head}<div className="gmd-wallet-gate">
     <p>Connect OKX Wallet to invest on X Layer Testnet. You pay with demo dollars, which have no value, and your USTX goes straight to your wallet.</p>
     <button type="button" className="gmd-button" disabled={connecting} onClick={() => void connect()}><Icon name="wallet" size={17} />{connecting ? "Connecting…" : "Connect OKX Wallet"}</button>
     {message && <p className="gmd-caption" role="status">{message}</p>}
   </div></>;
-  if (!onTestnet) return <>{head}{tabs}<div className="gmd-wallet-gate">
+  if (!onTestnet) return <>{head}<div className="gmd-wallet-gate">
     <p>{chain ? "Your wallet is on another network. USTX lives on X Layer Testnet." : "Checking your wallet’s network…"}</p>
     <button type="button" className="gmd-button" disabled={switching || !chain} onClick={() => void switchNetwork()}>{switching ? "Switching…" : "Switch to X Layer Testnet"}</button>
     {switchFailure && <p className="gmd-inline-error" role="alert">{switchFailure}</p>}
   </div></>;
-  if (!account) return <>{head}{tabs}{readFailure?.owner === address
+  if (!account) return <>{head}{readFailure?.owner === address
     ? <div className="gmd-inline-error" role="alert">{readFailure.message} <button type="button" className="gmd-text-button" onClick={() => setReload(value => value + 1)}>Try again</button></div>
     : <p className="gmd-caption" role="status">Reading your wallet on X Layer Testnet…</p>}</>;
 
@@ -379,7 +378,7 @@ export function WalletInvest({ tabs, onUseDemo }: { tabs: ReactNode; onUseDemo: 
   </div></>;
 
   const unavailable = account.nav.navMicros === null ? account.nav.reason : null;
-  return <>{head}{tabs}
+  return <>{head}
     <div className="gmd-wallet-balances">
       <div><span>Demo dollars</span><b>{formatUsdMicros(dollars, 2)}</b><small>dUSD, no value</small></div>
       <div><span>USTX in wallet</span><b>{formatShares(held)}</b><small>{nav !== null && held > 0n ? formatUsdRounded(dollarsFor(held, nav)) : "X Layer Testnet"}</small></div>

@@ -42,6 +42,16 @@ test("a conversation is user and assistant turns that end with the visitor's que
   const kept = parseConversation({ messages: long });
   assert.equal(kept.length, ASSISTANT_LIMITS.messages, "only the latest turns are sent");
   assert.equal(kept.at(-1).content, "last");
+  // A follow-up after a long answer is answered: the answer is shortened, never held to the question length.
+  const answer = "a".repeat(ASSISTANT_LIMITS.answerChars + 500);
+  const followUp = parseConversation({ messages: [{ role: "user", content: "What is inside USTX?" }, { role: "assistant", content: answer }, { role: "user", content: "And the first one?" }] });
+  assert.deepEqual(followUp.map((message) => [message.role, message.content.length]), [["user", 20], ["assistant", ASSISTANT_LIMITS.answerChars], ["user", 18]]);
+  // A long conversation leaves out its oldest turns rather than refusing the question.
+  const chatty = Array.from({ length: 11 }, (_, index) => ({ role: index % 2 ? "assistant" : "user", content: `${index}`.padEnd(index % 2 ? 1_900 : 900, "x") })).concat([{ role: "user", content: "and now?" }]);
+  const trimmed = parseConversation({ messages: chatty });
+  assert.ok(trimmed.reduce((sum, message) => sum + message.content.length, 0) <= ASSISTANT_LIMITS.totalChars);
+  assert.ok(trimmed.length < chatty.length);
+  assert.equal(trimmed.at(-1).content, "and now?");
 });
 
 test("each question counts against the visitor's and the site's daily allowance, and a new day clears the old counts", async () => {

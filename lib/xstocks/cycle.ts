@@ -22,7 +22,6 @@ import { fetchXStockQuotes, MAX_COOLDOWN_MS, onchainOsCredentials } from "./pric
 import { comparePrices, formatDifference, POOL_TOLERANCE, readPoolPrices, XSTOCK_POOLS, type PoolPrices } from "./pool-prices";
 import { parseComposition } from "./proof";
 import { updateNavSeries } from "./series";
-import { demoSharesOutstanding } from "../demo/ledger";
 import { fundRpc, parseStoredWalletTotals, readFundTotals, STATE_WALLET_SHARES } from "./fund";
 
 export const STATE_BASKET = "xstocks:basket";
@@ -48,8 +47,9 @@ export type Publication = {
   /** When the NAV was calculated; absent on records from before this field existed. */
   calculatedAt?: string;
   navPerShareMicros: string;
-  /** USTX outstanding when the NAV was taken: shares in wallets, issued by the fund contract, plus
-   *  shares held with demo balances. Recorded beside the NAV on X Layer. */
+  /** USTX outstanding when the NAV was taken: the shares the fund contract has issued to wallets on
+   *  X Layer Testnet. Recorded beside the NAV on X Layer. (Records before 6 October 2026 also counted
+   *  shares held with the retired demo balances.) */
   sharesOutstandingMicros?: string;
   holdingsHash: string;
   canonical: string;
@@ -282,9 +282,9 @@ export async function runXStocksCycle(env: EngineEnv, repo: EngineRepository, se
       settlementsQueued += 1;
     }
 
-    const [demoShares, walletShares] = await Promise.all([demoSharesOutstanding((repo as Partial<EngineRepository>).db), readWalletShares(repo, calculatedAt, warnings)]);
-    if (demoShares === null) warnings.push(`${XSTOCKS_PRODUCT.ticker} demo-balance shares could not be read; this record carries wallet shares only.`);
-    const sharesOutstandingMicros = (BigInt(demoShares ?? "0") + BigInt(walletShares ?? "0")).toString();
+    const walletShares = await readWalletShares(repo, calculatedAt, warnings);
+    if (walletShares === null) warnings.push(`${XSTOCKS_PRODUCT.ticker} wallet shares could not be read; this record carries no share count.`);
+    const sharesOutstandingMicros = walletShares ?? "0";
     const asOf = evaluation.composition.asOf;
     const request = navRequest({ asOf, navPerShareMicros: evaluation.composition.navPerShareMicros, holdingsHash: evaluation.holdingsHash, sharesOutstandingMicros });
     // Save the exact document before sending the transaction. Even if storage

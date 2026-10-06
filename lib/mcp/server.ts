@@ -17,6 +17,7 @@ export const MCP_INSTRUCTIONS = [
   "Every five minutes the xStocks are priced through OKX OnchainOS and the NAV, with a SHA-256 fingerprint of its full document, is recorded in a registry on X Layer Testnet.",
   "Use get_ustx_nav for the latest NAV and whether it is still valid, verify_ustx_nav to check that record against its document, get_ustx_holdings for what one share holds,",
   "quote_ustx_order to compare the fund at the NAV with the two USTX/dUSD pools, get_ustx_pools for the pools and their results for liquidity providers, and get_ustx_market_activity for the latest trades.",
+  "Markets also lists five more baskets, two covered-call funds and a step-down autocallable note: list_funds lists every product, and get_fund reads one (a basket's weights, the month's call, the note's levels and knock-in). Only USTX can be bought.",
   "All tools read only. Investing uses demo dollars with no value on X Layer Testnet; nothing here is investment advice or an offer. Orders are placed by the user's own wallet at https://ganymede-xlayer.gana003.workers.dev/products/ustx.",
 ].join(" ");
 

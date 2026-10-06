@@ -13,7 +13,6 @@ import type { Publication } from "../xstocks/cycle";
 import { POOL_TOLERANCE, type PoolPrices } from "../xstocks/pool-prices";
 import { INCOME_FUNDS, universeToken } from "../funds/catalog";
 import { fundStateKey, HISTORY_LIMIT, navRequest, read, recordConfirmed, type FundLatest } from "../funds/cycle";
-import type { FundDemoLedger } from "../funds/demo";
 import { stepAutocall, type AutocallDocument, type AutocallState } from "./autocall";
 import { stepCoveredCall, type CoveredCallState } from "./covered-call";
 import { INCOME_TERMS } from "./terms";
@@ -75,7 +74,7 @@ async function resendFinal(repo: EngineRepository, settlement: SettlementClient,
   return { publication: final, error: null };
 }
 
-export async function runIncomeCycle(repo: EngineRepository, settlement: SettlementClient, demo: FundDemoLedger, quotes: Map<string, Quote>, now: string, maxQuoteAgeMinutes: number, pools: PoolPrices | null = null): Promise<{ published: number; warnings: string[] }> {
+export async function runIncomeCycle(repo: EngineRepository, settlement: SettlementClient, quotes: Map<string, Quote>, now: string, maxQuoteAgeMinutes: number, pools: PoolPrices | null = null): Promise<{ published: number; warnings: string[] }> {
   const warnings: string[] = [];
   let published = 0;
   for (const fund of INCOME_FUNDS) {
@@ -106,14 +105,11 @@ export async function runIncomeCycle(repo: EngineRepository, settlement: Settlem
       } else if (terms.kind === "autocall") {
         const previous = await read<AutocallState | null>(repo, incomeModelKey(fund.id), null);
         if (previous && previous.status !== "live") {
-          // Settled, whatever the prices now: nothing more is recorded, and holders are paid once
-          // its final record is confirmed. A final record the relayer refused is sent again; one
-          // still queued or submitted is asked about again by the funds cycle's reconcile.
+          // Settled, whatever the prices now: nothing more is recorded once its final record is
+          // confirmed. A final record the relayer refused is sent again; one still queued or
+          // submitted is asked about again by the funds cycle's reconcile.
           const final = confirmed && endsNote(confirmed) ? { publication: confirmed, error: null } : await resendFinal(repo, settlement, fund.id);
           if (final.error) warnings.push(`${fund.ticker} final record: ${final.error}`);
-          if (final.publication) {
-            await demo.settleAll(fund.id, { navMicros: BigInt(final.publication.navPerShareMicros), effectiveAt: final.publication.asOf, holdingsHash: final.publication.holdingsHash });
-          }
           ended = true;
         } else if (!blockers.length) {
           const step = stepAutocall(fund.id, terms, previous, prices, asOf);
@@ -128,8 +124,8 @@ export async function runIncomeCycle(repo: EngineRepository, settlement: Settlem
         const holdingsHash = await sha256Hex(canonical);
         const navPerShareMicros = (document as { navPerShareMicros: string }).navPerShareMicros;
         await repo.setState(incomeModelKey(fund.id), JSON.stringify(model));
-        const sharesOutstandingMicros = await demo.sharesOutstanding(fund.id).catch(() => "0");
-        const pending: Publication = { asOf, calculatedAt: now, navPerShareMicros, sharesOutstandingMicros, holdingsHash, canonical, status: "queued", txHash: null, error: null };
+        // No shares are issued: the product's NAV is recorded, and investing in it is not open.
+        const pending: Publication = { asOf, calculatedAt: now, navPerShareMicros, sharesOutstandingMicros: "0", holdingsHash, canonical, status: "queued", txHash: null, error: null };
         // The document is stored before the transaction, so an on-chain hash always has its document.
         const history = (await read<Publication[]>(repo, fundStateKey(fund.id, "history"), [])).filter((entry) => entry.holdingsHash !== holdingsHash);
         await repo.setState(fundStateKey(fund.id, "history"), JSON.stringify([pending, ...history].slice(0, HISTORY_LIMIT)));
@@ -141,10 +137,6 @@ export async function runIncomeCycle(repo: EngineRepository, settlement: Settlem
         if (result.status === "confirmed") {
           await recordConfirmed(repo, fund.id, publication);
           published += 1;
-          const state = model as Partial<AutocallState>;
-          if (terms.kind === "autocall" && state.status && state.status !== "live") {
-            await demo.settleAll(fund.id, { navMicros: BigInt(navPerShareMicros), effectiveAt: asOf, holdingsHash });
-          }
         }
         if (result.error) warnings.push(`${fund.ticker} NAV publication: ${result.error}`);
       } else if (!ended) {

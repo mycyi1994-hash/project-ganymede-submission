@@ -1,6 +1,6 @@
 # Build provenance
 
-Production source revision: `0f5a1c6005fa09254fd54ea12c77dbdf4ee21f71`.
+Production source revision: `0e31e9f8c55f4ff8e2235bba6cd8ac2904f65bc9`.
 
 This is a source snapshot, not a claim that the entire project was newly built for this event. The original repository remains private. The entries below were exported from its Git history; reviewers can inspect current implementations and tests, and request original history access from the team if needed. No old secrets, local environment files or full private Git history are published.
 
@@ -646,3 +646,19 @@ Validation of production source:
 These are point-in-time observations, not continuous availability or a security audit.
 
 Public-snapshot validation: clean `npm ci` and `npm test` passed all 278 application tests; clean relayer `npm ci`, typecheck and all 34 tests passed. The first NAV cycle after deployment ran at 08:25 UTC with all eight other product records published and no warnings, and the USTX record of 08:30 UTC was confirmed at 08:30:19 UTC.
+
+## Demo balance retired, review items fixed — 6 October 2026
+
+Production source: `0e31e9f8c55f4ff8e2235bba6cd8ac2904f65bc9`. App Worker version: `2a53e4c4-45f2-4fb1-9ca4-f306d343b05b`; prior versions: `dbb9b8a6-8925-42c7-8039-33f7ce24be50` (source `bf2d42e`), `769ca386-bfde-4234-9b7c-cd87a062d333` (source `248b732`), `19bfa116-09c3-4fd2-abc4-f31c53961f74` (source `62cdc5d`), `ee83bad7-3c86-4144-81d4-08b168ccd7d6` (source `c95eed7`) and `9bc037b7-2d0d-4b3c-bb69-3b3a71bf0956`. Arbitrage keeper version: `d8398e4c-aab4-4b42-9116-7753bb554f07`, unchanged. Exported development commit: `0843ab713e75c581aeec8973b33d9bf0f59e79b5`, which adds only the release record and the build-period record to the production source.
+
+Changes in these releases:
+- The server's demo balance ($10,000 per browser in a D1 ledger) is retired at the user's request: investing runs only with demo dollars (dUSD) from a wallet on X Layer Testnet, and the other products say investing is not open yet, as they have no share token. `GET /api/fund` serves USTX's wallet shares, holders and last day's orders from the contracts' events.
+- Ask USTX answers follow-up questions after long answers; the Pools strategy cards fit their panel; the connected wallet is one line on Portfolio.
+- The covered-call chart counts from today's NAV to the call's expiry, so it stays right once the ETF has moved after the call was sold.
+- The income products' browser check holds each record to its published terms: a covered call's ETF, volatility, rate, strike rule, premium, holding and rolls; the note's schedule, barriers, payout, and the levels of the fixing, knock-in and observation records it decides. What an earlier record decided is held to the terms, not re-read.
+- Pools reads every range position of a wallet, through Multicall3, not the latest 20.
+- Ask USTX and the MCP server read every product (`list_funds`, `get_fund`); `/api/v1/funds` names each product's kind, and OpenAPI and llms.txt list nine products.
+
+Checks: `npm test` passed all 266 application tests, `npm run lint` reported no errors, and the onchain suite passed 112 tests. After deployment the 10:54 UTC activity index and the 10:55 UTC NAV records of USTX and all eight other products ran on the new version; twelve pages at two widths returned 200 with no page errors or horizontal overflow; legacy routes redirected; a forged identity header was refused; the three income pages showed the browser check as matched. These are point-in-time observations, not continuous availability or a security audit.
+
+Public-snapshot validation: clean `npm ci` and `npm test` passed all 266 application tests; clean relayer `npm ci`, typecheck and all 34 tests passed.

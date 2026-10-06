@@ -11,6 +11,14 @@ import { V4_POOL_DEPLOYMENT, formatFeePips, readV4Quote } from "@/lib/xstocks/v4
 import { GET as readNavApi } from "../api/v1/ustx/route";
 import { GET as readPoolsApi } from "../api/v1/ustx/pools/route";
 import { GET as readActivityApi } from "../api/v1/ustx/activity/route";
+import { FUNDS, type FundDefinition } from "@/lib/funds/catalog";
+import { fundSummaries, fundSummary } from "@/lib/funds/api";
+import { fundStateKey } from "@/lib/funds/cycle";
+import { sha256Hex } from "@/lib/engine/fixed";
+import { coveredCallReturn, premiumYield, type CoveredCallDocument } from "@/lib/income/covered-call";
+import { couponPayout, observationDate, type AutocallDocument } from "@/lib/income/autocall";
+import { autocallTerms } from "@/lib/income/terms";
+import { incomeTermsHold, recomputeIncomeNav, type IncomeDocument } from "@/lib/income/verify";
 
 // The tools Ganymede's MCP server offers (lib/mcp/server.ts): reads of USTX on X Layer for AI
 // agents, built on the public APIs and the same checks the Transparency page runs. None signs or
@@ -57,6 +65,90 @@ function amountMicros(value: unknown, label: string, min: bigint, max: bigint): 
   const micros = BigInt(match[1]) * ONE + BigInt((match[2] ?? "").padEnd(6, "0"));
   if (micros < min || micros > max) throw new ToolInputError(`${label} must be between ${usd(min)} and ${usd(max)}.`);
   return micros;
+}
+
+const percent = (ratio: number, digits = 2) => Number((ratio * 100).toFixed(digits));
+const DAY_MS = 86_400_000;
+
+/** A product by its id or ticker, as list_funds names it. */
+function fundByName(value: unknown): FundDefinition {
+  const name = typeof value === "string" ? value.trim().toLowerCase() : "";
+  const fund = FUNDS.find(item => item.id === name || item.ticker.toLowerCase() === name);
+  if (!fund) throw new ToolInputError(`id must be one of ${FUNDS.map(item => `${item.id} (${item.ticker})`).join(", ")}.`);
+  return fund;
+}
+
+/**
+ * The product's latest confirmed record, read once so its NAV, time, transaction and document belong
+ * together, whatever the records after it did; null if there is none or its document does not hash to it.
+ */
+async function confirmedRecord(repo: EngineRepository, fund: FundDefinition): Promise<{ record: Publication; document: unknown } | null> {
+  const stored = await repo.getState(fundStateKey(fund.id, "confirmed"));
+  try {
+    const record = stored ? JSON.parse(stored.value) as Publication : null;
+    if (!record?.canonical || (await sha256Hex(record.canonical)).toLowerCase() !== record.holdingsHash.toLowerCase()) return null;
+    return { record, document: JSON.parse(record.canonical) };
+  } catch {
+    return null;
+  }
+}
+
+/** What a product's latest document says, in a customer's terms: holdings, the month's call, or the note's levels. */
+function describeDocument(fund: FundDefinition, document: unknown, nowMs: number): Record<string, unknown> {
+  if (!document || typeof document !== "object") return { document: null };
+  if (fund.kind === "covered-call") {
+    const call = document as CoveredCallDocument;
+    const yields = premiumYield(call);
+    const consistent = incomeTermsHold(fund.id, call as IncomeDocument) && recomputeIncomeNav(fund.id, call as IncomeDocument)?.toString() === call.navPerShareMicros;
+    return {
+      etf: { symbol: call.underlying.symbol, priceUsd: call.underlying.price },
+      call: {
+        strikeUsd: call.call.strike, strikeAbovePricePercent: percent(call.call.strike / call.underlying.price - 1), soldAt: call.call.soldAt, expiresAt: call.call.expiresAt,
+        daysLeft: Number(Math.max(0, (Date.parse(call.call.expiresAt) - nowMs) / DAY_MS).toFixed(1)),
+        premiumThisMonthPercent: percent(yields.month), premiumAnnualizedPercent: percent(yields.annualized), callValueNowPercentOfFund: percent(call.units * call.call.value / (Number(call.navPerShareMicros) / 1e6)),
+      },
+      returnFromTodayToExpiryPercent: { etfDown10: percent(coveredCallReturn(call, -0.1)), etfFlat: percent(coveredCallReturn(call, 0)), etfUp10: percent(coveredCallReturn(call, 0.1)) },
+      terms: { volatilityPercent: percent(call.terms.volatility, 1), ratePercent: percent(call.terms.rate, 1), strikeAbovePriceWhenSoldPercent: percent(call.terms.moneyness, 1), tenorDays: call.terms.tenorDays },
+      howPriced: "The call is priced by Black–Scholes at the stated volatility and rate, as there is no options market for xStocks on X Layer. Above the strike the fund gives up the ETF's rise; below it, it keeps the premium.",
+      documentConsistent: consistent,
+    };
+  }
+  if (fund.kind === "autocall") {
+    const note = document as AutocallDocument;
+    const terms = autocallTerms(fund.id);
+    if (!terms) return { document: null };
+    const state = note.state;
+    const consistent = incomeTermsHold(fund.id, note as IncomeDocument) && recomputeIncomeNav(fund.id, note as IncomeDocument)?.toString() === note.navPerShareMicros;
+    return {
+      status: state.status, fixedAt: state.fixedAt, subscriptionEndsAt: note.subscriptionEndsAt,
+      indices: terms.underlyings.map(symbol => ({ symbol, startUsd: state.initial[symbol], nowUsd: note.prices[symbol], levelPercent: percent(note.performance[symbol]) })),
+      worseIndexLevelPercent: percent(note.worst),
+      knockIn: {
+        levelPercent: percent(terms.knockIn, 0), hit: state.knockedIn, hitAt: state.knockedInAt, lowestWorseIndexPercent: percent(state.lowestWorst),
+        furtherFallToKnockInPercent: state.knockedIn ? 0 : percent(Math.max(0, 1 - terms.knockIn / note.worst)),
+      },
+      nextObservation: note.nextObservation && {
+        date: note.nextObservation.date, barrierPercent: percent(note.nextObservation.barrier, 0), paysPer100IfCalled: note.nextObservation.payIfCalled,
+        worseIndexVsBarrierPoints: percent(note.worst - note.nextObservation.barrier),
+      },
+      schedule: terms.barriers.map((barrier, index) => ({
+        observation: index + 1, date: observationDate(terms, state.fixedAt, index + 1), barrierPercent: percent(barrier, 0), paysPer100IfCalled: couponPayout(terms, index + 1),
+        observed: state.observations[index] ? { worseIndexPercent: percent(state.observations[index].worst), called: state.observations[index].called } : null,
+      })),
+      atMaturityIfNeverCalled: `Pays $${couponPayout(terms, terms.barriers.length)} per $100 unless the note knocked in and the worse index ends below ${percent(terms.barriers[terms.barriers.length - 1], 0)}%; then it pays $100 times the worse index's level.`,
+      payoutPer100: state.payout,
+      documentConsistent: consistent,
+    };
+  }
+  const basket = document as { asOf?: string; navPerShareMicros?: string; holdings?: Array<{ symbol: string; priceMicros: string; valueMicros: string; priceTime: string }> };
+  const nav = basket.navPerShareMicros ? BigInt(basket.navPerShareMicros) : 0n;
+  return {
+    holdings: (basket.holdings ?? []).map(holding => ({
+      symbol: holding.symbol, priceUsd: usd(holding.priceMicros), valuePerShareUsd: usd(holding.valueMicros),
+      weightPercent: nav > 0n ? Number(BigInt(holding.valueMicros) * 10_000n / nav) / 100 : null, priceTime: holding.priceTime,
+    })),
+    rule: "Fixed units per share, equal weight when the basket was fixed; weights drift with prices.",
+  };
 }
 
 export function ustxTools(origin: string): McpTool[] {
@@ -204,6 +296,44 @@ export function ustxTools(origin: string): McpTool[] {
           last24h: { trades: day.trades, volumeUsd: usd(day.volumeMicros as string), arbitrages: day.arbitrages, arbitrageEarnedUsd: usd(day.earnedMicros as string), loanActions: day.loans, complete: day.complete },
           rows, environment: DEMO,
         };
+      },
+    },
+    {
+      name: "list_funds",
+      title: "Every Ganymede product",
+      description: "Every product on Markets with its latest NAV record on X Layer: six baskets of xStocks (USTX and M7X, AIX, CRYX, CORX, RTLX), two covered-call funds (SPYC on SPYx, QQQC on QQQx) and a step-down autocallable note (ELS1 on the worse of SPYx and QQQx). Each with the id for get_fund, its kind, NAV, when it was recorded and its change over seven days. Only USTX can be bought; the others are recorded every five minutes but have no share token yet.",
+      inputSchema: NO_INPUT,
+      run: async () => {
+        const funds = await fundSummaries(new EngineRepository(engineEnv().DB));
+        return {
+          funds: funds.map(fund => ({
+            id: fund.id, ticker: fund.ticker, name: fund.name, kind: fund.kind, holds: fund.holdings.map(holding => holding.symbol),
+            navUsd: fund.nav ? usd(fund.nav.perShareMicros) : null, asOf: fund.nav?.asOf ?? null, change7dPercent: fund.changePercent === null ? null : Number(fund.changePercent.toFixed(2)),
+            investable: fund.onchainShares, page: page(fund.href),
+          })),
+          environment: DEMO,
+        };
+      },
+    },
+    {
+      name: "get_fund",
+      title: "One Ganymede product in detail",
+      description: "One product by its id or ticker, from its latest confirmed record on X Layer: a basket's holdings and weights; a covered-call fund's ETF price, this month's call (strike, expiry, premium, what it is worth now) and its return from today to expiry if the ETF falls 10%, stays flat or rises 10%; or the note's index levels against their start, the knock-in and how far the worse index would have to fall to reach it, the next observation's barrier and payment, and the whole schedule.",
+      inputSchema: { type: "object", properties: { id: { type: "string", description: "a product's id or ticker from list_funds, such as spy-qqq-autocall-1 or ELS1" } }, required: ["id"], additionalProperties: false },
+      run: async (args) => {
+        const fund = fundByName(args.id);
+        const repo = new EngineRepository(engineEnv().DB);
+        const [summary, confirmed] = await Promise.all([fundSummary(repo, fund), fund.onchainShares ? Promise.resolve(null) : confirmedRecord(repo, fund)]);
+        const nav = fund.onchainShares ? summary.nav : confirmed && { perShareMicros: confirmed.record.navPerShareMicros, asOf: confirmed.record.asOf, txHash: confirmed.record.txHash };
+        const base = {
+          id: fund.id, ticker: fund.ticker, name: fund.name, kind: fund.kind ?? "basket", description: fund.description,
+          navUsd: nav ? usd(nav.perShareMicros) : null, asOf: nav?.asOf ?? null,
+          transactionHash: nav?.txHash ?? null, explorerUrl: nav?.txHash ? `${FUND_DEPLOYMENT.explorerUrl}/tx/${nav.txHash}` : null,
+          change7dPercent: summary.changePercent === null ? null : Number(summary.changePercent.toFixed(2)),
+          investable: fund.onchainShares, page: page(fund.href),
+        };
+        if (fund.onchainShares) return { ...base, seeAlso: "get_ustx_nav, get_ustx_holdings and quote_ustx_order give USTX's record, holdings and quotes.", environment: DEMO };
+        return { ...base, ...describeDocument(fund, confirmed?.document ?? null, Date.now()), notOpen: "Investing in this product is not open yet: it has no share token. Its value is recorded on X Layer every five minutes.", environment: DEMO };
       },
     },
   ];

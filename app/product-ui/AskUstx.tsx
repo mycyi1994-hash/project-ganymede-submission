@@ -19,6 +19,8 @@ const TOOL_LABELS: Record<string, string> = {
   quote_ustx_order: "fund and pool quotes",
   get_ustx_pools: "pools",
   get_ustx_market_activity: "market activity",
+  list_funds: "every product",
+  get_fund: "product details",
 };
 
 type AskApi = { ask: (question: string) => void };
@@ -159,7 +161,7 @@ function screenOf(path: string, category: string | null): Screen {
 const GUIDE: Record<Screen, { questions: string[]; action?: { label: string; href: string } }> = {
   markets: {
     questions: ["Which holdings move USTX's NAV the most?", "What does one USTX share hold?", "Where would $500 buy the most USTX right now?"],
-    action: { label: "Try a $100 demo buy", href: "/products/ustx" },
+    action: { label: "Invest from your wallet", href: "/products/ustx#investment" },
   },
   product: {
     questions: ["Where would $500 buy the most USTX right now?", "Is the latest NAV verified?", "How much could I borrow against 10 USTX?"],
@@ -179,7 +181,7 @@ const GUIDE: Record<Screen, { questions: string[]; action?: { label: string; hre
   },
   portfolio: {
     questions: ["What is inside one USTX share?", "How is my USTX valued?", "How do I get demo dollars for my wallet?"],
-    action: { label: "Buy USTX with demo dollars", href: "/products/ustx" },
+    action: { label: "Buy USTX from your wallet", href: "/products/ustx#investment" },
   },
   verify: {
     questions: ["How does my browser check the NAV?", "Is the latest NAV verified?", "What would a tampered record look like?"],
@@ -249,9 +251,9 @@ function insight(screen: Screen, facts: Facts | null, now: number): string {
     ].filter(Boolean).join(" ");
     case "income": return "Covered calls on SPYx and QQQx: hold the ETF, sell a call 2% above it each month and keep the premium. Each value is recorded on X Layer every five minutes.";
     case "structured": return "A step-down note on the worse of SPYx and QQQx: 7% a year if both hold up, paid back early at six-monthly observations; capital at risk only after a 50% fall.";
-    case "portfolio": return "Your demo balance starts with $10,000 of demo dollars in this browser. Connect OKX Wallet to see the USTX and dUSD in your wallet as well.";
+    case "portfolio": return "Everything here is on chain: connect OKX Wallet to see the USTX in your wallet on X Layer Testnet, with any you posted as collateral or put in a pool, and your xStocks on X Layer mainnet.";
     case "verify": return [nav, "Every check below runs again in your browser, against X Layer."].filter(Boolean).join(" ");
-    case "fund": return [nav, "These funds are bought with your demo balance; each NAV is recorded on X Layer every five minutes."].filter(Boolean).join(" ");
+    case "fund": return [nav, "Each fund's NAV is recorded on X Layer every five minutes; investing in them is not open yet, and USTX is investable from your wallet now."].filter(Boolean).join(" ");
     default: return [nav, pools].filter(Boolean).join(" ") || "Ask about USTX's NAV, what a share holds and where an order fills best.";
   }
 }

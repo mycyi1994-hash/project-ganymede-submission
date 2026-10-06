@@ -82,9 +82,9 @@ test("malformed requests are refused, GET offers no stream, and any origin may c
   assert.match(preflight.headers.get("access-control-allow-headers"), /Mcp-Protocol-Version/);
 });
 
-test("the server offers the six USTX tools, all reads", async () => {
+test("the server offers its eight tools, all reads: six for USTX and two for every product", async () => {
   const listed = await (await POST(post(rpc("tools/list")))).json();
-  assert.deepEqual(listed.result.tools.map(tool => tool.name), ["get_ustx_nav", "verify_ustx_nav", "get_ustx_holdings", "quote_ustx_order", "get_ustx_pools", "get_ustx_market_activity"]);
+  assert.deepEqual(listed.result.tools.map(tool => tool.name), ["get_ustx_nav", "verify_ustx_nav", "get_ustx_holdings", "quote_ustx_order", "get_ustx_pools", "get_ustx_market_activity", "list_funds", "get_fund"]);
   assert.ok(listed.result.tools.every(tool => tool.annotations.readOnlyHint && tool.inputSchema.type === "object" && tool.description.length > 40));
 });
 

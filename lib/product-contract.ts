@@ -10,8 +10,8 @@ export type ProductCapability = {
   reason: string;
 };
 
-// Real-money subscriptions stay closed. Testnet orders with demo dollars (lib/xstocks/fund.ts,
-// lib/demo/) are not funded investments. Replace this capability only when a backend can return
+// Real-money subscriptions stay closed. Testnet orders with demo dollars (lib/xstocks/fund.ts) are
+// not funded investments. Replace this capability only when a backend can return
 // authenticated executable terms for real money.
 export const USTX_CAPABILITY: ProductCapability = {
   productId: "us-tech-x", environment: "testnet", canSubscribe: false, canRedeem: false,

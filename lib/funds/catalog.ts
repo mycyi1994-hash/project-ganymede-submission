@@ -1,8 +1,8 @@
 /**
  * The Ganymede funds. Each is a basket of xStocks on X Layer mainnet, priced by OKX OnchainOS every
  * five minutes and recorded under its own product key in the same NAV registry on X Layer Testnet.
- * USTX also has its share token, pools and lending market; the others are bought with a demo
- * balance. Every token is pinned here and checked on chain to be the same xStocks proxy and
+ * USTX also has its share token, pools and lending market; investing in the others is not open yet.
+ * Every token is pinned here and checked on chain to be the same xStocks proxy and
  * implementation as AAPLx (4 October 2026).
  */
 import { XSTOCKS_CONSTITUENTS, XSTOCKS_PINNED_ADDRESSES, XSTOCKS_PRODUCT } from "../xstocks/basket";
@@ -57,14 +57,14 @@ const PRODUCT_KEYS: Record<string, string> = {
 
 export const USTX_FUND: FundDefinition = {
   id: XSTOCKS_PRODUCT.id, ticker: "USTX", name: "US Tech Basket", theme: "Nine US technology leaders",
-  description: "Equal weight in nine US technology leaders. Invest from OKX Wallet or a demo balance, trade it in two pools and borrow against it.",
+  description: "Equal weight in nine US technology leaders. Invest from OKX Wallet, trade it in two pools and borrow against it.",
   constituents: XSTOCKS_CONSTITUENTS.map((item) => item.symbol), onchainShares: true, href: "/products/ustx", productKey: PRODUCT_KEYS[XSTOCKS_PRODUCT.id],
 };
 
 const fund = (id: string, ticker: string, name: string, theme: string, description: string, constituents: string[]): FundDefinition =>
   ({ id, ticker, name, theme, description, constituents, onchainShares: false, href: `/funds/${id}`, productKey: PRODUCT_KEYS[id] });
 
-/** The other five, bought with a demo balance. */
+/** The other five: their NAVs are recorded on X Layer, and investing in them is not open yet. */
 export const OTHER_FUNDS: FundDefinition[] = [
   fund("magnificent-7", "M7X", "Magnificent 7", "The seven largest US tech companies",
     "Equal weight in Apple, Microsoft, NVIDIA, Amazon, Meta, Tesla and Alphabet.", ["AAPLx", "MSFTx", "NVDAx", "AMZNx", "METAx", "TSLAx", "GOOGLx"]),
@@ -79,7 +79,7 @@ export const OTHER_FUNDS: FundDefinition[] = [
 ];
 
 /**
- * Income products on the same two xStock ETFs, bought with a demo balance. Their terms and NAV rules
+ * Income products on the same two xStock ETFs, recorded but not yet open to investing. Their terms and NAV rules
  * are in lib/income/terms.ts: a covered call is modelled, since there is no options market for
  * xStocks on X Layer, and the note's payoff follows recorded prices only.
  */
@@ -102,8 +102,6 @@ export const fundKind = (id: string): FundKind => FUNDS.find((item) => item.id =
 /** A basket fund other than USTX. */
 export const otherFund = (id: string) => OTHER_FUNDS.find((item) => item.id === id) ?? null;
 export const incomeFund = (id: string) => INCOME_FUNDS.find((item) => item.id === id) ?? null;
-/** Any product bought with a demo balance: the five baskets and the income products. */
-export const demoFund = (id: string) => otherFund(id) ?? incomeFund(id);
 
 /** NAV per share at each new fund's first fixing: US$100. */
 export const FUND_INCEPTION_NAV_MICROS = 100_000_000n;

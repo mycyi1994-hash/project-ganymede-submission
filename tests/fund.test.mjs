@@ -5,9 +5,12 @@ import {
   parseStoredWalletTotals, poolAmountOut, poolCalls, poolFill, pricePerShare, readChainTime, readFundAccount, readFundTotals, readPoolMarket, routeOrder, sharesFor, simulateFundCall,
   waitForFundReceipt, withSlippage,
 } from "../lib/xstocks/fund.ts";
-import { combineFund } from "../lib/demo/api.ts";
 import { runXStocksCycle } from "../lib/xstocks/cycle.ts";
 import { XSTOCKS_CONSTITUENTS } from "../lib/xstocks/basket.ts";
+import { env } from "cloudflare:workers";
+import { ACTIVITY_KEEP, fundFlows, serializeActivityIndex } from "../lib/xstocks/activity.ts";
+import { STATE_MARKET_ACTIVITY } from "../lib/xstocks/activity-index.ts";
+import { GET as fundGET } from "../app/api/fund/route.ts";
 
 const word = (value) => BigInt(value).toString(16).padStart(64, "0");
 const hex = (value) => `0x${BigInt(value).toString(16)}`;
@@ -189,19 +192,13 @@ test("wallet and RPC errors read as a customer would need them", () => {
   assert.match(fundErrorMessage(new Error("x".repeat(400))), /could not be completed/);
 });
 
-test("fund totals add wallets to demo balances, and a stored read is validated", () => {
-  const demo = { sharesOutstandingMicros: "70195063", investors: 7, ordersToday: 2, last24h: { investedMicros: "0", redeemedMicros: "0", orders: 0 } };
-  const combined = combineFund(demo, { sharesMicros: "2005480", investors: 1, block: 9 });
-  assert.equal(combined.sharesOutstandingMicros, "72200543");
-  assert.equal(combined.investors, 8);
-  assert.deepEqual(combined.demo, { sharesMicros: "70195063", investors: 7 });
-  assert.deepEqual(combineFund(demo, null).sharesOutstandingMicros, "70195063");
+test("a stored read of the wallets' totals is validated", () => {
   assert.equal(parseStoredWalletTotals('{"sharesMicros":"5","investors":1,"block":3,"readAt":"2026-09-25T00:00:00.000Z"}').sharesMicros, "5");
   assert.equal(parseStoredWalletTotals('{"sharesMicros":"-5","investors":1,"block":3,"readAt":"x"}'), null);
   assert.equal(parseStoredWalletTotals("not json"), null);
 });
 
-test("each NAV record carries wallet shares plus demo shares, and the last wallet read when the chain is down", async (t) => {
+test("each NAV record carries the shares in wallets, and the last wallet read when the chain is down", async (t) => {
   const rows = new Map();
   const repo = { async getState(key) { return rows.has(key) ? { value: rows.get(key) } : null; }, async setState(key, value) { rows.set(key, value); }, async saveSettlement() {}, async deleteStatesWithPrefix() {} };
   const addresses = XSTOCKS_CONSTITUENTS.map((item, i) => ({ ...item, address: "0x" + String(i + 1).repeat(40) }));
@@ -217,7 +214,7 @@ test("each NAV record carries wallet shares plus demo shares, and the last walle
   const settlement = { async settle(request) { sent.push(request); return { status: "confirmed", txHash: `0x${String(sent.length).padStart(64, "0")}`, error: null }; } };
 
   await runXStocksCycle(configured, repo, settlement, at);
-  assert.equal(sent.at(-1).sharesOutstandingMicros, "2005480", "no demo ledger here, so wallet shares only");
+  assert.equal(sent.at(-1).sharesOutstandingMicros, "2005480", "the shares the fund contract has issued");
   assert.equal(JSON.parse(rows.get(STATE_WALLET_SHARES)).sharesMicros, "2005480");
 
   rpcUp = false;
@@ -225,4 +222,27 @@ test("each NAV record carries wallet shares plus demo shares, and the last walle
   const result = await runXStocksCycle(configured, repo, settlement, quoteTime);
   assert.equal(sent.at(-1).sharesOutstandingMicros, "2005480", "the last value read stands in");
   assert.ok(result.warnings.some((warning) => /wallet shares could not be read/.test(warning)));
+});
+
+test("the fund totals come from X Layer Testnet only: shares in wallets, the wallets holding them, the last day's orders at the fund", async (t) => {
+  const now = Date.now();
+  const at = (hoursAgo) => new Date(now - hoursAgo * 3_600_000).toISOString();
+  const row = (kind, block, hoursAgo, dollarsMicros) => ({ kind, hash: `0x${String(block).padStart(64, "0")}`, block, logIndex: 0, at: at(hoursAgo), account: ALICE, dollarsMicros, sharesMicros: 1_000_000n, navMicros: 100_000_000n, dollarsOutMicros: null, boughtInPool: null, borrower: null });
+  // Newest first, as the index keeps them: two orders and a pool trade today, an order two days ago.
+  const rows = [row("redeem", 9, 1, 250_000_000n), row("buy", 8, 2, 70_000_000n), row("invest", 7, 3, 1_000_000_000n), row("invest", 1, 50, 5_000_000_000n)];
+  const index = { fromBlock: 1, toBlock: 9, keep: ACTIVITY_KEEP, rows };
+  const flows = fundFlows(index, now);
+  assert.deepEqual({ ...flows, since: undefined }, { investedMicros: 1_000_000_000n, redeemedMicros: 250_000_000n, orders: 2, complete: true, since: undefined });
+
+  const state = new Map([[STATE_MARKET_ACTIVITY, serializeActivityIndex(index)]]);
+  env.DB = { prepare(query) { assert.match(query, /^SELECT/, "reads only"); return { bind(key) { return { async first() { return state.has(key) ? { value: state.get(key), updated_at: "" } : null; } }; } }; } };
+  try {
+    const { fetcher } = chain({ block: 50, supply: 2_005_480n, investors: 3n });
+    t.mock.method(globalThis, "fetch", fetcher);
+    const body = await (await fundGET()).json();
+    assert.deepEqual({ ...body, last24h: { ...body.last24h, since: undefined } }, {
+      sharesOutstandingMicros: "2005480", investors: 3, block: 50,
+      last24h: { investedMicros: "1000000000", redeemedMicros: "250000000", orders: 2, complete: true, since: undefined },
+    });
+  } finally { delete env.DB; }
 });

@@ -81,12 +81,12 @@ export const OPENAPI = {
     "/api/v1/funds": {
       get: {
         operationId: "getFunds",
-        summary: "Every Ganymede fund and its latest NAV record, or one fund",
-        description: "USTX and five more funds of xStocks on X Layer, each recorded every five minutes in the NAV registry under productKey = keccak256(id). With ?id=, one fund with its recent records (each with its canonical holdings document), how its prices compared with the X Layer pools and its demo holders.",
-        parameters: [{ name: "id", in: "query", required: false, schema: { type: "string", enum: ["us-tech-x", "magnificent-7", "ai-chips", "crypto-economy", "us-core", "retail-favorites"] } }],
+        summary: "Every Ganymede product and its latest NAV record, or one product",
+        description: "Nine products, each recorded every five minutes in the NAV registry under productKey = keccak256(id): six baskets of xStocks (USTX, M7X, AIX, CRYX, CORX, RTLX), two covered-call funds (SPYC, QQQC) and a step-down autocallable note (ELS1); kind tells them apart. With ?id=, one product with its recent records, each with its canonical document (a basket's holdings, a covered call's ETF and call, the note's levels and observations), and how a basket's prices compared with the X Layer pools.",
+        parameters: [{ name: "id", in: "query", required: false, schema: { type: "string", enum: ["us-tech-x", "magnificent-7", "ai-chips", "crypto-economy", "us-core", "retail-favorites", "spy-covered-call", "qqq-covered-call", "spy-qqq-autocall-1"] } }],
         responses: {
           200: { description: "The funds, or one fund", content: { "application/json": { schema: { type: "object", properties: {
-            funds: { type: "array", items: { type: "object", properties: { id: { type: "string" }, ticker: { type: "string" }, name: { type: "string" }, productKey: { type: "string" }, holdings: { type: "array", items: { type: "object" } }, nav: { type: ["object", "null"] }, changePercent: { type: ["number", "null"] }, series: { type: "array", items: { type: "array" } } } } },
+            funds: { type: "array", items: { type: "object", properties: { id: { type: "string" }, ticker: { type: "string" }, name: { type: "string" }, productKey: { type: "string" }, kind: { type: "string", enum: ["basket", "covered-call", "autocall"] }, onchainShares: { type: "boolean", description: "Only USTX has a share token that wallets can buy." }, holdings: { type: "array", items: { type: "object" } }, nav: { type: ["object", "null"] }, changePercent: { type: ["number", "null"] }, series: { type: "array", items: { type: "array" } } } } },
             fund: { type: "object" },
           } } } } },
           404: { description: "No fund has that id", content: { "application/json": { schema: error } } },
@@ -132,7 +132,7 @@ export const OPENAPI = {
       post: {
         operationId: "mcp",
         summary: "Model Context Protocol (Streamable HTTP, JSON responses)",
-        description: "JSON-RPC 2.0: initialize, ping, tools/list and tools/call. Tools: get_ustx_nav, verify_ustx_nav, get_ustx_holdings, quote_ustx_order, get_ustx_pools, get_ustx_market_activity. All read only.",
+        description: "JSON-RPC 2.0: initialize, ping, tools/list and tools/call. Tools: get_ustx_nav, verify_ustx_nav, get_ustx_holdings, quote_ustx_order, get_ustx_pools, get_ustx_market_activity, list_funds, get_fund. All read only.",
         requestBody: { required: true, content: { "application/json": { schema: { type: "object", required: ["jsonrpc", "method"], properties: { jsonrpc: { const: "2.0" }, id: { type: ["string", "integer"] }, method: { type: "string" }, params: { type: "object" } } },
           examples: { quote: { value: { jsonrpc: "2.0", id: 1, method: "tools/call", params: { name: "quote_ustx_order", arguments: { side: "buy", amount: 500 } } } } } } } },
         responses: { 200: { description: "A JSON-RPC response" }, 202: { description: "Notifications accepted" } },

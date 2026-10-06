@@ -53,7 +53,7 @@ test("public product routes share navigation and select the right destination be
   }
 });
 
-test("product pages offer clearly labelled demo investing next to the verification", async () => {
+test("product pages offer investing from a wallet on X Layer Testnet next to the verification", async () => {
   for (const path of ["/", "/products/ustx", "/products/ustx/transparency"]) {
     const html = visible(await (await render(path)).text());
     assert.doesNotMatch(html, /Subscriptions not open|Investment access|Know what you own|before investing|Connect wallet|USDC/, path);
@@ -68,8 +68,8 @@ test("product pages offer clearly labelled demo investing next to the verificati
   assert.match(product, /href="\/pools"/, "the USTX page links to its liquidity pools");
   assert.match(product, /You are on X Layer Testnet/);
   assert.match(product, /No real stocks or money/);
-  assert.match(product, /aria-label="Pay with"/);
-  assert.match(product, /Demo balance/);
+  assert.match(product, /Invest from your own wallet on X Layer Testnet/);
+  assert.doesNotMatch(product, /Demo balance|demo balance|Use demo balance/, "no balance held for a visitor off chain");
   assert.match(product, /USTX on X Layer Testnet/, "the share token in the fund facts");
   assert.match(product, /Price source/);
   assert.match(product, /OKX OnchainOS/);

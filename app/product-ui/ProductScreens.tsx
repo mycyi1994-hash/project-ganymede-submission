@@ -15,7 +15,7 @@ import { CATEGORY_EVENT } from "./AskUstx";
 import { Icon } from "./Icons";
 import { designLink } from "./ProductShell";
 import MarketChart from "./MarketChart";
-import { InvestPanel } from "./DemoInvest";
+import { InvestPanel } from "./InvestPanel";
 import { FundHoldings, FundOverview, FundStats } from "./Fund";
 import { LendingSection } from "./Lending";
 import { ActivityProvider, MarketActivitySection, MarketPulse } from "./MarketActivity";

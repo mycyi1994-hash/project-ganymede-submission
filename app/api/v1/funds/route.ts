@@ -28,7 +28,7 @@ export async function GET(request: Request) {
     return json({
       funds: await fundSummaries(repo),
       registry,
-      rule: "Each fund is a basket of xStocks on X Layer mainnet with fixed units per share, equal weight at each fixing, priced by OKX OnchainOS and recorded every five minutes in the NAV registry under productKey = keccak256(id). nav is the latest confirmed record; series is the last seven days of records, thinned; changePercent is the change over that series. Amounts are micros (6 decimals).",
+      rule: "Every product is priced from xStocks on X Layer mainnet through OKX OnchainOS and recorded every five minutes in the NAV registry under productKey = keccak256(id). kind says what it is: basket, a basket of xStocks with fixed units per share, equal weight at each fixing; covered-call, an xStock ETF less a one-month call sold 2% above its price, priced by Black–Scholes at stated terms because there is no options market for xStocks on X Layer; autocall, a step-down note on the worse of SPYx and QQQx that pays from recorded prices. Only USTX (onchainShares) can be bought; the others have no share token yet. nav is the latest confirmed record; series is the last seven days of records, thinned; changePercent is the change over that series. Amounts are micros (6 decimals).",
       environment,
     }, 200, "public, max-age=30");
   } catch (error) {

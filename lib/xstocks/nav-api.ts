@@ -1,11 +1,10 @@
 /**
  * What GET /api/v1/ustx serves, read from X Layer and the engine state: the latest USTX record in the
  * registry, the transaction and calculation time this server logged for it, and the shares now in
- * wallets and in demo balances. The once-a-minute cron stores it as a snapshot (see ./snapshot), so
+ * wallets. The once-a-minute cron stores it as a snapshot (see ./snapshot), so
  * the public API reads the database instead of X Layer for each request.
  */
-import { DemoLedger, type DemoFund } from "../demo/ledger";
-import { walletTotals, type WalletTotals } from "../demo/api";
+import { walletTotals, type WalletTotals } from "./wallet-totals";
 import { EngineRepository } from "../engine/repository";
 import { SettlementClient } from "../engine/settlement";
 import type { EngineEnv } from "../engine/types";
@@ -21,7 +20,6 @@ export type NavRead = {
   record: OnchainNav & { effectiveAt: string };
   transactionHash: string | null;
   calculatedAt: string | null;
-  demo: DemoFund | null;
   wallets: WalletTotals | null;
 };
 
@@ -45,10 +43,9 @@ export async function readNav(env: EngineEnv): Promise<NavRead> {
     const entry = entries.find(item => item.holdingsHash.toLowerCase() === record.holdingsHash.toLowerCase() && typeof item.calculatedAt === "string");
     calculatedAt = entry?.calculatedAt ?? null;
   } catch { /* The record stands without it. */ }
-  // The count recorded with the NAV covers two kinds of shares; each part is read now, and a part that
-  // cannot be read is null rather than a guess.
-  const [demo, wallets] = await Promise.all([new DemoLedger(env.DB).fund(new Date()).catch(() => null), walletTotals().catch(() => null)]);
-  return { record: record as NavRead["record"], transactionHash, calculatedAt, demo, wallets };
+  // The shares now in wallets, read now; null rather than a guess when they cannot be read.
+  const wallets = await walletTotals().catch(() => null);
+  return { record: record as NavRead["record"], transactionHash, calculatedAt, wallets };
 }
 
 /** The cron's job: read the latest record and store it for the public API. */

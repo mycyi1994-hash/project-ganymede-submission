@@ -98,6 +98,8 @@ Ganymede was selected as one of 30 finalists from 150 teams. The organizers conf
 | 2026-10-07 04:43 | `8e55051` | Borrow gets a page of its own in the sidebar beside Pools: the lending market's figures and terms on the left and the wallet's position in the right column, opened from the USTX page's Borrow tab and the Portfolio |
 | 2026-10-07 05:11 | `d57afbd` | Borrow laid out like Aave and Venus (the wallet's position, its supplies and borrows, the assets to supply and borrow, each action in a dialog with a transaction overview), and Ask USTX in its own violet-to-blue colours with its chat in the bottom-right corner |
 | 2026-10-07 05:47 | `880159e` | Everything larger and easier to read: copy and tables at 16px, titles at 28px, the NAV at 46px, 44px buttons, a wider sidebar with taller rows, larger asset marks and a round chat button on phones |
+| 2026-10-07 06:43 | `cc2bcb3` | Review order stays in reach: the order and liquidity columns scroll within the window, the page ends clear of the chat button, and a wallet's next step is numbered after the block its last one was mined in |
+| 2026-10-07 06:52 | `4378533` | Withdraw all on Pools turns on only once all three pools have been read after the wallet's last transaction |
 
 ## Every commit in the build period (UTC)
 

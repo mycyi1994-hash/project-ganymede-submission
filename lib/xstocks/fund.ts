@@ -327,6 +327,20 @@ export async function simulateFundCall(from: string, request: TransactionCall, o
 
 export type FundReceipt = { hash: string; block: number; status: "success" | "reverted"; logs: Array<{ address: string; topics: string[]; data: string }> };
 
+/**
+ * The newest block in which this page has seen each wallet's transaction mined. The public RPC is
+ * load-balanced, and a node that has not reached that block still counts the transaction as unsent:
+ * on 7 October a range position's second step was numbered with the nonce its first step had just
+ * used, and refused ("nonce too low"). `walletFee` numbers and estimates a wallet's next transaction
+ * at this block or later.
+ */
+const minedBlocks = new Map<string, number>();
+export function walletMinedBlock(wallet: string): number { return minedBlocks.get(wallet.toLowerCase()) ?? 0; }
+function noteMined(wallet: unknown, block: number) {
+  if (typeof wallet !== "string" || !/^0x[0-9a-f]{40}$/i.test(wallet)) return;
+  if (block > walletMinedBlock(wallet)) minedBlocks.set(wallet.toLowerCase(), block);
+}
+
 export const TRANSACTION_NEVER_ARRIVED = "Your wallet’s transaction never reached X Layer Testnet. If your wallet shows it as pending, cancel it, then try again.";
 
 /**
@@ -346,7 +360,9 @@ export async function waitForFundReceipt(hash: string, options: { rpc?: Rpc; tim
     try { receipt = await rpc("eth_getTransactionReceipt", [hash]) as Record<string, unknown> | null; } catch { /* A lagging node or a timeout: poll again. */ }
     if (receipt) {
       const logs = Array.isArray(receipt.logs) ? receipt.logs as Array<{ address: string; topics: string[]; data: string }> : [];
-      return { hash: hash.toLowerCase(), block: Number(quantity(receipt.blockNumber)), status: receipt.status === "0x1" ? "success" : "reverted", logs };
+      const block = Number(quantity(receipt.blockNumber));
+      noteMined(receipt.from, block);
+      return { hash: hash.toLowerCase(), block, status: receipt.status === "0x1" ? "success" : "reverted", logs };
     }
     if (!seen) {
       // Only an answer that the node has no such transaction counts; a failed read proves nothing.

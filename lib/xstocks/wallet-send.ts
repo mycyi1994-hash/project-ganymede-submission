@@ -3,12 +3,13 @@
  * stall on 6 October, a transaction a wallet broadcast through its own node could be dropped with no
  * error: on 7 October two OKX Wallet transactions returned a hash that neither the public RPC nor the
  * explorer ever saw. So the app names the fee itself, twice the network's gas price, with the gas
- * limit and the nonce the chain has confirmed. It first asks the wallet only to sign, and sends the
+ * limit and the nonce the chain has confirmed, counted no earlier than the block in which the page
+ * last saw one of the wallet's transactions mined. It first asks the wallet only to sign, and sends the
  * signed transaction to the public RPC itself, the way the relayer and the keeper do; a wallet that
  * cannot sign without sending is asked to send, with the same fee and nonce.
  */
 import { keccak256, type Hex } from "viem";
-import { FUND_WALLET_CHAIN, fundRpc, quantity, type Rpc, type TransactionCall } from "./fund";
+import { FUND_WALLET_CHAIN, atBlock, fundRpc, hexBlock, quantity, readBlock, walletMinedBlock, type Rpc, type TransactionCall } from "./fund";
 
 export type WalletProvider = { request: (request: { method: string; params?: unknown[] }) => Promise<unknown> };
 
@@ -18,11 +19,17 @@ const hexQuantity = (value: bigint) => `0x${value.toString(16)}`;
 export type WalletFee = { gasPrice: string; gas: string | null; nonce: string };
 
 export async function walletFee(from: string, request: TransactionCall, rpc: Rpc = fundRpc()): Promise<WalletFee> {
-  const [price, nonce] = await Promise.all([rpc("eth_gasPrice", []), rpc("eth_getTransactionCount", [from, "latest"])]);
+  // After a step of the page's own has been mined, the next is counted and estimated at that block or
+  // later, asked again until a node that has reached it answers; otherwise at the latest block.
+  const mined = walletMinedBlock(from);
+  const tag = mined ? hexBlock(await readBlock(rpc, mined)) : "latest";
+  const pinned = <T>(read: () => Promise<T>, attempts?: number) => mined ? atBlock(read, attempts) : read();
+  const call = { from, to: request.to, data: request.data };
+  const [price, nonce] = await Promise.all([rpc("eth_gasPrice", []), pinned(() => rpc("eth_getTransactionCount", [from, tag]))]);
   let gas: string | null = null;
   try {
-    // A fifth more than the estimate; a step that depends on one just mined may not estimate on a lagging node, and the wallet then estimates it.
-    const estimate = quantity(await rpc("eth_estimateGas", [{ from, to: request.to, data: request.data }]));
+    // A fifth more than the estimate; a step that still does not estimate leaves the gas to the wallet.
+    const estimate = quantity(await pinned(() => rpc("eth_estimateGas", mined ? [call, tag] : [call]), 4));
     gas = hexQuantity((estimate * 6n) / 5n + 10_000n);
   } catch { /* The wallet estimates it. */ }
   return { gasPrice: hexQuantity(quantity(price) * 2n), gas, nonce: hexQuantity(quantity(nonce)) };

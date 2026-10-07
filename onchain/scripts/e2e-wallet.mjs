@@ -10,12 +10,15 @@
 // page's and the wallet's, to another node, such as a local fork (`npx hardhat node --fork …`); E2E_TIMEOUT_MS
 // lengthens the waits for a slow fork.
 // READ_ONLY=1 only visits the pages. It reports page errors, console errors and HTTP errors.
+// The wallet signs what the app asks it to, with the app's fee, gas and nonce, and the app sends it;
+// E2E_SEND_ONLY=1 makes it a wallet that can only send, the app's fallback. A new test wallet claims
+// demo dollars first.
 //
 // Run from onchain/: ADMIN_PRIVATE_KEY=… node scripts/e2e-wallet.mjs
 //   PLAYWRIGHT_MODULE, CHROMIUM_PATH, BROWSER_PROXY and BROWSER_ARGS adapt it to the machine;
 //   SHOTS=dir saves a screenshot after each step.
 import fs from "node:fs";
-import { createPublicClient, createWalletClient, http, parseEther } from "viem";
+import { createPublicClient, createWalletClient, http, keccak256, parseEther } from "viem";
 import { generatePrivateKey, privateKeyToAccount } from "viem/accounts";
 
 const { chromium } = await import(process.env.PLAYWRIGHT_MODULE ?? "playwright");
@@ -39,7 +42,8 @@ const wallet = createWalletClient({ account, chain, transport });
 // Gas from the administrator, if the wallet has none.
 if ((await reader.getBalance({ address: account.address })) < parseEther("0.0002")) {
   const admin = createWalletClient({ account: privateKeyToAccount(process.env.ADMIN_PRIVATE_KEY.startsWith("0x") ? process.env.ADMIN_PRIVATE_KEY : "0x" + process.env.ADMIN_PRIVATE_KEY), chain, transport });
-  await reader.waitForTransactionReceipt({ hash: await admin.sendTransaction({ to: account.address, value: parseEther("0.0005"), gas: 21000n }) });
+  const nonce = await reader.getTransactionCount({ address: admin.account.address, blockTag: "latest" });
+  await reader.waitForTransactionReceipt({ hash: await admin.sendTransaction({ to: account.address, value: parseEther("0.0005"), gas: 21000n, nonce }) });
 }
 console.log("test wallet", account.address);
 
@@ -62,15 +66,30 @@ await page.exposeFunction("__walletRequest", async (method, params) => {
       case "eth_chainId": return { result: "0x7a0" };
       case "wallet_switchEthereumChain": case "wallet_addEthereumChain": return { result: null };
       case "wallet_watchAsset": return { result: true };
+      // As a wallet does, it signs or sends with the fee, gas and nonce the app names: the app numbers a
+      // transaction from the confirmed count, because the public node's pending count can lag behind it.
+      // E2E_SEND_ONLY=1 acts as a wallet that cannot sign without sending, the app's fallback.
+      case "eth_signTransaction": {
+        if (process.env.E2E_SEND_ONLY) return { error: { code: -32601, message: "This wallet only sends transactions." } };
+        const [tx] = params;
+        const raw = await account.signTransaction({ chainId: chain.id, type: "legacy", to: tx.to, data: tx.data, value: tx.value ? BigInt(tx.value) : 0n, gas: BigInt(tx.gas), gasPrice: BigInt(tx.gasPrice), nonce: Number(BigInt(tx.nonce)) });
+        sent.push(keccak256(raw));
+        return { result: raw };
+      }
       case "eth_sendTransaction": {
         const [tx] = params;
-        const hash = await wallet.sendTransaction({ to: tx.to, data: tx.data, value: tx.value ? BigInt(tx.value) : 0n });
+        const hash = await wallet.sendTransaction({ to: tx.to, data: tx.data, value: tx.value ? BigInt(tx.value) : 0n,
+          ...(tx.gas ? { gas: BigInt(tx.gas) } : {}), ...(tx.gasPrice ? { gasPrice: BigInt(tx.gasPrice) } : {}), ...(tx.nonce ? { nonce: Number(BigInt(tx.nonce)) } : {}) });
         sent.push(hash);
         return { result: hash };
       }
       default: return { result: await reader.request({ method, params }) };
     }
-  } catch (error) { return { error: { code: error.code ?? -32603, message: error.shortMessage ?? error.message } }; }
+  } catch (error) {
+    const message = error.shortMessage ?? error.message;
+    console.log("wallet", method, "failed:", String(message).split("\n")[0].slice(0, 200));
+    return { error: { code: error.code ?? -32603, message } };
+  }
 });
 await page.addInitScript(() => {
   window.okxwallet = { isOkxWallet: true, on() {}, removeListener() {}, async request({ method, params }) {
@@ -106,6 +125,19 @@ const buyAtFund = async dollars => {
   await page.getByText(/Order filled|Added to your basket/).first().waitFor({ timeout: 180000 });
   await page.getByRole("button", { name: /Place another order/ }).click();
 };
+// A new test wallet holds no demo dollars, so it claims them as a visitor would. The claim row shows the
+// button, then the wallet's and the chain's statuses, then the wait for the next claim (on Pools, which
+// shows the row only below $20, it goes instead).
+const claimDemoDollars = async root => {
+  const scope = page.locator(root);
+  const claim = scope.getByRole("button", { name: /Get .* demo dollars/ });
+  await claim.or(scope.getByText(/More demo dollars in/)).first().waitFor({ timeout: 30000 }).catch(() => {});
+  if (!(await claim.isVisible().catch(() => false))) return;
+  await step("claim demo dollars", async () => {
+    await claim.click();
+    await page.waitForFunction(selector => [...document.querySelectorAll(`${selector} .gmd-wallet-claim`)].every(row => !row.querySelector('button, [role="status"], [role="alert"]')), root, { timeout: 120000 });
+  });
+};
 // Each action is a row's button on Borrow, which opens its dialog: the amount, the action, then Done.
 const lendingStep = async (label, amount, useMax = false) => {
   await page.locator("#borrow").getByRole("button", { name: label, exact: true }).first().click();
@@ -123,6 +155,7 @@ if (process.env.E2E_FLOW === "lending") {
       await page.getByRole("button", { name: "Connect OKX Wallet" }).first().click();
       await page.getByText("USTX in wallet").waitFor({ timeout: 60000 });
     });
+    await claimDemoDollars("#investment");
     await step("buy $80 at the fund", () => buyAtFund(80));
     await step("open Borrow", async () => {
       await page.goto(SITE + "/borrow", { waitUntil: "domcontentloaded", timeout: 90000 });
@@ -147,6 +180,7 @@ if (process.env.E2E_FLOW === "lending") {
       if (await connect.isVisible().catch(() => false)) await connect.click();
       await page.locator("#liquidity-simple").waitFor({ timeout: WAIT });
     });
+    if (!process.env.SKIP_ADD) await claimDemoDollars("#provide");
     // The one-button view: an amount of demo dollars and Add liquidity; Withdraw all returns everything as demo dollars.
     if (!process.env.SKIP_ADD) await step("add $40 of liquidity from demo dollars with one button", async () => {
       const provide = page.locator("#provide");
@@ -170,11 +204,7 @@ if (process.env.E2E_FLOW === "lending") {
     await page.getByRole("button", { name: "Connect OKX Wallet" }).first().click();
     await page.getByText("USTX in wallet").waitFor({ timeout: 60000 });
   });
-  const claim = page.getByRole("button", { name: /Get .* demo dollars/ });
-  if (await claim.isVisible().catch(() => false)) await step("claim demo dollars", async () => {
-    await claim.click();
-    await page.getByText(/More demo dollars in/).waitFor({ timeout: 120000 });
-  });
+  await claimDemoDollars("#investment");
   for (const venue of ["fund", "pool", "v4"]) {
     await step(`buy $60 via ${venue}`, async () => {
       await page.getByRole("button", { name: "Buy", exact: true }).click();

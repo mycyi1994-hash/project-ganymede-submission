@@ -57,7 +57,8 @@
 .gmd-workspace { --gmd-pad: 32px; min-width: 0; min-height: calc(100dvh - 94px); background: #fff; border: 1px solid #e2e2e2; border-right: 0; border-bottom: 0; border-top-left-radius: 14px; }
 /* The page spans the panel; --gmd-pad is its side margin, which the edge-to-edge regions step back over. */
 .gmd-main { max-width: none; padding: 0 var(--gmd-pad) 56px; min-height: 0; }
-.gmd-footer { max-width: none; padding: 22px var(--gmd-pad); font-size: 15px; }
+/* The footer's last line ends above the corner chat button, so nothing at the page's end sits under it. */
+.gmd-footer { max-width: none; padding: 22px var(--gmd-pad) 96px; font-size: 15px; }
 /* The sidebar holds the pages on a wide screen; below that the header's own links stay. */
 @media (min-width: 931px) { .gmd-header .gmd-navigation { display: none; } }
 @media (max-width: 930px) {
@@ -72,7 +73,7 @@
   .gmd-workspace { --gmd-pad: 16px; }
   .gmd-app .gmd-navigation a[aria-current] { color: var(--gmd-ink); background: #ececec; }
   .gmd-main { padding-bottom: 36px; }
-  .gmd-footer { padding-bottom: calc(95px + env(safe-area-inset-bottom)); }
+  .gmd-footer { padding-bottom: calc(150px + env(safe-area-inset-bottom)); }
 }
 
 /* The title bar: the page's name and one line under it on the left, its pills on the right, on a
@@ -367,6 +368,12 @@
   .gmd-app .gmd-main > .gmd-fund-layout > .gmd-fund-order { padding: 18px var(--gmd-pad) 22px; }
 }
 @media (max-width: 600px) { .gmd-app .gmd-main > .gmd-fund-layout > .gmd-fund-main { padding: 16px var(--gmd-pad) 22px; } .gmd-app .gmd-fund-hero strong { font-size: 36px; } }
+
+/* The order and liquidity columns stay in the window as the page scrolls. One taller than the window
+   (the order panel is, with a wallet connected) scrolls on its own, so Review order stays in reach,
+   and its end clears the corner chat button. */
+@media (min-width: 931px) { .gmd-app .gmd-main > .gmd-detail-layout > .gmd-detail-aside { max-height: 100dvh; overflow-y: auto; scrollbar-width: thin; padding-bottom: 96px; } }
+@media (min-width: 961px) { .gmd-app .gmd-main > .gmd-fund-layout > .gmd-fund-order { max-height: 100dvh; overflow-y: auto; scrollbar-width: thin; padding-bottom: 96px; } }
 
 /* A document's title bar: where it sits, as the console's breadcrumb, over the side menu and the text. */
 .gmd-crumbs { display: flex; align-items: center; gap: 8px; font-size: 16px; color: var(--gmd-copy); }

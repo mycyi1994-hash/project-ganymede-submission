@@ -105,3 +105,36 @@ test("a transaction no node has heard of is reported as never arriving, not wait
   const mined = async (method) => (method === "eth_getTransactionReceipt" ? (++polls > 2 ? { blockNumber: "0x2a", status: "0x1", logs: [] } : null) : null);
   assert.equal((await waitForFundReceipt(HASH, { rpc: mined, intervalMs: 1, unseenMs: 60_000 })).block, 42);
 });
+
+test("after a step is mined, the next is numbered and estimated at its block, past a node that has not reached it", async () => {
+  const WALLET = "0x00000000000000000000000000000000000B0B00";
+  const lagging = () => {
+    const calls = [];
+    let refused = 0;
+    const rpc = async (method, params) => {
+      calls.push({ method, params });
+      if (method === "eth_chainId") return "0x7a0";
+      if (method === "eth_blockNumber") return "0x63";
+      if (method === "eth_gasPrice") return "0x1312d00";
+      if (method === "eth_getTransactionCount") {
+        if (params[1] === "latest") return "0x6";
+        assert.deepEqual(params, [WALLET, "0x64"]);
+        if (refused++ === 0) throw new Error("block is out of range");
+        return "0x7";
+      }
+      if (method === "eth_estimateGas") { assert.equal(params[1], "0x64"); return "0xc350"; }
+      throw new Error(`unexpected ${method}`);
+    };
+    return { rpc, calls };
+  };
+  // Before the page has seen any of the wallet's transactions mined, the latest count, as before.
+  assert.equal((await walletFee(WALLET, CALL, lagging().rpc)).nonce, "0x6");
+  // The first step is mined in block 100; the node that answers next is still at block 99 and counts it as unsent.
+  await waitForFundReceipt(HASH, { rpc: async method => (method === "eth_getTransactionReceipt" ? { blockNumber: "0x64", status: "0x1", logs: [], from: WALLET.toLowerCase() } : null), intervalMs: 1 });
+  const { rpc, calls } = lagging();
+  assert.deepEqual(await walletFee(WALLET, CALL, rpc), { gasPrice: "0x2625a00", gas: "0x11170", nonce: "0x7" });
+  assert.equal(calls.filter(call => call.method === "eth_getTransactionCount").length, 2);
+  assert.ok(!calls.some(call => call.params?.[1] === "latest"));
+  // Another wallet is counted at the latest block.
+  assert.equal((await walletFee(FROM, CALL, publicRpc().rpc)).nonce, "0x2");
+});

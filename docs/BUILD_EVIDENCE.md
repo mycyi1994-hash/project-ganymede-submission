@@ -1,6 +1,6 @@
 # Build provenance
 
-Production source revision: `880159e926f60406bfe6834ebe9d493bcde1547f`.
+Production source revision: `43785332809772a31b5dde6b4dd9f19f7592a66c`.
 
 This is a source snapshot, not a claim that the entire project was newly built for this event. The original repository remains private. The entries below were exported from its Git history; reviewers can inspect current implementations and tests, and request original history access from the team if needed. No old secrets, local environment files or full private Git history are published.
 
@@ -855,5 +855,13 @@ These are point-in-time observations, not continuous availability or a security 
 Production source: `880159e926f60406bfe6834ebe9d493bcde1547f`. App Worker version: `6cf7e0f7-9bde-4a42-90d6-001c920f80f2`; prior version: `b98f7623-d216-4030-a1df-c6bfdbeaa487`. The relayer, the keeper and the contracts are unchanged. Exported development commit: `12d03a9fed29d420133b604d018ea1f320e4840e`, which adds only the release record and the build-period row to the production source.
 
 Every page reads at a larger size: body copy and tables at 16px, page titles at 28px, the NAV at 46px, 44px buttons and 42px pills, a sidebar with 44px rows and 20px icons, and 40px asset marks in the holdings and other tables. The featured fund's holdings column on Markets is wider, so basket names no longer run into their prices, and on phones the corner chat is a round button that leaves the content clear. Only styles changed; the figures, the lending logic and the APIs are as before. Checks: 298 application tests passed; in production at 1440, 1024 and 390 px the pages returned 200 with no horizontal overflow and no console errors, and the 05:50 UTC NAV record ($101.424638) landed after the deploy.
+
+These are point-in-time observations, not continuous availability or a security audit.
+
+## Review order in reach, the next step's nonce, and Withdraw all — 7 October 2026
+
+Production source: `43785332809772a31b5dde6b4dd9f19f7592a66c`. App Worker version: `c2d7386b-704d-44ef-aff0-59ce5679f2b7`; prior versions: `841225a6-67b6-4c5a-8b94-905783876e47` (source `cc2bcb3ddce8e9c84a2f213bd7c7db67cd701a77`) and `6cf7e0f7-9bde-4a42-90d6-001c920f80f2`. The relayer, the keeper and the contracts are unchanged. Exported development commit: `d27dce035b0af30a42bffdb818bf1b5807a704b4`, which adds only the release record and the build-period rows to the production source.
+
+A wallet test of production found three faults, fixed in two releases. With a wallet connected, the USTX order column grew to about 1,540px while staying at the top of the window, so Review order stayed below the window as the page scrolled; the order and liquidity columns now scroll within the window, and every page ends clear of the corner chat button, which had covered the footer's links. On the load-balanced public RPC, a node that had not reached the block of a wallet's previous step could number the next step with a nonce already used ("nonce too low"); a receipt now records its block for the sender, and the next transaction is counted and estimated at that block or later. Withdraw all on Pools turned on before all three pools had been read after the wallet's last transaction; it now waits for them. Checks: 299 application tests passed. The wallet test (a team test wallet signing X Layer Testnet transactions with demo dollars) passed on production through Borrow (11 transactions) and the order panel (buys at the fund, the pool and v4, then a sale at the fund) before these deploys, and through Pools (a $40 range position opened and withdrawn as demo dollars, 7 transactions) after them. After the last deploy, 15 main paths returned 200 and the 06:55 UTC NAV record ($101.338255) landed.
 
 These are point-in-time observations, not continuous availability or a security audit.

@@ -273,10 +273,10 @@ export async function readPoolMarket(options: { rpc?: Rpc } = {}): Promise<PoolM
   });
 }
 
-/** "0.27% below NAV", "0.15% above NAV", or "at the NAV" within half a basis point. */
+/** "0.27% below NAV" or "0.15% above NAV", truncated to the basis point, so "at the NAV" under one. */
 export function describePremium(premiumPpm: bigint): string {
   const size = premiumPpm < 0n ? -premiumPpm : premiumPpm;
-  if (size < 50n) return "at the NAV";
+  if (size < 100n) return "at the NAV";
   const percent = `${size / 10_000n}.${(size % 10_000n / 100n).toString().padStart(2, "0")}%`;
   return `${percent} ${premiumPpm < 0n ? "below" : "above"} NAV`;
 }

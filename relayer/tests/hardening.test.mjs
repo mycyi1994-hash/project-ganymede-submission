@@ -143,6 +143,42 @@ test("when the oldest transaction ahead of the chain waits past the stall window
   assert.equal(h.writes[3].maxPriorityFeePerGas, 4_000_000n);
 });
 
+// At 02:00 UTC on 7 October 2026 the USTX record missed its cycle: the object, evicted since the last
+// cycle, had forgotten that nodes still held copies up to nonce 10715, read the pending count from a node
+// that held none, and its send at 9938 reached one that did ("replacement transaction underpriced").
+test("a send refused by a node that holds a copy is sent again at its nonce, paying double, within the same request", async () => {
+  let latest = 9938;
+  const stored = new Map();
+  const h = harness({
+    getTransactionCount: async () => latest,
+    estimateFeesPerGas: async () => NETWORK_FEES,
+    waitForTransactionReceipt: async () => { latest += 1; return { status: "success", blockNumber: 1n }; },
+  }, async (args) => {
+    if (args.maxPriorityFeePerGas === undefined) throw new Error("replacement transaction underpriced");
+    return "0x" + "e".repeat(64);
+  });
+  h.submitter.state = { storage: { get: async (key) => stored.get(key), put: async (key, value) => { stored.set(key, value); } } };
+  const result = await h.send(mint({ entityId: "sub_refused" }));
+  assert.equal(result.status, 200);
+  assert.equal(result.body.status, "confirmed");
+  assert.deepEqual(h.writes.map((write) => [write.nonce, write.maxPriorityFeePerGas]), [[9938, undefined], [9938, 2_000_000n]]);
+  assert.equal(stored.get("outbidBelow"), 9939, "the nonce a node held a copy at is remembered");
+});
+
+test("an evicted object still outbids the nonces it stored, and three refusals are the caller's", async () => {
+  const stored = new Map([["outbidBelow", 10715]]);
+  const h = harness({
+    getTransactionCount: async () => 9938,
+    estimateFeesPerGas: async () => NETWORK_FEES,
+  }, async () => { throw new Error("replacement transaction underpriced"); });
+  h.submitter.state = { storage: { get: async (key) => stored.get(key), put: async (key, value) => { stored.set(key, value); } } };
+  const result = await h.send(mint({ entityId: "sub_held" }));
+  assert.equal(result.status, 502);
+  assert.deepEqual(h.writes.map((write) => [write.nonce, write.maxPriorityFeePerGas]), [[9938, 2_000_000n], [9938, 4_000_000n], [9938, 8_000_000n]],
+    "every attempt outbids from the stored floor, doubling at the same nonce");
+  assert.equal(stored.get("outbidBelow"), 10715);
+});
+
 test("a queue whose transactions land never outbids", async () => {
   let latest = 7;
   const h = harness({

@@ -240,7 +240,7 @@ function PoolOverview({ snapshot, failure, retry, growth }: { snapshot: Snapshot
   const mix = pool && nav !== null && tvl !== null && tvl > 0n ? { pool, percent: Number(pool.sharesMicros * nav / ONE * 10_000n / tvl) / 100 } : null;
   const wait = (width: number | string) => failure && !pool ? "—" : <Skeleton width={width} />;
   return <section id="pool" className="gmd-fund gmd-pool" aria-labelledby="pool-title">
-    <header className="gmd-section-heading"><div><h2 id="pool-title">USTX / dUSD pool</h2><p>A constant-product pool next to the fund. Providers earn {FEE_PERCENT} of every trade.</p></div><span className="gmd-badge">Live on X Layer Testnet</span></header>
+    <header className="gmd-section-heading"><div><h2 id="pool-title">USTX / dUSD, constant product</h2><p>The pool next to the fund where the reserves’ ratio sets the price. Providers earn {FEE_PERCENT} of every trade.</p></div><span className="gmd-badge">Live on X Layer Testnet</span></header>
     {failure && !pool && <p className="gmd-inline-error" role="status">The pool could not be read right now. <button type="button" className="gmd-text-button" onClick={retry}>Try again</button></p>}
     <div className="gmd-fund-grid" aria-busy={!pool && !failure}>
       <article><span>Total value locked</span><strong>{tvl !== null ? formatUsdRounded(tvl) : pool ? "—" : wait(96)}</strong><small>{pool ? `${formatSharesShort(pool.sharesMicros, 4)} USTX and ${formatUsdRounded(pool.dollarsMicros)} dUSD${nav !== null ? ", USTX at the NAV" : ""}` : wait("80%")}</small></article>
@@ -253,7 +253,7 @@ function PoolOverview({ snapshot, failure, retry, growth }: { snapshot: Snapshot
       <div className="gmd-pool-mix-bar" role="img" aria-label={`USTX ${mix.percent.toFixed(1)}%, demo dollars ${(100 - mix.percent).toFixed(1)}% of the pool's value`}><i style={{ width: `${mix.percent}%` }} /><i /></div>
       <div className="gmd-pool-mix-legend"><span><i aria-hidden="true" />USTX {mix.percent.toFixed(1)}% · {formatSharesShort(mix.pool.sharesMicros, 4)}</span><span><i aria-hidden="true" />dUSD {(100 - mix.percent).toFixed(1)}% · {formatUsdRounded(mix.pool.dollarsMicros)}</span></div>
     </div>}
-    {market && <PremiumGauge market={market} />}
+    {(market || failure) && <PremiumGauge market={market} />}
     <dl className="gmd-fund-facts">
       <div><dt>Pool price</dt><dd>{price !== null ? `${formatUsdMicros(price, 2)} per USTX` : "—"}</dd></div>
       <div><dt>NAV per share</dt><dd>{nav !== null ? formatUsdMicros(nav, 4) : pool?.nav.navMicros === null ? "Waiting for the next record" : "—"}</dd></div>

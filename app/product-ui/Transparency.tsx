@@ -8,7 +8,7 @@ import { formatUsdMicros } from "@/lib/nav-display";
 import { formatSharesShort } from "@/lib/demo/format";
 import { useMarket } from "./MarketProvider";
 import { delayText, useNavDelay } from "./NavDelay";
-import { Icon } from "./Icons";
+import { Icon, Skeleton } from "./Icons";
 import { DataState } from "./ProductScreens";
 import Holdings from "./Holdings";
 import { useRecordCheck } from "./useRecordCheck";
@@ -36,17 +36,20 @@ export default function Transparency() {
   const tx = txUrl(current?.txHash);
   const shares = record?.effectiveAt && /^\d+$/.test(record.sharesOutstandingMicros ?? "") ? record.sharesOutstandingMicros : null;
   const records = (data?.history ?? []).filter(entry => entry.status === "confirmed").slice(0, 8);
+  // While this browser reads the record (about three seconds), placeholders rather than "unavailable".
+  const reading = state === "loading" && !record?.effectiveAt;
+  const wait = (width: number) => reading ? <Skeleton width={width} /> : "—";
   return <><Link className="gmd-breadcrumb" prefetch={false} href="/products/ustx"><Icon name="back" size={16} />US Tech Basket</Link><div className="gmd-page-heading"><div><h1>Transparency</h1><p>See where the USTX price comes from and how it compares.</p></div></div><DataState />
     <PriceConfidenceView checks={checks} state={state} pools={poolCheck} now={now} onRefresh={reload} />
-    <div className="gmd-transparency-layout"><section className="gmd-transparency-composition" id="proof-holdings"><Holdings composition={composition} loading={loading} /></section><aside className="gmd-record-aside" id="proof-record"><h2>Latest record</h2><dl className="gmd-facts">
-      <div><dt>NAV per share</dt><dd>{record?.effectiveAt ? formatUsdMicros(record.navPerShareMicros, 4) : "—"}</dd></div>
-      <div><dt>Prices as of</dt><dd>{shortTime(record?.effectiveAt)}</dd></div>
+    <div className="gmd-transparency-layout"><section className="gmd-transparency-composition" id="proof-holdings"><Holdings composition={composition} loading={loading} /></section><aside className="gmd-record-aside" id="proof-record"><h2>Latest record</h2><dl className="gmd-facts" aria-busy={reading}>
+      <div><dt>NAV per share</dt><dd>{record?.effectiveAt ? formatUsdMicros(record.navPerShareMicros, 4) : wait(84)}</dd></div>
+      <div><dt>Prices as of</dt><dd>{reading ? wait(112) : shortTime(record?.effectiveAt)}</dd></div>
       {delay ? <div><dt>Valid for orders and loans</dt><dd>Expired {delayText(delay.lateMs - 3_600_000)} ago: orders and loans wait for the next record</dd></div>
-        : <div><dt>Valid for orders and loans until</dt><dd>{record?.effectiveAt ? shortTime(new Date(Date.parse(record.effectiveAt) + 3_600_000).toISOString()) : "—"}</dd></div>}
-      <div><dt>Shares outstanding</dt><dd>{shares ? `${formatSharesShort(shares)} USTX` : "—"}</dd></div>
+        : <div><dt>Valid for orders and loans until</dt><dd>{record?.effectiveAt ? shortTime(new Date(Date.parse(record.effectiveAt) + 3_600_000).toISOString()) : wait(112)}</dd></div>}
+      <div><dt>Shares outstanding</dt><dd>{shares ? `${formatSharesShort(shares)} USTX` : wait(96)}</dd></div>
       <div><dt>Prices</dt><dd>OKX OnchainOS</dd></div>
       <div><dt>Network</dt><dd>X Layer Testnet</dd></div>
-      <div><dt>Transaction</dt><dd>{tx ? <ExplorerLink href={tx} /> : "—"}</dd></div>
+      <div><dt>Transaction</dt><dd>{tx ? <ExplorerLink href={tx} /> : wait(96)}</dd></div>
       <div><dt>Price history on X Layer</dt><dd><ExplorerLink href={registryUrl} /></dd></div>
       <div><dt>USTX token</dt><dd><ExplorerLink href={`${FUND_DEPLOYMENT.explorerUrl}/token/${FUND_DEPLOYMENT.fund}`} /></dd></div>
     </dl></aside></div>

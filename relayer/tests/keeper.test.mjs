@@ -228,17 +228,17 @@ test("a write that fails before it is mined leaves no nonce gap for the next one
     KEEPER_PRIVATE_KEY: `0x${"1".repeat(64)}`, ARBITRAGE_ADDRESS: `0x${"a".repeat(40)}`, DOLLAR_ADDRESS: `0x${"b".repeat(40)}`, V4_HOOK_ADDRESS: `0x${"c".repeat(36)}28c0`,
     SETTLEMENT_RPC_URL: "https://rpc.example/key",
   });
-  await assert.rejects(chain.claim());
-  // The re-peg after a failed arbitrage takes nonce 7 again, asked of the network, not 8.
-  const repegged = await chain.v4.repeg();
-  assert.equal(repegged.success, true);
+  // The lost broadcast is sent again within the same write: at nonce 7, asked of the network, not 8.
+  const claimed = await chain.claim();
+  assert.equal(claimed.success, true);
   assert.equal(sent.length, 1);
   assert.equal(sent[0].nonce, 7);
   assert.equal(counts, 4, "the nonce is asked for again after the failure (the chain's count and a node's)");
   assert.equal(sent[0].maxPriorityFeePerGas, 2_000_000n, "the lost broadcast may sit in a node's pool, so the second pays enough to replace it");
-  // The next write in the run takes the following nonce without asking.
+  // The next writes in the run take the following nonces without asking.
+  assert.equal((await chain.v4.repeg()).success, true);
   await chain.approve();
-  assert.deepEqual(sent.map((transaction) => transaction.nonce), [7, 8]);
+  assert.deepEqual(sent.map((transaction) => transaction.nonce), [7, 8, 9]);
   assert.equal(counts, 4);
 });
 
@@ -373,11 +373,34 @@ test("a keeper run starts from the chain's own count and outbids the writes a no
     if (refuse) { refuse = false; throw new Error("replacement transaction underpriced"); }
     return "0x" + "1".repeat(64);
   };
-  await assert.rejects(send(write), /underpriced/);
-  assert.equal((await send(write)).success, true);
+  assert.equal((await send(write)).success, true, "a refused write is tried again within the same send");
   assert.equal((await send(write)).success, true);
   assert.deepEqual(calls.map((call) => [call.nonce, call.maxPriorityFeePerGas]), [[1445, 2_000_000n], [1445, 4_000_000n], [1446, 2_000_000n]],
     "a refused write is tried again at its nonce paying double, and later nonces a node counted outbid too");
+});
+
+// At 01:23 UTC on 7 October 2026 the v4 pool missed a re-peg: the run's one read of the pending count came
+// from a node that held nothing, and its one write reached a node that still held a copy at that nonce.
+test("a keeper write refused by a node that holds a copy is sent again at its nonce, paying double, within the run", async () => {
+  const client = {
+    getTransactionCount: async () => 1455,
+    estimateFeesPerGas: async () => ({ maxFeePerGas: 24_000_001n, maxPriorityFeePerGas: 1n }),
+    waitForTransactionReceipt: async () => ({ status: "success" }),
+  };
+  const send = nonceSender(client, "0x" + "a".repeat(40));
+  const calls = [];
+  const write = async (nonce, fees) => {
+    calls.push([nonce, fees.maxPriorityFeePerGas]);
+    if (calls.length === 1) throw new Error("replacement transaction underpriced");
+    return "0x" + "3".repeat(64);
+  };
+  assert.equal((await send(write)).success, true);
+  assert.deepEqual(calls, [[1455, undefined], [1455, 2_000_000n]]);
+  // Three refusals in a row are the caller's, and the next write asks the network again.
+  const refusing = nonceSender(client, "0x" + "a".repeat(40));
+  const tried = [];
+  await assert.rejects(refusing(async (nonce, fees) => { tried.push([nonce, fees.maxPriorityFeePerGas]); throw new Error("replacement transaction underpriced"); }), /underpriced/);
+  assert.deepEqual(tried, [[1455, undefined], [1455, 2_000_000n], [1455, 4_000_000n]]);
 });
 
 test("a keeper run with nothing counted beyond the chain pays the network's own fees", async () => {

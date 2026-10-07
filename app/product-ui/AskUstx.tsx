@@ -3,7 +3,9 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { createContext, useCallback, useContext, useEffect, useRef, useState, type ReactNode } from "react";
+import { gapsOf, signedGap, type PoolGap } from "@/lib/xstocks/pool-gaps";
 import { Icon } from "./Icons";
+import { usePools } from "./PoolGaps";
 
 // Ask USTX: an AI guide at the top of every product screen, with what is happening now and the next
 // questions and steps for that screen, and the conversation panel it opens. Answers come from
@@ -197,42 +199,40 @@ const GUIDE: Record<Screen, { questions: string[]; action?: { label: string; hre
   },
 };
 
-type Facts = { navUsd: number | null; recordedAt: string | null; premium: number | null; v4Premium: number | null; aprPercent: string | null; poolValue: number | null; v4Value: number | null };
+type Facts = { navUsd: number | null; recordedAt: string | null; gaps: PoolGap[]; aprPercent: string | null; poolValue: number | null; v4Value: number | null };
+type PoolsBody = { pools?: { id: string; valueMicros?: string; feeApr?: { percent?: string } | null }[] };
 
-/** The latest NAV record and both pools, from the public API: every minute while the page is visible. */
+/**
+ * The latest NAV record from the public API, every minute while the page is visible, and the pools
+ * from the page's shared read of them, so the gaps here are the ones the gauge and the Markets card show.
+ */
 function useFacts(): Facts | null {
-  const [facts, setFacts] = useState<Facts | null>(null);
+  const [record, setRecord] = useState<{ navUsd: number | null; recordedAt: string | null } | null>(null);
+  const pools = usePools();
   useEffect(() => {
     let cancelled = false;
-    const load = async () => {
-      try {
-        const [nav, pools] = await Promise.all([
-          fetch("/api/v1/ustx").then(response => response.ok ? response.json() : null).catch(() => null),
-          fetch("/api/v1/ustx/pools").then(response => response.ok ? response.json() : null).catch(() => null),
-        ]) as [{ nav?: { perShareUsd?: string; recordedAt?: string } } | null, { pools?: { id: string; priceMicros?: string; navMicros?: string; valueMicros?: string; feeApr?: { percent?: string } | null }[] } | null];
-        const premium = (id: string) => {
-          const pool = pools?.pools?.find(item => item.id === id);
-          return pool?.priceMicros && pool.navMicros && Number(pool.navMicros) > 0 ? (Number(pool.priceMicros) - Number(pool.navMicros)) / Number(pool.navMicros) : null;
-        };
-        const value = (id: string) => { const micros = pools?.pools?.find(item => item.id === id)?.valueMicros; return micros ? Number(micros) / 1e6 : null; };
-        if (!cancelled) setFacts({
-          navUsd: nav?.nav?.perShareUsd ? Number(nav.nav.perShareUsd) : null,
-          recordedAt: nav?.nav?.recordedAt ?? null,
-          premium: premium("ustx-dusd"), v4Premium: premium("ustx-dusd-v4"),
-          aprPercent: pools?.pools?.find(item => item.id === "ustx-dusd")?.feeApr?.percent ?? null,
-          poolValue: value("ustx-dusd"), v4Value: value("ustx-dusd-v4"),
-        });
-      } catch { /* The guide then shows its questions without figures. */ }
-    };
+    const load = () => fetch("/api/v1/ustx")
+      .then(response => response.ok ? response.json() as Promise<{ nav?: { perShareUsd?: string; recordedAt?: string } }> : null)
+      .then(nav => { if (!cancelled && nav) setRecord({ navUsd: nav.nav?.perShareUsd ? Number(nav.nav.perShareUsd) : null, recordedAt: nav.nav?.recordedAt ?? null }); })
+      .catch(() => { /* The guide then shows its questions without the NAV. */ });
     void load();
     const timer = window.setInterval(() => { if (!document.hidden) void load(); }, 60_000);
     return () => { cancelled = true; window.clearInterval(timer); };
   }, []);
-  return facts;
+  if (!record && !pools) return null;
+  const body = pools?.body as PoolsBody | null | undefined;
+  const value = (id: string) => { const micros = body?.pools?.find(item => item.id === id)?.valueMicros; return micros ? Number(micros) / 1e6 : null; };
+  return {
+    navUsd: record?.navUsd ?? null, recordedAt: record?.recordedAt ?? null,
+    gaps: pools ? gapsOf(pools.reads) : [],
+    aprPercent: body?.pools?.find(item => item.id === "ustx-dusd")?.feeApr?.percent ?? null,
+    poolValue: value("ustx-dusd"), v4Value: value("ustx-dusd-v4"),
+  };
 }
 
+const POOL_WORDS: Record<PoolGap["id"], string> = { "ustx-dusd": "classic pool", "ustx-dusd-v4": "v4 pool", "ustx-dusd-range": "range pool" };
+
 const dollars = (value: number, digits = 2) => `$${value.toLocaleString("en-US", { minimumFractionDigits: digits, maximumFractionDigits: digits })}`;
-const signed = (ratio: number) => Math.abs(ratio) < 0.00005 ? "0.00%" : `${ratio > 0 ? "+" : "−"}${Math.abs(ratio * 100).toFixed(2)}%`;
 function ago(iso: string, now: number) {
   const minutes = Math.max(0, Math.round((now - Date.parse(iso)) / 60_000));
   if (minutes < 60) return minutes === 0 ? "just now" : minutes === 1 ? "1 minute ago" : `${minutes} minutes ago`;
@@ -246,8 +246,7 @@ function insight(screen: Screen, facts: Facts | null, now: number): string {
   // Cut to four decimals, as the price is shown everywhere else.
   const late = delayed(facts?.recordedAt, now);
   const nav = facts?.navUsd != null ? `USTX NAV ${dollars(Math.floor(facts.navUsd * 10_000) / 10_000, 4)}${facts.recordedAt ? `, recorded ${ago(facts.recordedAt, now)} on X Layer` : ""}${late ? ": delayed, so orders at the fund wait for the next record" : ""}.` : null;
-  const pools = facts && (facts.premium !== null || facts.v4Premium !== null)
-    ? `Against the NAV: ${[facts.premium !== null ? `classic pool ${signed(facts.premium)}` : null, facts.v4Premium !== null ? `v4 pool ${signed(facts.v4Premium)}` : null].filter(Boolean).join(", ")}.` : null;
+  const pools = facts?.gaps.length ? `Against the NAV: ${facts.gaps.map(gap => `${POOL_WORDS[gap.id]} ${signedGap(gap.premiumPpm)}`).join(", ")}.` : null;
   switch (screen) {
     case "pools": return [
       facts?.aprPercent ? `The classic pool's fee APR is ${facts.aprPercent}% over 7 days${facts.poolValue !== null ? `, on ${dollars(facts.poolValue, 0)} in the pool` : ""}.` : null,

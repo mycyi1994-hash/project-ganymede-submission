@@ -74,12 +74,14 @@ export default function BasketCheckPanel({ path }: { path: string }) {
 export function BasketBadge({ path, site }: { path: string | null; site: string }) {
   const { config, check, state } = useBasketCheck(path);
   const record = check?.record?.effectiveAt ? check.record : null;
+  // Opened without a configuration, the badge says how to name one rather than reporting a failed check.
+  const configured = basketConfigPath(path) !== null;
   return <div className="gmd-embed-card">
     <header><span className="gmd-embed-brand"><BrandMark />Ganymede</span><span className="gmd-embed-network">{config?.registry.network ?? "X Layer"}</span></header>
     <div className="gmd-embed-product"><div className="gmd-product-monogram" aria-hidden="true"><i /><i /><i /><i /><i /><i /></div><div><h1>{config ? `${config.ticker} · ${config.name}` : !basketConfigPath(path) ? "No basket configured" : state === "loading" ? "Loading the basket…" : "Basket unavailable"}</h1><small>{config ? config.constituents.map(row => row.symbol).join(", ") : " "}</small></div></div>
-    <div className="gmd-embed-nav"><span>NAV per share</span><strong>{record ? formatUsdMicros(record.navPerShareMicros, 4) : "—"}</strong><small>{record && config ? `Recorded in ${short(config.registry.address)} · ${shortTime(record.effectiveAt)}` : state === "loading" ? "Reading the record on X Layer…" : "The record could not be checked just now."}</small></div>
+    <div className="gmd-embed-nav"><span>NAV per share</span><strong>{record ? formatUsdMicros(record.navPerShareMicros, 4) : "—"}</strong><small>{record && config ? `Recorded in ${short(config.registry.address)} · ${shortTime(record.effectiveAt)}` : !configured ? "Add ?config=/baskets/<id>/basket.json to this address." : state === "loading" ? "Reading the record on X Layer…" : "The record could not be checked just now."}</small></div>
     <footer>
-      <a className={`gmd-check-chip is-${state}`} href={`${site}/developers#baskets`} target="_blank" rel="noreferrer" aria-live="polite">{state === "matched" ? <Icon name="check" size={15} /> : <i aria-hidden="true" />}<span>{LABEL[state]}</span></a>
+      <a className={`gmd-check-chip is-${state}`} href={`${site}/developers#baskets`} target="_blank" rel="noreferrer" aria-live="polite">{state === "matched" ? <Icon name="check" size={15} /> : <i aria-hidden="true" />}<span>{configured ? LABEL[state] : "How to set up a badge"}</span></a>
     </footer>
   </div>;
 }

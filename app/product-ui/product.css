@@ -1058,6 +1058,27 @@ html:has(.gmd-drawer[open]) { overflow: hidden; }
 .gmd-premium-scale span:first-child { left: 0; transform: none; }
 .gmd-premium-scale span:last-child { right: 0; left: auto; transform: none; }
 .gmd-app .gmd-premium .gmd-caption { margin-top: 8px; font-size: 12px; }
+.gmd-premium-track > i.is-v4, .gmd-premium-track > i.is-range { width: 12px; height: 12px; margin: -6px 0 0 -6px; border-radius: 2px; }
+.gmd-premium-track > i.is-v4 { background: var(--gmd-ink); transform: rotate(45deg); }
+.gmd-premium-track > i.is-range { background: #6b4fd8; }
+.gmd-app .gmd-premium-pools { list-style: none; margin: 12px 0 0; padding: 0; display: grid; gap: 6px; font-size: 13px; }
+.gmd-premium-pools li { display: grid; grid-template-columns: 14px minmax(0,1fr) auto minmax(96px,auto); align-items: center; gap: 10px; }
+.gmd-premium-pools li > i { justify-self: center; width: 10px; height: 10px; border-radius: 50%; background: var(--gmd-accent); }
+.gmd-premium-pools li > i.is-v4 { border-radius: 1px; transform: rotate(45deg); background: var(--gmd-ink); }
+.gmd-premium-pools li > i.is-range { border-radius: 2px; background: #6b4fd8; }
+.gmd-premium-pools li > span + span { color: var(--gmd-copy); font-variant-numeric: tabular-nums; }
+.gmd-premium-pools li > b { font-weight: 600; text-align: end; font-variant-numeric: tabular-nums; }
+/* On a phone each pool's gap goes under its name, so the name keeps one line. */
+@media (max-width: 560px) {
+  .gmd-premium-pools li { grid-template-columns: 14px minmax(0,1fr) auto; row-gap: 0; }
+  .gmd-premium-pools li > b { grid-column: 2 / -1; text-align: start; font-size: 12px; }
+}
+/* Markets: where each USTX pool trades against the NAV, in one line under the fund's figures. */
+.gmd-app .gmd-pool-gaps { display: flex; flex-wrap: wrap; align-items: baseline; gap: 6px 16px; margin: -10px 0 18px; font-size: 13px; color: var(--gmd-copy); }
+.gmd-pool-gaps > span:first-child { font-size: 12px; }
+.gmd-pool-gap b { font-weight: 600; color: var(--gmd-ink); }
+.gmd-pool-gap span { font-variant-numeric: tabular-nums; color: var(--gmd-ink); }
+.gmd-pool-gaps a { display: inline-flex; align-items: center; gap: 4px; margin-inline-start: auto; color: var(--gmd-accent); text-decoration: none; font-weight: 600; }
 
 /* Loan health: the 50% borrow limit and the 65% liquidation line */
 .gmd-loan-health { margin-top: 14px; }

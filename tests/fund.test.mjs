@@ -105,6 +105,9 @@ test("the pool's market price is read at one block and set against the NAV", asy
   assert.equal(describePremium(market.premiumPpm), "0.27% below NAV");
   assert.equal(describePremium(1_500n), "0.15% above NAV");
   assert.equal(describePremium(-49n), "at the NAV");
+  // Under a basis point the gap reads as none, not as "0.00% above NAV".
+  assert.equal(describePremium(99n), "at the NAV");
+  assert.equal(describePremium(-100n), "0.01% below NAV");
   // Without a usable NAV the price still shows, with no gap.
   const stale = await readPoolMarket({ rpc: chain({ block: 9, poolShares: 50_000_000n, poolDollars: 4_986_500_000n, revert: { [FUND_SELECTORS.currentNav]: "0x220d4d06" + word(1_790_000_000n) } }).rpc });
   assert.equal(stale.priceMicros, 99_730_000n);

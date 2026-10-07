@@ -90,6 +90,9 @@ Ganymede was selected as one of 30 finalists from 150 teams. The organizers conf
 | 2026-10-06 19:52 | `9cd07e5` | The USTX holdings table fits a phone at 390, 375 and 360px |
 | 2026-10-06 20:27 | `73ecbfc` | Every script a page writes carries a nonce made for its response, and the script policy built on it is reported; enforcing it waits for a test with OKX Wallet |
 | 2026-10-07 00:15 | `9dfc2aa` | The relayer and the keeper send again from the chain's own count when a network stall drops their transactions, outbidding the copies some nodes still hold; NAV records resumed after nearly ten hours |
+| 2026-10-07 01:40 | `5519b20` | Every USTX pool against the NAV on one scale: the gauge, a line on the Markets card and Ask USTX read one shared pools snapshot, so the three always show the same gaps against one NAV record |
+| 2026-10-07 02:08 | `32ef9c1` | A send a node refuses (it still holds a copy from the 6 October stall) is sent again at its nonce paying double, and the relayer keeps its outbid floor across evictions; two USTX records had missed their cycle |
+| 2026-10-07 02:21 | `6ab07eb` | Transparency shows placeholders while the browser reads the record, instead of "Time unavailable" |
 
 ## Every commit in the build period (UTC)
 

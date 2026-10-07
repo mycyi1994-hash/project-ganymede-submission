@@ -35,11 +35,20 @@ const DEFAULT_TOKENIZED_PRODUCT = "core-20";
 const MAX_AHEAD = 8;
 /** How long the oldest transaction ahead of the chain may wait before it counts as lost. */
 const STALL_MS = 120_000;
+/**
+ * How many times one request is sent before it fails. A node of the load-balanced RPC that holds
+ * another transaction at the nonce refuses fees less than 10% above its copy's ("replacement
+ * transaction underpriced"), so each further attempt takes the nonce again and pays double.
+ */
+const SEND_ATTEMPTS = 3;
+/** Storage key for outbidBelow: the object is evicted between cycles, and a new one must still outbid. */
+const OUTBID_KEY = "outbidBelow";
 
 export class Submitter implements DurableObject {
   private nextNonce: number | null = null;
   /** Nonces below this were sent before: some node may still hold a copy, so a send there outbids it. */
   private outbidBelow = 0;
+  private outbidLoaded = false;
   /** When each nonce ahead of the chain was last sent, and how many times. */
   private sent = new Map<number, { at: number; times: number }>();
   private now = () => Date.now();
@@ -93,16 +102,21 @@ export class Submitter implements DurableObject {
    */
   private async takeNonce(publicClient: ReturnType<typeof this.clients>["publicClient"], address: Address) {
     const now = this.now();
+    if (!this.outbidLoaded) {
+      this.outbidLoaded = true;
+      const stored = await this.state.storage?.get<number>(OUTBID_KEY).catch(() => undefined);
+      if (typeof stored === "number" && Number.isSafeInteger(stored)) this.outbidBelow = Math.max(this.outbidBelow, stored);
+    }
     const { latest, pending } = await nonceCounts(publicClient, address);
     for (const nonce of this.sent.keys()) if (nonce < latest) this.sent.delete(nonce);
-    if (pending > latest) this.outbidBelow = Math.max(this.outbidBelow, pending);
+    if (pending > latest) await this.raiseOutbid(pending);
     if (this.nextNonce === null || this.nextNonce < latest) this.nextNonce = pending - latest > MAX_AHEAD ? latest : Math.max(latest, pending);
     if (this.nextNonce > latest) {
       const oldest = this.sent.get(latest) ?? { at: now, times: 1 };
       this.sent.set(latest, oldest);
       if (this.nextNonce - latest > MAX_AHEAD || now - oldest.at > STALL_MS) {
         console.error(`Transactions from nonce ${latest} to ${this.nextNonce - 1} were not taken by the chain; sending again from ${latest}`);
-        this.outbidBelow = Math.max(this.outbidBelow, this.nextNonce);
+        await this.raiseOutbid(this.nextNonce);
         this.nextNonce = latest;
       }
     }
@@ -111,6 +125,13 @@ export class Submitter implements DurableObject {
     const times = this.sent.get(nonce)?.times ?? (nonce < this.outbidBelow ? 1 : 0);
     this.sent.set(nonce, { at: now, times: times + 1 });
     return { nonce, fees: times > 0 ? await outbidFees(publicClient, times) : {} };
+  }
+
+  /** Nonces below `value` may have a copy on some node. Kept in storage, so a restarted object still outbids them. */
+  private async raiseOutbid(value: number) {
+    if (value <= this.outbidBelow) return;
+    this.outbidBelow = value;
+    await this.state.storage?.put(OUTBID_KEY, value).catch(() => undefined);
   }
 
   private async resyncNonce(publicClient: ReturnType<typeof this.clients>["publicClient"], address: Address) {
@@ -202,18 +223,28 @@ export class Submitter implements DurableObject {
       throw error;
     }
 
-    let txHash: Hex;
-    try {
-      const { nonce, fees } = await this.takeNonce(publicClient, account.address);
-      // The fees, when set, are EIP-1559 ones; the simulated request carries none of its own.
-      txHash = await walletClient.writeContract({ ...simulated.request, nonce, ...fees } as typeof simulated.request);
-    } catch (error) {
-      // A nonce that drifted (restart, external send) is recoverable. Forget the local
-      // counter first, so that if the resync read also fails the next submission reads
-      // the chain again instead of skipping a nonce and stalling behind the gap.
-      this.nextNonce = null;
-      await this.resyncNonce(publicClient, account.address).catch(() => undefined);
-      throw error;
+    let txHash: Hex | undefined;
+    for (let attempt = 1; txHash === undefined; attempt += 1) {
+      try {
+        const { nonce, fees } = await this.takeNonce(publicClient, account.address);
+        try {
+          // The fees, when set, are EIP-1559 ones; the simulated request carries none of its own.
+          txHash = await walletClient.writeContract({ ...simulated.request, nonce, ...fees } as typeof simulated.request);
+        } catch (error) {
+          // Some node may hold a transaction at this nonce: from now on a send there outbids it.
+          await this.raiseOutbid(nonce + 1);
+          throw error;
+        }
+      } catch (error) {
+        // A nonce that drifted (restart, external send) is recoverable. Forget the local
+        // counter first, so the next attempt reads the chain again instead of skipping a
+        // nonce and stalling behind the gap; the chain has not moved, so it takes the same
+        // nonce and pays double. Only the last failure is the caller's.
+        this.nextNonce = null;
+        if (attempt < SEND_ATTEMPTS) continue;
+        await this.resyncNonce(publicClient, account.address).catch(() => undefined);
+        throw error;
+      }
     }
 
     // Persist immediately after broadcast, before waiting for a receipt.

@@ -11,7 +11,8 @@ async function render(pathname = "/") {
     { waitUntil() {}, passThroughOnException() {} },
   );
 }
-const visible = html => html.replace(/<script\b[^>]*>[\s\S]*?<\/script>/gi, "").replaceAll("<!-- -->", "");
+// What a reader sees: no scripts, and no script nonces, which are random and could spell a word by chance.
+const visible = html => html.replace(/<script\b[^>]*>[\s\S]*?<\/script>/gi, "").replace(/\snonce="[^"]*"/g, "").replaceAll("<!-- -->", "");
 
 test("Markets renders the actual product path without fabricated values or the verification exercise", async () => {
   const response = await render();
@@ -282,7 +283,11 @@ test("issuer, developer and embed pages render for partners", async () => {
   const basket = await render("/embed/basket?config=/baskets/mag3/basket.json");
   assert.equal(basket.status, 200);
   assert.match(visible(await basket.text()), /Loading the basket/);
-  assert.match(visible(await (await render("/embed/basket?config=https://other.example/basket.json")).text()), /No basket configured/);
+  // Without a configuration on this site, the badge says how to name one, not that a check failed.
+  const unconfigured = visible(await (await render("/embed/basket?config=https://other.example/basket.json")).text());
+  assert.match(unconfigured, /No basket configured/);
+  assert.match(unconfigured, /Add \?config=\/baskets\/(?:&lt;|<)id(?:&gt;|>)\/basket\.json to this address/);
+  assert.doesNotMatch(unconfigured, /Not verified|could not be checked/);
 });
 
 test("Markets lists every fund, and each fund other than USTX has its own page", async () => {
@@ -303,7 +308,7 @@ test("Markets lists every fund, and each fund other than USTX has its own page",
     assert.match(html, new RegExp(name), id);
     assert.match(html, new RegExp(ticker), id);
     assert.match(html, /Demo fund/);
-    assert.doesNotMatch(html, /KRW|paper portfolio/i);
+    assert.doesNotMatch(html, /\bKRW\b|paper portfolio/i);
   }
   assert.equal((await render("/funds/nope")).status, 404);
   const ustx = await render("/funds/us-tech-x");

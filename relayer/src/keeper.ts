@@ -423,13 +423,17 @@ type SenderClient = Parameters<typeof nonceCounts>[0] & Parameters<typeof outbid
   waitForTransactionReceipt(args: { hash: Hex; timeout: number }): Promise<{ status: "success" | "reverted" }>;
 };
 
+/** How many times one write is sent before it fails: a node holding a copy at its nonce refuses the same fees. */
+const SEND_ATTEMPTS = 3;
+
 /**
  * The keeper's writes. Each run waits for every write's receipt, so a run starts from the chain's own
  * count; a node that counts more holds writes the chain never took (a network stall dropped them), and
  * a write at such a nonce outbids that copy. Writes in one run take consecutive nonces, so a node of
  * the load-balanced RPC that lags the last receipt cannot hand out a used nonce. A write that fails may
- * or may not have reached the network, so the next one asks the network again, paying more if a node
- * already held a write at its nonce.
+ * or may not have reached the network, so the next attempt asks the network again, paying double if it
+ * lands on the same nonce: a node that held a copy there refuses fees under 10% above it, and the one
+ * read of its count may have come from another node. The last of SEND_ATTEMPTS failures is the caller's.
  */
 export function nonceSender(client: SenderClient, address: Address) {
   let nonce: number | undefined;
@@ -437,25 +441,28 @@ export function nonceSender(client: SenderClient, address: Address) {
   let failedAt: number | undefined;
   let tries = 0;
   return async function send(write: (nonce: number, fees: Fees) => Promise<Hex>): Promise<Sent> {
-    let current = nonce;
-    if (current === undefined) {
-      const { latest, pending } = await nonceCounts(client, address);
-      if (pending > latest) outbidBelow = Math.max(outbidBelow, pending);
-      current = latest;
+    for (let attempt = 1; ; attempt += 1) {
+      let current = nonce;
+      if (current === undefined) {
+        const { latest, pending } = await nonceCounts(client, address);
+        if (pending > latest) outbidBelow = Math.max(outbidBelow, pending);
+        current = latest;
+      }
+      tries = failedAt === current ? tries + 1 : current < outbidBelow ? 1 : 0;
+      let hash: Hex;
+      try {
+        hash = await write(current, tries > 0 ? await outbidFees(client, tries) : {});
+      } catch (error) {
+        nonce = undefined;
+        failedAt = current;
+        if (attempt < SEND_ATTEMPTS) continue;
+        throw error;
+      }
+      nonce = current + 1;
+      failedAt = undefined;
+      const receipt = await client.waitForTransactionReceipt({ hash, timeout: 60_000 });
+      return { hash, success: receipt.status === "success" };
     }
-    tries = failedAt === current ? tries + 1 : current < outbidBelow ? 1 : 0;
-    let hash: Hex;
-    try {
-      hash = await write(current, tries > 0 ? await outbidFees(client, tries) : {});
-    } catch (error) {
-      nonce = undefined;
-      failedAt = current;
-      throw error;
-    }
-    nonce = current + 1;
-    failedAt = undefined;
-    const receipt = await client.waitForTransactionReceipt({ hash, timeout: 60_000 });
-    return { hash, success: receipt.status === "success" };
   };
 }
 

@@ -1,6 +1,6 @@
 # Build provenance
 
-Production source revision: `9dfc2aa1a870853d79f56bb55456e0fff3b64490`.
+Production source revision: `6ab07eb340e0733df25a45401c95197f0b9cc624`.
 
 This is a source snapshot, not a claim that the entire project was newly built for this event. The original repository remains private. The entries below were exported from its Git history; reviewers can inspect current implementations and tests, and request original history access from the team if needed. No old secrets, local environment files or full private Git history are published.
 
@@ -775,3 +775,27 @@ Production source: `9dfc2aa1a870853d79f56bb55456e0fff3b64490`. Relayer Worker ve
 X Layer Testnet stopped producing blocks from 14:23 to 15:50 UTC on 6 October. The relayer's and the keeper's transactions sent meanwhile never reached the chain, while some RPC nodes kept counting them (the chain's count 9751 against 10,701 nodes counted for the relayer, 1445 against 1,520 for the keeper). The relayer re-read its nonce only after a failed send, and every send kept being accepted, so each new NAV record waited behind the gap, and no record landed after 14:20:44. The relayer now reads the chain's own count before each send: when it is more than eight transactions ahead, or the oldest it waits on has gone two minutes without landing, it sends again from the chain's count, paying at least double the network's fees at any nonce a node may still hold a copy for, since a node replaces a transaction it holds only for higher fees. The keeper starts each run from the chain's count in the same way.
 
 Checks: the relayer's 39 tests passed, five of them new, replaying the stall with the counts seen. In the first cycle after the deploy (00:15 UTC on 7 October) the relayer's count moved from 9751 to 9761 and USTX got a new record, usable for orders; at 00:20 all eight other products were recorded, and at 00:23 the keeper moved the v4 pool to the new record. Twenty-four page views showed no delay notice and no errors, and the four product pages verified their records in the browser. These are point-in-time observations, not continuous availability or a security audit.
+
+## Every USTX pool against one NAV — 7 October 2026
+
+Production source: `5519b2018e7155cf582457f1f9d14c2b89fe7349`. App Worker version: `a11ab476-1677-42aa-b0db-327bd5b82fab`; prior version: `3dfba197-dff5-49b5-9cbe-1dd089e2836f`.
+
+The gauge on the product and pool pages places the constant-product pool, the Uniswap v4 pool held at the NAV and the range pool on one scale, with each pool's mid price and gap; the USTX card on Markets gets one line with the three gaps, and Ask USTX names the range pool too. All three read one shared read of the public pools API, so they show the same figures; a page's own later read of the constant-product pool (after an order) stands in only while it is against the same NAV record, so the pools shown together are always measured against one NAV. Also fixed: Ask USTX rounded the gaps while the pages truncate them, a gap under one basis point read "0.00% above NAV", and Pools had two regions with the same name.
+
+Checks: 290 application tests passed. On a preview version and in production, at 1440 and 390 px, Markets, the product page and Pools showed the same gaps in the gauge, the Markets line and Ask USTX, with no horizontal overflow, no console errors and no axe violations.
+
+## The relayer and the keeper send again when a node refuses — 7 October 2026
+
+Production source: `32ef9c1d56a0be499ed6c520f41b3c9cf2e16cd0`. Relayer Worker version: `defa6a7c-5172-464b-b5b2-0d1d1e22834d`; prior version: `0e514715-632e-4a9e-927a-b77440b50b07`. Keeper Worker version: `69b2b4cf-2df6-4e6d-a57b-19f7b1d62be6`; prior version: `52eae0d1-0a2d-49b0-bd03-bee7bd5e2316`. App Worker version: `6ba10178-bc08-4f4f-b3ec-860ddd35297c`; prior version: `a11ab476-1677-42aa-b0db-327bd5b82fab`.
+
+The USTX NAV records of 01:30 and 02:00 UTC missed their cycle; the next ones landed five minutes later. The relayer's log showed "replacement transaction underpriced": some nodes of the load-balanced X Layer Testnet RPC still hold copies of transactions sent during the 6 October stall, up to nonce 10715. The relayer's Durable Object is evicted between five-minute cycles and forgot to outbid them; when its read of the pending count came from a node that held nothing, the cycle's first transaction, always USTX's, went out with the network's own fees, and a node holding a copy refused it. The keeper missed one v4 re-peg the same way. The relayer now keeps its outbid floor in Durable Object storage, and a refused send is tried again within the same request at the same nonce, paying double each time, up to three attempts; the keeper's writes do the same within a run. Also: the basket badge opened without a configuration says how to name one.
+
+Checks: the relayer's typecheck and 42 tests passed, three of them new, replaying the 02:00 refusal, an evicted object outbidding from its stored floor, and the keeper's missed re-peg; 290 application tests passed. After the deploy the USTX records of 02:10, 02:15 and 02:20 UTC were confirmed with no relayer errors, and the keeper re-pegged the v4 pool at 02:13.
+
+## Transparency shows placeholders while the record is read — 7 October 2026
+
+Production source: `6ab07eb340e0733df25a45401c95197f0b9cc624`. App Worker version: `18df5970-9bdd-44e9-b49f-0ef82d5cf377`; prior version: `6ba10178-bc08-4f4f-b3ec-860ddd35297c`. The relayer, the keeper and the contracts are unchanged. Exported development commit: `a2cdf1450c2c1c6803a54f4b9110960e6ad40f56`, which adds only the release records, the build-period rows, the relayer README's notes and a test fix to the production source.
+
+For about three seconds after the Transparency page opened, while the browser read the latest record from X Layer, the Latest record panel showed dashes and "Time unavailable", which reads like a failure. It now shows placeholders until the read returns. In production the record filled in after 3.4 to 4.0 seconds at both widths, and sampling eleven screens' text in their first four seconds found nothing that reads like a failure. The test fix: a check that no page mentions KRW failed once because a response's random script nonce contained "Krw"; the tests now ignore nonces when reading a page's text.
+
+These are point-in-time observations, not continuous availability or a security audit.

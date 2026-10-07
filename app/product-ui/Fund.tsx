@@ -7,10 +7,12 @@ import { formatUsdMicros, formatUsdRounded } from "@/lib/nav-display";
 import { compositionForRecord, publicationHistory, shortTime, signedPercent, sinceFirstRecord } from "@/lib/product-market";
 import { PROOF_DEPLOYMENT } from "@/lib/xstocks/proof";
 import { FUND_DEPLOYMENT, POOL_FEE_BPS, describePremium, readPoolMarket, type PoolMarket } from "@/lib/xstocks/fund";
+import { gapsOf, poolRead, withPoolRead, type PoolGapId } from "@/lib/xstocks/pool-gaps";
 import { useMarket } from "./MarketProvider";
 import { BasketTable, useRecordComposition } from "./Basket";
 import { Icon, Skeleton } from "./Icons";
 import Holdings from "./Holdings";
+import { useNotePoolRead, usePools } from "./PoolGaps";
 
 // Fund figures for USTX, all from X Layer Testnet: size and shares outstanding from the NAV record,
 // the wallets holding USTX from the fund contract, and the last 24 hours of orders at the fund from
@@ -103,29 +105,44 @@ const FEE_PPM = Number(POOL_FEE_BPS) * 100;
 /** The gauge runs from 1% below the NAV to 1% above. */
 const GAUGE_PPM = 10_000;
 
+const capitalized = (text: string) => text === "at the NAV" ? "At the NAV" : text;
+
+const MARKS: Record<PoolGapId, string> = { "ustx-dusd": "is-cp", "ustx-dusd-v4": "is-v4", "ustx-dusd-range": "is-range" };
+
 /**
- * The pool's price against the NAV on one scale, with the band of the pool's 0.3% fee around the NAV:
- * inside it a trade through the pool costs more than the gap, beyond it the keeper can close it.
+ * The pools' prices against the NAV on one scale, with the band of the constant-product pool's 0.3%
+ * fee around the NAV: inside it a trade through that pool costs more than the gap, beyond it the
+ * keeper can close it. The pools come from the page's shared read of the public pools API, with the
+ * constant-product pool as `market` read it from X Layer when that read is later and against the same NAV.
  */
-export function PremiumGauge({ market }: { market: PoolMarket }) {
-  if (market.premiumPpm === null || market.navMicros === null) return null;
-  const ppm = Number(market.premiumPpm);
-  const shown = Math.max(-GAUGE_PPM, Math.min(GAUGE_PPM, ppm));
-  const at = (value: number) => `${50 + value / GAUGE_PPM * 50}%`;
+export function PremiumGauge({ market }: { market: PoolMarket | null }) {
+  useNotePoolRead("ustx-dusd", market?.block ?? null, market?.priceMicros ?? null, market?.navMicros ?? null);
+  const pools = usePools();
+  const held = pools?.reads ?? [];
+  const rows = gapsOf(market ? withPoolRead(held, poolRead("ustx-dusd", market.block, market.priceMicros, market.navMicros)) : held);
+  const classic = rows.find(row => row.id === "ustx-dusd");
+  if (!classic) return null;
+  const ppm = Number(classic.premiumPpm);
+  const at = (value: number) => `${50 + Math.max(-GAUGE_PPM, Math.min(GAUGE_PPM, value)) / GAUGE_PPM * 50}%`;
   const inside = Math.abs(ppm) <= FEE_PPM;
-  const gap = describePremium(market.premiumPpm);
+  const tone = inside ? undefined : ppm > 0 ? "gmd-positive" : "gmd-negative";
+  const summary = rows.map(row => `${row.name}: ${describePremium(row.premiumPpm)}`).join("; ");
   return <div className="gmd-premium">
     <div className="gmd-premium-head">
-      <div><h3>Pool price against the NAV</h3><p>{formatUsdMicros(market.priceMicros, 2)} in the USTX/dUSD pool · NAV {formatUsdMicros(market.navMicros, 2)}</p></div>
-      <strong className={inside ? "" : ppm > 0 ? "gmd-positive" : "gmd-negative"}>{gap === "at the NAV" ? "At the NAV" : gap}</strong>
+      <div><h3>{rows.length > 1 ? "Pool prices against the NAV" : "Pool price against the NAV"}</h3><p>NAV {formatUsdMicros(classic.navMicros, 2)} · {rows.length > 1 ? "each pool’s mid price, before its fee" : `${formatUsdMicros(classic.priceMicros, 2)} in the USTX/dUSD pool`}</p></div>
+      {rows.length === 1 && <strong className={tone}>{capitalized(describePremium(classic.premiumPpm))}</strong>}
     </div>
-    <div className="gmd-premium-track" role="meter" aria-label="Pool price against the NAV" aria-valuemin={-1} aria-valuemax={1} aria-valuenow={shown / 10_000} aria-valuetext={`${gap}, ${inside ? "inside" : "outside"} the pool's 0.3% fee`}>
+    <div className="gmd-premium-track" role="img" aria-label={`${summary}. The shaded band is the constant-product pool’s 0.3% fee, ${inside ? "and its price is inside it" : "and its price is outside it"}.`}>
       <span className="gmd-premium-band" style={{ left: at(-FEE_PPM), width: `${FEE_PPM / GAUGE_PPM * 100}%` }} />
       <span className="gmd-premium-nav" />
-      <i style={{ left: at(shown) }} />
+      {[...rows].reverse().map(row => <i key={row.id} className={MARKS[row.id]} style={{ left: at(Number(row.premiumPpm)) }} />)}
     </div>
     <div className="gmd-premium-scale" aria-hidden="true"><span>1% below</span><span style={{ left: at(-FEE_PPM) }}>−0.3%</span><span style={{ left: "50%" }}>NAV</span><span style={{ left: at(FEE_PPM) }}>+0.3%</span><span>1% above</span></div>
-    <p className="gmd-caption">{inside ? "The price difference is smaller than the pool’s 0.3% trading fee." : "The price difference exceeds the pool’s 0.3% trading fee. Compare the pool quote with the fund price before placing an order."}</p>
+    {rows.length > 1 && <ul className="gmd-premium-pools" aria-label="Each pool against the NAV">
+      {rows.map(row => <li key={row.id}><i className={MARKS[row.id]} aria-hidden="true" /><span>{row.name}</span><span>{formatUsdMicros(row.priceMicros, 2)}</span>
+        <b className={row.id === "ustx-dusd" ? tone : undefined}>{capitalized(describePremium(row.premiumPpm))}</b></li>)}
+    </ul>}
+    <p className="gmd-caption">{inside ? "The constant-product pool’s gap is smaller than its 0.3% trading fee." : "The constant-product pool’s gap exceeds its 0.3% trading fee. Compare the pool quote with the fund price before placing an order."}{rows.length > 1 ? " The v4 and range pools are held to the NAV by their hooks." : ""}</p>
   </div>;
 }
 
@@ -149,7 +166,7 @@ export function FundOverview() {
       <article><span>Net flows, 24h</span><strong className={net === null || net === 0n ? "" : net > 0n ? "gmd-positive" : "gmd-negative"}>{net === null ? figures.pending ? <Skeleton width={80} /> : "—" : `${net > 0n ? "+" : ""}${formatUsdRounded(net)}`}</strong><small>{flows ? `${formatUsdRounded(flows.investedMicros)} in · ${formatUsdRounded(flows.redeemedMicros)} out${flows.complete ? "" : ` since ${shortTime(flows.since)}`}` : figures.pending ? <Skeleton width="85%" /> : "Unavailable"}</small></article>
       <article><span>Since launch</span><strong className={tone(since?.percent)}>{since ? signedPercent(since.percent) : figures.marketPending ? <Skeleton width={72} /> : "—"}</strong><small>{since ? `From ${formatUsdRounded(since.first.micros)} on ${day(since.first.at)}` : figures.marketPending ? <Skeleton width="60%" /> : "Unavailable"}</small></article>
     </div>
-    {pool.market && pool.market.priceMicros > 0n && <PremiumGauge market={pool.market} />}
+    {(pool.market || pool.failed) && <PremiumGauge market={pool.market} />}
     <dl className="gmd-fund-facts">
       <div><dt>Launch date</dt><dd>{since ? day(since.first.at) : "—"}</dd></div>
       <div><dt>Minimum investment</dt><dd>$10</dd></div>

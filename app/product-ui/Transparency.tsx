@@ -13,6 +13,7 @@ import { DataState } from "./ProductScreens";
 import Holdings from "./Holdings";
 import { useRecordCheck } from "./useRecordCheck";
 import { usePoolCheck } from "./PoolCheck";
+import ChainlinkCheck from "./ChainlinkCheck";
 import { PriceConfidenceView } from "./PriceConfidence";
 
 // Proof of NAV for customers, in the manner of an exchange's proof-of-reserves page: the result,
@@ -41,6 +42,7 @@ export default function Transparency() {
   const wait = (width: number) => reading ? <Skeleton width={width} /> : "—";
   return <><Link className="gmd-breadcrumb" prefetch={false} href="/products/ustx"><Icon name="back" size={16} />US Tech Basket</Link><div className="gmd-page-heading"><div><h1>Transparency</h1><p>See where the USTX price comes from and how it compares.</p></div></div><DataState />
     <PriceConfidenceView checks={checks} state={state} pools={poolCheck} now={now} onRefresh={reload} />
+    <ChainlinkCheck composition={composition} />
     <div className="gmd-transparency-layout"><section className="gmd-transparency-composition" id="proof-holdings"><Holdings composition={composition} loading={loading} /></section><aside className="gmd-record-aside" id="proof-record"><h2>Latest record</h2><dl className="gmd-facts" aria-busy={reading}>
       <div><dt>NAV per share</dt><dd>{record?.effectiveAt ? formatUsdMicros(record.navPerShareMicros, 4) : wait(84)}</dd></div>
       <div><dt>Prices as of</dt><dd>{reading ? wait(112) : shortTime(record?.effectiveAt)}</dd></div>

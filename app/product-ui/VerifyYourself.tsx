@@ -8,6 +8,7 @@ import { useRecordCheck } from "./useRecordCheck";
 import TamperExperiment from "./TamperExperiment";
 import TokenContractsCheck from "./TokenContractsCheck";
 import { PoolCheckDetails, usePoolCheck } from "./PoolCheck";
+import ChainlinkCheck from "./ChainlinkCheck";
 import VerificationFlow from "./VerificationFlow";
 import ContractControls from "./ContractControls";
 import { Icon } from "./Icons";
@@ -43,6 +44,7 @@ export default function VerifyYourself() {
     <VerificationFlow checks={checks} state={state} pools={poolCheck} detailed />
     <TokenContractsCheck canonical={checks?.canonical ?? null} />
     <PoolCheckDetails check={poolCheck} detailed />
+    <ChainlinkCheck composition={composition} detailed />
     <ContractControls />
     <div className="gmd-evidence-actions"><button className="gmd-small-button" type="button" onClick={downloadEvidence} disabled={!evidenceRecord}><Icon name="download" size={16} />Download evidence</button><span>Re-check the file anywhere with <code>npm run verify:evidence</code>.</span></div>
     <TamperExperiment canonical={checks?.canonical ?? null} record={checks?.record ?? null} />

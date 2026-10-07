@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useId, useLayoutEffect, useRef, useState, type KeyboardEvent, type PointerEvent } from "react";
+import { createContext, useContext, useEffect, useId, useLayoutEffect, useRef, useState, useSyncExternalStore, type KeyboardEvent, type PointerEvent, type ReactNode } from "react";
 import { formatUsdMicros } from "@/lib/nav-display";
 import { poolValueMicros, type PoolLiquidity } from "@/lib/xstocks/liquidity";
 import { tickToUsd, v4ValueMicros, type V4Deployment, type V4Pool } from "@/lib/xstocks/v4-liquidity";
@@ -125,15 +125,17 @@ const columnsOf = (own: OwnRange) => own.shape === "drawn" ? fitDrawing(own.draw
  * on a column. A column's height is the dollars its bin holds; a preset becomes a drawing once a
  * block changes.
  */
-function BlockGrid({ own, priceUsd, onStroke, onPaint }: {
+function BlockGrid({ own, priceUsd, onStroke, onPaint, large = false }: {
   own: OwnRange; priceUsd: number | null;
   /** Called once as a change begins, so it is one step to undo. */
   onStroke: () => void;
   onPaint: (columns: number[]) => void;
+  /** The chart area's grid: taller rows and blocks no wider than they look square. */
+  large?: boolean;
 }) {
   const id = useId();
   const columns = columnsOf(own);
-  const [plotRef, W] = useWidth(520);
+  const [plotRef, W] = useWidth(large ? 860 : 520);
   const svgRef = useRef<SVGSVGElement | null>(null);
   const keys = useRef<(SVGRectElement | null)[]>([]);
   const latest = useRef(columns);
@@ -142,9 +144,11 @@ function BlockGrid({ own, priceUsd, onStroke, onPaint }: {
   const [focus, setFocus] = useState(own.bins - 1);
   const count = columns.length, half = own.bins, gap = 12;
   const pitch = (W - gap) / count;
-  const rowPitch = Math.max(9, Math.min(15, pitch * 0.85));
+  // A grid with room, the chart's or a wide column's, gets taller rows and blocks no wider than they look square.
+  const roomy = large || W >= 600;
+  const rowPitch = roomy ? Math.max(12, Math.min(26, pitch * 0.8)) : Math.max(9, Math.min(15, pitch * 0.85));
   const top = 34, gridHeight = DRAWN_LEVELS * rowPitch, bottom = top + gridHeight, H = bottom + 26;
-  const cellWidth = Math.max(2, pitch - (pitch > 9 ? 2.5 : 1.5)), cellHeight = rowPitch - 2.5;
+  const cellWidth = Math.min(roomy ? 34 : Infinity, Math.max(2, pitch - (pitch > 9 ? 2.5 : 1.5))), cellHeight = rowPitch - 2.5;
   const left = (index: number) => index * pitch + (index >= half ? gap : 0);
   const priceX = half * pitch + gap / 2;
   const usable = (index: number) => own.sides === "both" || (own.sides === "below" ? index < half : index >= half);
@@ -200,7 +204,7 @@ function BlockGrid({ own, priceUsd, onStroke, onPaint }: {
   const focused = usable(focus) ? focus : columns.findIndex((_, index) => usable(index));
   // Each column's part of the deposit, for the words a screen reader gives it.
   const total = columns.reduce((sum, value, index) => sum + (usable(index) ? value : 0), 0);
-  return <div className="gmd-grid-plot" ref={plotRef}>
+  return <div className={`gmd-grid-plot${roomy ? " is-large" : ""}`} ref={plotRef}>
     <svg ref={svgRef} viewBox={`0 0 ${W} ${H}`} role="group" aria-labelledby={`${id}-title`}
       onPointerDown={event => { if (event.button !== 0) return; onStroke(); stroke.current = null; event.currentTarget.setPointerCapture(event.pointerId); paint(event, true); }}
       onPointerMove={event => { if (event.currentTarget.hasPointerCapture(event.pointerId)) paint(event, false); }}
@@ -228,6 +232,54 @@ function BlockGrid({ own, priceUsd, onStroke, onPaint }: {
   </div>;
 }
 
+/** Editing one position's settings, with undo and redo; every editor of it on the page shares one. */
+export type ShapeEditing = {
+  own: OwnRange;
+  /** Called once as a change begins, so it is one step to undo. */
+  remember: () => void;
+  commit: (patch: Partial<OwnRange>) => void;
+  /** A change within a step already remembered, such as each column a stroke crosses. */
+  set: (next: OwnRange) => void;
+  undo: () => void;
+  redo: () => void;
+  canUndo: boolean;
+  canRedo: boolean;
+  latest: () => OwnRange;
+};
+
+export function useShapeEditing(own: OwnRange, onChange: (next: OwnRange) => void): ShapeEditing {
+  const [past, setPast] = useState<OwnRange[]>([]);
+  const [future, setFuture] = useState<OwnRange[]>([]);
+  // The settings as last sent, ahead of the render, so a stroke's first change is one undo step.
+  const current = useRef(own);
+  useLayoutEffect(() => { current.current = own; });
+  const set = (next: OwnRange) => { current.current = next; onChange(next); };
+  // Read now, not when React runs the update: by then the stroke's first change has been sent.
+  const remember = () => { const before = current.current; setPast(list => [...list, before].slice(-HISTORY_LIMIT)); setFuture([]); };
+  return {
+    own, remember, set,
+    commit: patch => { remember(); set({ ...current.current, ...patch }); },
+    undo: () => { const previous = past[past.length - 1]; if (!previous) return; setPast(past.slice(0, -1)); setFuture([current.current, ...future]); set(previous); },
+    redo: () => { const next = future[0]; if (!next) return; setFuture(future.slice(1)); setPast([...past, current.current]); set(next); },
+    canUndo: past.length > 0, canRedo: future.length > 0,
+    latest: () => current.current,
+  };
+}
+
+const ShapeEditingContext = createContext<ShapeEditing | null>(null);
+
+/** Shares one editing history between the panel's grid and the chart's, so either undoes the other's strokes. */
+export function ShapeEditingProvider({ value, children }: { value: ShapeEditing; children: ReactNode }) {
+  return <ShapeEditingContext.Provider value={value}>{children}</ShapeEditingContext.Provider>;
+}
+
+function UndoRedo({ editing }: { editing: ShapeEditing }) {
+  return <div className="gmd-range-history" role="group" aria-label="Undo and redo">
+    <button type="button" className="gmd-icon-button" onClick={editing.undo} disabled={!editing.canUndo} aria-label="Undo"><Icon name="undo" size={16} /></button>
+    <button type="button" className="gmd-icon-button" onClick={editing.redo} disabled={!editing.canRedo} aria-label="Redo"><Icon name="redo" size={16} /></button>
+  </div>;
+}
+
 /**
  * Custom's settings, laid out as Meteora's DLMM Pro lays them out: the shape in a grid of blocks
  * with the current price, undo and redo; Spot, Curve and Bid-Ask to start from, each editable; the
@@ -236,24 +288,18 @@ function BlockGrid({ own, priceUsd, onStroke, onPaint }: {
  */
 function CustomRange({ own, onChange, priceUsd }: { own: OwnRange; onChange: (next: OwnRange) => void; priceUsd: number | null }) {
   const id = useId();
-  const [past, setPast] = useState<OwnRange[]>([]);
-  const [future, setFuture] = useState<OwnRange[]>([]);
+  const local = useShapeEditing(own, onChange);
+  const editing = useContext(ShapeEditingContext) ?? local;
+  const { remember, commit } = editing;
   const [customReach, setCustomReach] = useState(!REACH_PRESETS.includes(own.rangePercent));
   const [saved, setSaved] = useState<SavedSetup[]>(readSavedSetups);
   const [name, setName] = useState("");
-  // The settings as last sent, ahead of the render, so a stroke's first change is one undo step.
-  const current = useRef(own);
-  useLayoutEffect(() => { current.current = own; });
-  const remember = () => { setPast(list => [...list, current.current].slice(-HISTORY_LIMIT)); setFuture([]); };
-  const commit = (patch: Partial<OwnRange>) => { remember(); const next = { ...current.current, ...patch }; current.current = next; onChange(next); };
-  const undo = () => { const previous = past[past.length - 1]; if (!previous) return; setPast(past.slice(0, -1)); setFuture([current.current, ...future]); current.current = previous; onChange(previous); };
-  const redo = () => { const next = future[0]; if (!next) return; setFuture(future.slice(1)); setPast([...past, current.current]); current.current = next; onChange(next); };
   const columns = columnsOf(own);
   const half = own.bins;
   const pick = (shape: OwnRange["shape"]) => commit(shape === "drawn" ? { shape, drawn: own.drawn ?? columns } : { shape });
   // A reach takes the bins it needs (each at most about 5% wide); fewer bins bring the reach in to what they cover.
-  const binsPatch = (bins: number, from = current.current) => from.shape === "drawn" || from.drawn ? { bins, drawn: fitDrawing(from.drawn ?? columnsOf(from), bins) } : { bins };
-  const reachPatch = (rangePercent: number, from = current.current) => {
+  const binsPatch = (bins: number, from = editing.latest()) => from.shape === "drawn" || from.drawn ? { bins, drawn: fitDrawing(from.drawn ?? columnsOf(from), bins) } : { bins };
+  const reachPatch = (rangePercent: number, from = editing.latest()) => {
     const bins = maxReachFor(from.bins) >= rangePercent ? from.bins : binsToReach(rangePercent, BIN_CHOICES);
     return { rangePercent, ...(bins !== from.bins ? binsPatch(bins, from) : {}) };
   };
@@ -280,12 +326,9 @@ function CustomRange({ own, onChange, priceUsd }: { own: OwnRange; onChange: (ne
   return <div className="gmd-strategy-custom gmd-range-card">
     <div className="gmd-range-head">
       <div><b id={`${id}-title`}>Price range</b><span className="gmd-range-legend"><i className="is-dollars" aria-hidden="true" />dUSD <i className="is-shares" aria-hidden="true" />USTX</span></div>
-      <div className="gmd-range-history" role="group" aria-label="Undo and redo">
-        <button type="button" className="gmd-icon-button" onClick={undo} disabled={!past.length} aria-label="Undo"><Icon name="undo" size={16} /></button>
-        <button type="button" className="gmd-icon-button" onClick={redo} disabled={!future.length} aria-label="Redo"><Icon name="redo" size={16} /></button>
-      </div>
+      <UndoRedo editing={editing} />
     </div>
-    <BlockGrid own={own} priceUsd={priceUsd} onStroke={remember} onPaint={drawn => { const next = { ...current.current, shape: "drawn" as const, drawn }; current.current = next; onChange(next); }} />
+    <BlockGrid own={own} priceUsd={priceUsd} onStroke={remember} onPaint={drawn => editing.set({ ...editing.latest(), shape: "drawn", drawn })} />
     <div className="gmd-strategy-row"><span>Shape</span><div className="gmd-segmented" role="group" aria-label="Shape">{([...PRESET_SHAPES, "drawn"] as const).map(shape => <button type="button" key={shape} aria-pressed={own.shape === shape} onClick={() => pick(shape)}>{shape === "drawn" ? "Yours" : SHAPE_LABELS[shape]}</button>)}</div></div>
     <div className="gmd-shape-tools">
       <button type="button" className="gmd-small-button" onClick={() => mirror("below")}>Copy left to right</button>
@@ -300,7 +343,7 @@ function CustomRange({ own, onChange, priceUsd }: { own: OwnRange; onChange: (ne
       {REACH_PRESETS.map(reach => <button type="button" key={reach} aria-pressed={!customReach && own.rangePercent === reach} onClick={() => { setCustomReach(false); commit(reachPatch(reach)); }}>±{reach}%</button>)}
       <button type="button" aria-pressed={customReach || !REACH_PRESETS.includes(own.rangePercent)} onClick={() => setCustomReach(true)}>Custom</button>
     </div></div>
-    {(customReach || !REACH_PRESETS.includes(own.rangePercent)) && <div className="gmd-strategy-row"><label htmlFor={`${id}-range`}>Reach <b>±{own.rangePercent}%</b></label><input id={`${id}-range`} type="range" min={0.5} max={REACH_MAX} step={0.5} value={own.rangePercent} onPointerDown={remember} onKeyDown={remember} onChange={event => { const next = { ...current.current, ...reachPatch(Number(event.target.value)) }; current.current = next; onChange(next); }} /></div>}
+    {(customReach || !REACH_PRESETS.includes(own.rangePercent)) && <div className="gmd-strategy-row"><label htmlFor={`${id}-range`}>Reach <b>±{own.rangePercent}%</b></label><input id={`${id}-range`} type="range" min={0.5} max={REACH_MAX} step={0.5} value={own.rangePercent} onPointerDown={remember} onKeyDown={remember} onChange={event => editing.set({ ...editing.latest(), ...reachPatch(Number(event.target.value)) })} /></div>}
     <div className="gmd-strategy-row"><span>Bins each side</span><div className="gmd-segmented" role="group" aria-label="Bins each side">{BIN_CHOICES.map(bins => <button type="button" key={bins} aria-pressed={own.bins === bins} onClick={() => setBins(bins)}>{bins}</button>)}</div></div>
     <div className="gmd-strategy-row"><span>Sides</span><div className="gmd-segmented" role="group" aria-label="Sides">{(["both", "below", "above"] as const).map(option => <button type="button" key={option} aria-pressed={own.sides === option} onClick={() => commit({ sides: option })}>{SIDE_LABELS[option]}</button>)}</div></div>
     <div className="gmd-shape-saved">
@@ -365,20 +408,38 @@ export function poolRanges(pool: PoolLiquidity | null, v4: V4Pool | null, deploy
 }
 
 type ChartBin = { from: number; to: number; side: "dollars" | "shares"; constantProduct: number; v4: number; own: number };
-// The chart's views either side of the price; a wide position of one's own opens on the narrowest that holds it.
-const SPANS = [0.06, 0.24, 0.6, 1] as const;
+// The chart's views either side of the price. A position of one's own opens on the narrowest that holds it
+// with a little room, so its bins fill the chart (each view's thirds are whole or half percents, for the
+// axis); the pooled pools open on ±6%. Wider views stay a click away.
+const FIT_SPANS = [0.03, 0.045, 0.06, 0.09, 0.12, 0.18, 0.24, 0.36, 0.6, 1] as const;
+const WIDE_SPANS = [0.06, 0.24, 0.6, 1] as const;
+const spanLabel = (span: number) => `±${+(span * 100).toFixed(1)}%`;
+
+// Wide enough for the panel and the chart side by side: Custom's grid is then drawn in the chart too.
+const WIDE_QUERY = "(min-width: 931px)";
+function useWideLayout() {
+  return useSyncExternalStore(
+    notify => { const media = window.matchMedia(WIDE_QUERY); media.addEventListener("change", notify); return () => media.removeEventListener("change", notify); },
+    () => window.matchMedia(WIDE_QUERY).matches,
+    () => false,
+  );
+}
 
 /** One chart for Pools: where your deposit would sit by price under the chosen strategy, or both pooled pools' liquidity. */
-export function StrategyChart({ choice, amountMicros, pool, v4, deployment, range, tall = false }: {
+export function StrategyChart({ choice, amountMicros, pool, v4, deployment, range, tall = false, draw = false }: {
   choice: StrategyChoice; amountMicros: bigint; pool: PoolLiquidity | null; v4: V4Pool | null; deployment: V4Deployment | null; range: RangePool | null; tall?: boolean;
+  /** Custom's editor sits in a narrow panel beside the chart, so the chart draws its grid at full size. */
+  draw?: boolean;
 }) {
   const title = useId();
   const [hover, setHover] = useState<number | null>(null);
   const [view, setView] = useState<"mine" | "pools">("mine");
-  const [pickedSpan, setSpan] = useState<number | null>(null);
+  const [picked, setPicked] = useState<{ key: string; span: number } | null>(null);
   const [plotRef, W] = useWidth(900);
   const measured = useMeasuredResults();
   const assistant = useAsk();
+  const editing = useContext(ShapeEditingContext);
+  const wide = useWideLayout();
   const strategy = strategyById(choice.id);
   const own = ownRangeOf(choice);
   const { nav: recordedNav, center: nav, constantProduct, v4: pegged } = poolRanges(pool, v4, deployment);
@@ -397,17 +458,21 @@ export function StrategyChart({ choice, amountMicros, pool, v4, deployment, rang
   // One's own position: the hook's spread, at the range pool's price (the NAV until it is read),
   // drawn bin by bin as the grid shows it.
   const priced = Boolean(own && mine);
+  // Custom on a wide screen: the chart is the grid itself, drawn block by block like the panel's, at chart size.
+  const drawing = draw && editing !== null && own !== null && mine && choice.id === "custom" && wide ? editing : null;
   const ownBars = own && mine ? (() => {
     const priceUsd = range ? Number(range.priceMicros) / 1e6 : navPrice;
     const invest = deposit * ownAboveShare(own);
     const layout = ownBins(own);
     return previewWeights(layout.weights, binTicksFor(own.rangePercent, own.bins), layout.binsBelow, layout.binsAbove, deposit - invest, invest, priceUsd);
   })() : [];
-  const fits = (option: number) => ownBars.every(item => item.fromUsd >= navPrice * (1 - option) - 1e-9 && item.toUsd <= navPrice * (1 + option) + 1e-9);
-  const fitSpan = priced ? SPANS.find(fits) ?? SPANS[SPANS.length - 1] : SPANS[0];
-  const span = pickedSpan ?? fitSpan;
-  // The two narrow views, and a wider one when one's own position needs it.
-  const spans = SPANS.filter(option => option <= SPANS[1] || option <= fitSpan || option === span);
+  // How far the position reaches from the price the chart is centred on.
+  const reach = ownBars.reduce((most, item) => item.value > 0 ? Math.max(most, 1 - item.fromUsd / navPrice, item.toUsd / navPrice - 1) : most, 0);
+  const fitSpan = priced ? FIT_SPANS.find(option => reach * 1.05 <= option + 1e-9) ?? 1 : WIDE_SPANS[0];
+  // A view picked for other settings does not carry over: a new strategy, shape, range or view opens fitted.
+  const zoomKey = `${choice.id}|${view}|${own ? `${own.shape}|${own.rangePercent}|${own.bins}|${own.sides}` : ""}`;
+  const span = picked?.key === zoomKey ? picked.span : fitSpan;
+  const spans = priced ? [fitSpan, ...WIDE_SPANS.filter(option => option > fitSpan)].slice(0, 3) : WIDE_SPANS.slice(0, 2);
   const pooled = strategyShape({
     navMicros: nav, span, step: span / 12,
     constantProductMicros: mine ? pooledCp : constantProduct?.valueMicros ?? 0n,
@@ -418,7 +483,7 @@ export function StrategyChart({ choice, amountMicros, pool, v4, deployment, rang
   const bins: ChartBin[] = priced
     ? ownBars.filter(item => item.toUsd > low && item.fromUsd < high).map(item => ({ from: item.fromUsd, to: item.toUsd, side: item.side, constantProduct: 0, v4: 0, own: item.value }))
     : pooled.map(bin => ({ from: bin.from, to: bin.to, side: bin.side, constantProduct: bin.constantProduct, v4: bin.v4, own: 0 }));
-  const clipped = priced && span < SPANS[SPANS.length - 1] && ownBars.some(item => item.value > 0 && (item.fromUsd < low || item.toUsd > high));
+  const clipped = priced && span < 1 && ownBars.some(item => item.value > 0 && (item.fromUsd < low || item.toUsd > high));
   const value = (bin: ChartBin) => bin.constantProduct + bin.v4 + bin.own;
   // What sits within 2% of the price, a bin that straddles the edge counted for the part inside.
   const nearTotal = bins.reduce((total, bin) => {
@@ -474,16 +539,19 @@ export function StrategyChart({ choice, amountMicros, pool, v4, deployment, rang
         <button type="button" aria-pressed={mine} onClick={() => { setView("mine"); setHover(null); }}>Your deposit</button>
         <button type="button" aria-pressed={!mine} onClick={() => { setView("pools"); setHover(null); }}>Whole pools</button>
       </div>
-      <div className="gmd-lq-range" role="group" aria-label="Price range">{spans.map(option => <button type="button" key={option} aria-pressed={span === option} onClick={() => { setSpan(option); setHover(null); }}>±{Math.round(option * 100)}%</button>)}</div>
+      {!drawing && <div className="gmd-lq-range" role="group" aria-label="Price range">{spans.map(option => <button type="button" key={option} aria-pressed={span === option} onClick={() => { setPicked({ key: zoomKey, span: option }); setHover(null); }}>{spanLabel(option)}</button>)}</div>}
     </ChartHead>
     {stale && <p className="gmd-caption gmd-strategy-stale" role="status">{pool?.nav.navMicros === null ? pool.nav.reason : "The NAV record is over an hour old."} Until the next record, the chart is centred on the pool’s own price.</p>}
     <ul className="gmd-lq-legend">
       <li><i className="is-dollars" aria-hidden="true" />dUSD, buys USTX below the price</li>
       <li><i className="is-shares" aria-hidden="true" />USTX, sold above the price</li>
       {layered && <li><i className="is-cp" aria-hidden="true" />Lighter: the constant-product pool’s part</li>}
-      {clipped && <li className="gmd-strategy-clipped">Part of your position lies past ±{Math.round(span * 100)}%: see ±{Math.round(fitSpan * 100)}%</li>}
+      {clipped && <li className="gmd-strategy-clipped">Part of your position lies past {spanLabel(span)}: see {spanLabel(fitSpan)}</li>}
     </ul>
-    <div className="gmd-lq-plot" ref={plotRef}>
+    {drawing && own ? <div className="gmd-strategy-draw">
+      <div className="gmd-strategy-draw-head"><span>Press or drag across the columns to draw your shape</span><UndoRedo editing={drawing} /></div>
+      <BlockGrid large own={own} priceUsd={range ? Number(range.priceMicros) / 1e6 : navPrice} onStroke={drawing.remember} onPaint={drawn => drawing.set({ ...drawing.latest(), shape: "drawn", drawn })} />
+    </div> : <div className="gmd-lq-plot" ref={plotRef}>
       <svg viewBox={`0 0 ${W} ${H}`} role="img" aria-label={`${mine ? strategy.name : "Both pooled pools"}: ${money(shown)} by price from ${money(bins.length ? bins[0].from : low)} to ${money(bins.length ? bins[bins.length - 1].to : high)}; ${money(nearTotal)} within 2% of the NAV.`}>
         <rect className="gmd-strategy-near" x={x(-0.02)} y={top - 10} width={x(0.02) - x(-0.02)} height={plot + 10} />
         <text className="gmd-lq-tick gmd-strategy-near-label" x={W / 2} y={top - 14} textAnchor="middle">Within 2% of {mark}: {money(nearTotal, 0)} of {money(total, 0)}</text>
@@ -499,7 +567,12 @@ export function StrategyChart({ choice, amountMicros, pool, v4, deployment, rang
         {(!own || !mine) && <small>v4 pool at the NAV: {money(active.v4, active.v4 < 1 ? 4 : 2)}</small>}
         {(!own || !mine) && <small>Constant product: {money(active.constantProduct, active.constantProduct < 1 ? 4 : 2)}</small>}
       </div>}
-    </div>
+    </div>}
+    <p className="gmd-caption gmd-lq-note">{mine
+      ? drawing ? "Each column is one bin of your position: demo dollars below the price, USTX above. Press a block to fill its column up to it and its top block again to take it off; drag across the columns to paint, or under the grid to empty them. The panel’s grid follows."
+      : own ? "Each bar is one bin of your position, as the range pool’s hook would spread it: demo dollars below the price, USTX above, skipping the 0.1% bin the price is in."
+        : "Drawn from both pooled pools’ ranges as read on X Layer, at your share of each. The v4 pool’s hook moves its range to every NAV record; the constant-product pool keeps liquidity at every price, so little of it sits near the NAV."
+      : "Everything in the two pooled pools by price, read on X Layer: the constant-product pool’s even spread (lighter) with the v4 pool’s liquidity at the NAV on top. Positions of one’s own sit in the range pool, each owner’s apart."}</p>
     {mine && <>
       <dl className="gmd-strategy-facts">
         <div><dt>Within 2% of {mark}</dt><dd>{money(nearTotal)}<small>{deposit > 0 ? `${Math.round(nearTotal / deposit * 100)}% of your deposit meets the trades there` : "—"}</small></dd></div>
@@ -507,16 +580,13 @@ export function StrategyChart({ choice, amountMicros, pool, v4, deployment, rang
           : <div><dt>Split</dt><dd>{strategy.v4Percent}% at the NAV<small>{100 - strategy.v4Percent}% even, in the constant-product pool</small></dd></div>}
         <div><dt>{own ? "Fees" : "A year at the measured results"}</dt><dd>{own ? "Yours alone" : year === null ? "—" : `${year < 0n ? "−" : "+"}${formatUsdMicros(year < 0n ? -year : year, 2)}`}<small>{own ? "Only trades that cross your bins pay you" : "Each pool’s result for providers so far, per dollar; not a forecast"}</small></dd></div>
       </dl>
-      <p className="gmd-strategy-summary">{strategy.summary}</p>
+      {/* Custom's summary only lists the controls beside it. */}
+      {choice.id !== "custom" && <p className="gmd-strategy-summary">{strategy.summary}</p>}
       {assistant && <div className="gmd-strategy-ask">
         <span className="gmd-ask-guide-mark" aria-hidden="true"><Icon name="spark" size={16} /></span>
         <div><b>{choice.id === "custom" ? "Ask USTX about your settings" : `Ask USTX about ${strategy.name}`}</b>
           <div className="gmd-ask-guide-actions">{questions.map(item => <button type="button" key={item.label} onClick={() => assistant.ask(item.question)}>{item.label}</button>)}</div></div>
       </div>}
     </>}
-    <figcaption className="gmd-caption">{mine
-      ? own ? "Drawn as the range pool’s hook spreads a position: demo dollars in the bins below the price, USTX in the bins above, skipping the 0.1% the price is in. Only you earn the fees on your bins, and closing pays them with the tokens at any NAV."
-        : "Drawn from both pooled pools’ ranges as read on X Layer, at your share of each. The v4 pool’s hook moves its range to every NAV record; the constant-product pool keeps liquidity at every price, so little of it sits near the NAV."
-      : "Everything in the two pooled pools by price, read on X Layer: the constant-product pool’s even spread (lighter) with the v4 pool’s liquidity at the NAV on top. Positions of one’s own sit in the range pool, each owner’s apart."}</figcaption>
   </figure>;
 }

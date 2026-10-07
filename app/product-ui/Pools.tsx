@@ -29,7 +29,7 @@ import { allocateShares, binTicksFor, drawingProblem, ownAboveShare, ownBins, ow
 import { RANGE_POOL_DEPLOYMENT, RangePriceMoved, assertRangePriceNear, openLimits, rangeCalls, rangeErrorMessage, rangeFill } from "@/lib/xstocks/range-liquidity";
 import { V4LiquidityPanel, V4PoolGuide, V4PoolOverview, useV4Pool, v4Position, type V4Reader } from "./PoolsV4";
 import { PoolResults } from "./PoolResults";
-import { DEFAULT_CHOICE, SHAPE_LABELS, StrategyChart, StrategyPicker, ownRangeOf, strategyPercent, type StrategyChoice } from "./PoolStrategy";
+import { DEFAULT_CHOICE, SHAPE_LABELS, ShapeEditingProvider, StrategyChart, StrategyPicker, ownRangeOf, strategyPercent, useShapeEditing, type StrategyChoice } from "./PoolStrategy";
 import { RangePositions, useRangePool, type RangeReader } from "./PoolsRange";
 import type { RangePosition } from "@/lib/xstocks/range-liquidity";
 
@@ -132,12 +132,14 @@ export function PoolsScreen() {
   const [amount, setAmount] = useState("");
   // The strategy chosen in the panel, which the chart beside it draws.
   const [strategy, setStrategy] = useState<StrategyChoice>(DEFAULT_CHOICE);
+  // One history for Custom's shape, whichever grid draws it.
+  const editing = useShapeEditing(strategy.own, own => setStrategy(previous => ({ ...previous, own })));
   // The range pool, where a position is one's own, once its deployment is pinned.
   const range = useRangePool(RANGE_POOL_DEPLOYMENT, owner, busy);
   const showV4 = V4_POOL_DEPLOYMENT !== null && selected === "v4";
   // Choosing the v4 pool opens its own panel below, with the details.
   const select = (pool: "live" | "v4") => { setSelected(pool); if (pool === "v4") setMore(true); };
-  return <ActivityProvider>
+  return <ActivityProvider><ShapeEditingProvider value={editing}>
     <div className="gmd-page-heading"><div><h1>Pools</h1><p>Provide liquidity to USTX and earn a fee on every trade: pick a strategy, enter demo dollars and press one button.</p></div></div>
     {/* The panel comes first, as it shows on a phone; on a wide screen it sits beside the summary. */}
     <div className="gmd-detail-layout gmd-pools-layout">
@@ -161,7 +163,7 @@ export function PoolsScreen() {
       </div>}
       {V4_POOL_DEPLOYMENT && <PoolResults />}
     </details>
-  </ActivityProvider>;
+  </ShapeEditingProvider></ActivityProvider>;
 }
 
 /** What a provider sees before pressing the button: the figures, where the liquidity sits, how the deposit goes in, and what a NAV move does. */
@@ -182,7 +184,8 @@ function PoolSummary({ snapshot, v4, range, owner, growth, amount, strategy, onS
       <div><span>Your liquidity</span><strong>{!owner ? "—" : !account || !mine ? <Skeleton width={56} /> : account.lpMicros === 0n ? "None yet" : mine.valueMicros !== null ? formatUsdRounded(mine.valueMicros) : `${formatSharesShort(account.lpMicros, 4)} USTX-LP`}</strong><small>{owner ? "In this wallet" : "Connect OKX Wallet"}</small></div>
     </div>
     {!owner && v4 && <StrategyPicker value={strategy} onChange={onStrategy} range={Boolean(range)} priceUsd={usdOf(range?.snapshot?.pool.priceMicros ?? nav)} />}
-    {pool ? <StrategyChart choice={strategy} amountMicros={BigInt(Math.round(deposit * 1e6))} pool={pool} v4={v4?.snapshot?.pool ?? null} deployment={V4_POOL_DEPLOYMENT} range={range?.snapshot?.pool ?? null} />
+    {/* With a wallet connected, Custom's editor is in the panel beside: the chart draws its grid large. */}
+    {pool ? <StrategyChart choice={strategy} amountMicros={BigInt(Math.round(deposit * 1e6))} pool={pool} v4={v4?.snapshot?.pool ?? null} deployment={V4_POOL_DEPLOYMENT} range={range?.snapshot?.pool ?? null} draw={Boolean(owner)} />
       : <div className="gmd-lq is-loading" aria-busy="true"><Skeleton width="100%" className="gmd-lq-skeleton" /></div>}
     <p className="gmd-caption">Demo dollars and USTX have no value. Every figure here is read from the pools on X Layer.</p>
   </section>;

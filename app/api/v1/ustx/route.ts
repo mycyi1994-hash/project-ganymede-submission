@@ -2,6 +2,7 @@ import { engineEnv } from "@/lib/engine/api-helpers";
 import { SettlementClient } from "@/lib/engine/settlement";
 import { cachedRead } from "@/lib/read-cache";
 import { POOL_FACTORY, POOL_FEE, POOL_TOLERANCE, XSTOCK_POOLS } from "@/lib/xstocks/pool-prices";
+import { CHAINLINK_CHAIN, CHAINLINK_FEEDS } from "@/lib/xstocks/chainlink-prices";
 import { XSTOCKS_CHAIN, XSTOCKS_CONSTITUENTS, XSTOCKS_PRODUCT } from "@/lib/xstocks/basket";
 import { FUND_DEPLOYMENT } from "@/lib/xstocks/fund";
 import { navForRequest } from "@/lib/xstocks/nav-api";
@@ -66,6 +67,11 @@ export async function GET(request: Request) {
           toleranceBps: { nav: POOL_TOLERANCE.navBps },
           rule: "A NAV is not recorded if its value at the pool prices differs by more than toleranceBps.nav; the limit applies to the NAV only, and when the pools cannot be read the record goes ahead with a warning. feeTier is the Uniswap V3 fee tier in hundredths of a basis point (500 = 0.05%).",
           pools: XSTOCK_POOLS.map((entry) => ({ symbol: entry.symbol, pool: entry.pool, wrapper: entry.wrapper, quote: entry.stable.symbol })),
+        },
+        stockReference: {
+          source: "Chainlink US equity feeds (24/5)", network: CHAINLINK_CHAIN.name, chainId: CHAINLINK_CHAIN.chainId, toleranceBps: { nav: POOL_TOLERANCE.navBps },
+          rule: "The browser values the holdings that have a feed at these share prices and compares them with the recorded prices. It informs and does not stop a record. Chainlink has no US equity feed on X Layer and none for ORCL or PLTR.",
+          feeds: CHAINLINK_FEEDS.map((entry) => ({ symbol: entry.symbol, feed: entry.feed, description: entry.description })),
         },
       },
       shares: {

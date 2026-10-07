@@ -93,6 +93,7 @@ Ganymede was selected as one of 30 finalists from 150 teams. The organizers conf
 | 2026-10-07 01:40 | `5519b20` | Every USTX pool against the NAV on one scale: the gauge, a line on the Markets card and Ask USTX read one shared pools snapshot, so the three always show the same gaps against one NAV record |
 | 2026-10-07 02:08 | `32ef9c1` | A send a node refuses (it still holds a copy from the 6 October stall) is sent again at its nonce paying double, and the relayer keeps its outbid floor across evictions; two USTX records had missed their cycle |
 | 2026-10-07 02:21 | `6ab07eb` | Transparency shows placeholders while the browser reads the record, instead of "Time unavailable" |
+| 2026-10-07 02:56 | `24e7ad5` | On a wide screen Custom's grid of blocks is drawn in the chart at full size, sharing its shape and undo history with the panel's, and the chart opens on the narrowest view that holds the position |
 
 ## Every commit in the build period (UTC)
 

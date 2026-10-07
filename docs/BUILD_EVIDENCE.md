@@ -1,6 +1,6 @@
 # Build provenance
 
-Production source revision: `6ab07eb340e0733df25a45401c95197f0b9cc624`.
+Production source revision: `24e7ad54e59b8c92568ae76af900037e153a4b09`.
 
 This is a source snapshot, not a claim that the entire project was newly built for this event. The original repository remains private. The entries below were exported from its Git history; reviewers can inspect current implementations and tests, and request original history access from the team if needed. No old secrets, local environment files or full private Git history are published.
 
@@ -797,5 +797,21 @@ Checks: the relayer's typecheck and 42 tests passed, three of them new, replayin
 Production source: `6ab07eb340e0733df25a45401c95197f0b9cc624`. App Worker version: `18df5970-9bdd-44e9-b49f-0ef82d5cf377`; prior version: `6ba10178-bc08-4f4f-b3ec-860ddd35297c`. The relayer, the keeper and the contracts are unchanged. Exported development commit: `a2cdf1450c2c1c6803a54f4b9110960e6ad40f56`, which adds only the release records, the build-period rows, the relayer README's notes and a test fix to the production source.
 
 For about three seconds after the Transparency page opened, while the browser read the latest record from X Layer, the Latest record panel showed dashes and "Time unavailable", which reads like a failure. It now shows placeholders until the read returns. In production the record filled in after 3.4 to 4.0 seconds at both widths, and sampling eleven screens' text in their first four seconds found nothing that reads like a failure. The test fix: a check that no page mentions KRW failed once because a response's random script nonce contained "Krw"; the tests now ignore nonces when reading a page's text.
+
+These are point-in-time observations, not continuous availability or a security audit.
+
+## Chainlink's US stock prices beside the recorded prices — 7 October 2026
+
+Production source: `91e76aae9b83b95c3b968c2938a518f99384fa1b`. App Worker version: `294122da-fa97-4aaf-94d1-174ee1785b0a`; prior version: `18df5970-9bdd-44e9-b49f-0ef82d5cf377`.
+
+Both price sources so far, OKX OnchainOS and the X Layer pools, are xStock markets, so they could be wrong together. The visitor's browser now reads seven of Chainlink's 24/5 US stock feeds on OP Mainnet (AAPL, MSFT, NVDA, AMZN, META, TSLA and GOOGL, 77.8% of the NAV) over a public RPC, checks each feed's description and eight decimals, and compares them with the recorded prices within 1%. X Layer has no Chainlink US stock feeds, and none exists for ORCL or PLTR on any chain. The comparison informs and does not block a record; on weekends the feeds hold Friday's prices. It shows on Transparency and the developer page as "The stock market's price", and in `GET /api/v1/ustx` as `pricing.stockReference`. Checks: 293 application tests passed; in production Transparency and the developer page showed "Stock prices agree" (seven stocks, 0.00%) at 1440 and 390 px.
+
+## Custom's grid drawn in the chart, and the chart fitted to the position — 7 October 2026
+
+Production source: `24e7ad54e59b8c92568ae76af900037e153a4b09`. App Worker version: `bc1a624d-ceea-47e0-bfd0-d70fd04af98d`; prior version: `294122da-fa97-4aaf-94d1-174ee1785b0a`. The relayer, the keeper and the contracts are unchanged. Exported development commit: `25ef72829eb9a9bb34f0226ab0b21c253dac2285`, which adds only the release record and the build-period row to the production source.
+
+On a wide screen with a wallet connected, Custom's editor sits in the narrow panel; the chart beside it now is the same grid of blocks at chart size, to press or drag across like Meteora's DLMM Pro, and both grids share one shape and one undo history. The chart opens on the narrowest view that holds the position (±3% for a ±2% one): it used to open on ±6% at the least, and a picked ±24% stayed for every later setting, leaving the bins in a sliver in the middle. Also fixed: undo after a stroke could leave the stroke's first column.
+
+Checks: 293 application tests passed. In production, with a wallet connected through an injected read-only provider, a drag across the chart's grid changed both grids and undo restored the exact previous shape in both; at 390 px the chart keeps its bars, and without a wallet Custom opens on ±3% with its bins across 68% of the chart. No horizontal overflow, no console errors and no axe violations on Pools.
 
 These are point-in-time observations, not continuous availability or a security audit.

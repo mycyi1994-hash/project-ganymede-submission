@@ -1728,6 +1728,7 @@ a.gmd-pool-pair:hover b { text-decoration: underline; text-underline-offset: 3px
 .gmd-lq-legend i.is-line-held { height: 2px; width: 14px; border-radius: 1px; background: #6b7c85; }
 .gmd-lq-plot { position: relative; }
 .gmd-lq-plot svg { display: block; width: 100%; height: auto; overflow: visible; }
+.gmd-app .gmd-lq-note { margin-top: -4px; font-size: 12px; }
 .gmd-lq-base { stroke: var(--gmd-line); stroke-width: 1; }
 .gmd-lq-bar path { transition: opacity 120ms; }
 .gmd-lq-bar.is-dollars path { fill: var(--gmd-dusd); }
@@ -1767,6 +1768,12 @@ a.gmd-pool-pair:hover b { text-decoration: underline; text-underline-offset: 3px
 .gmd-lq-range { display: inline-flex; gap: 2px; padding: 2px; border-radius: 8px; background: var(--gmd-soft); }
 .gmd-lq-range button { min-height: 30px; padding: 4px 10px; border-radius: 6px; font-size: 12px; color: var(--gmd-copy); font-variant-numeric: tabular-nums; }
 .gmd-lq-range button[aria-pressed="true"] { background: #fff; color: var(--gmd-ink); font-weight: 600; box-shadow: 0 1px 3px #172b351f; }
+/* On a phone the title takes its own line and the chart's two switches share the next. */
+@media (max-width: 560px) {
+  .gmd-lq-head { gap: 8px; }
+  .gmd-lq-head h3 { flex-basis: 100%; }
+  .gmd-lq-range button { padding: 4px 7px; }
+}
 .gmd-lq-explain { display: inline-flex; align-items: center; gap: 5px; min-height: 30px; padding: 4px 10px; border-radius: 999px; border: 1px solid #cfe5e0 !important; background: #f1faf8 !important; color: #1f5a50; font-size: 12px; font-weight: 600; }
 .gmd-lq-explain:hover { border-color: var(--gmd-accent) !important; }
 .gmd-lq-explain svg { color: var(--gmd-accent); }
@@ -2024,6 +2031,11 @@ a.gmd-pool-pair:hover b { text-decoration: underline; text-underline-offset: 3px
 .gmd-app .gmd-range-history .gmd-icon-button:hover:not(:disabled) { background: #edf3f1; }
 .gmd-grid-plot { min-width: 0; padding: 8px 8px 0; border: 1px solid var(--gmd-line); border-radius: 10px; background: #fff; }
 .gmd-grid-plot svg { display: block; width: 100%; height: auto; touch-action: none; cursor: pointer; user-select: none; -webkit-user-select: none; }
+/* Custom's grid drawn in the chart on a wide screen. */
+.gmd-strategy-draw { display: grid; gap: 8px; }
+.gmd-strategy-draw-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; font-size: 13px; color: var(--gmd-copy); }
+.gmd-grid-plot.is-large { padding: 10px 12px 2px; }
+.gmd-grid-plot.is-large .gmd-lq-tick { font-size: 12px; }
 .gmd-grid-col rect.is-on, .gmd-grid-col rect.is-off { transition: fill 90ms ease; }
 .gmd-grid-col.is-dollars rect.is-on { fill: var(--gmd-dusd); }
 .gmd-grid-col.is-shares rect.is-on { fill: var(--gmd-ustx); }

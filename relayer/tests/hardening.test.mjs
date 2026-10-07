@@ -22,7 +22,7 @@ function harness(publicOverrides = {}, walletWrite = async () => "0x" + "b".repe
     const response = await submitter.fetch(new Request("https://test/submit", { method: "POST", body: JSON.stringify(request) }));
     return { status: response.status, body: await response.json() };
   };
-  return { send, writes, rows };
+  return { send, writes, rows, submitter };
 }
 
 function revert(errorName) {
@@ -96,4 +96,60 @@ test("health reports an RPC on the wrong network as not ready and never echoes t
   const down = await worker.fetch(new Request("https://relayer.test/v1/health"), env);
   assert.equal(down.status, 503);
   assert.doesNotMatch(await down.text(), /SECRET|https?:/);
+});
+
+// On 6 October 2026 X Layer Testnet stalled; the transactions sent meanwhile never reached the chain,
+// some nodes kept counting them, and every later send waited behind the gap (nonce 9751, nodes at 10701).
+const NETWORK_FEES = { maxFeePerGas: 24_000_001n, maxPriorityFeePerGas: 1n };
+
+test("transactions a stall dropped are sent again from the chain's own count, outbidding copies nodes still count", async () => {
+  let latest = 9751;
+  const h = harness({
+    getTransactionCount: async ({ blockTag }) => blockTag === "latest" ? latest : 10701,
+    estimateFeesPerGas: async () => NETWORK_FEES,
+    waitForTransactionReceipt: async () => { latest += 1; return { status: "success", blockNumber: 1n }; },
+  });
+  assert.equal((await h.send(mint({ entityId: "sub_a" }))).body.status, "confirmed");
+  assert.equal((await h.send(mint({ entityId: "sub_b" }))).body.status, "confirmed");
+  assert.deepEqual(h.writes.map((write) => write.nonce), [9751, 9752]);
+  for (const write of h.writes) {
+    assert.equal(write.maxPriorityFeePerGas, 2_000_000n, "double the least tip, past the 10% a node needs to replace its copy");
+    assert.equal(write.maxFeePerGas, 2n * NETWORK_FEES.maxFeePerGas + 2_000_000n);
+  }
+});
+
+test("when the oldest transaction ahead of the chain waits past the stall window, the queue sends again from it, paying more each time", async () => {
+  let clock = 0;
+  let pending = 7;
+  const h = harness({
+    getTransactionCount: async ({ blockTag }) => blockTag === "latest" ? 7 : pending,
+    estimateFeesPerGas: async () => NETWORK_FEES,
+    waitForTransactionReceipt: async () => { throw new Error("timed out"); },
+  });
+  h.submitter.now = () => clock;
+  await h.send(mint({ entityId: "sub_1" }));
+  pending = 8;
+  clock += 30_000;
+  await h.send(mint({ entityId: "sub_2" }));
+  clock += 100_000;
+  pending = 9;
+  await h.send(mint({ entityId: "sub_3" }));
+  clock += 130_000;
+  await h.send(mint({ entityId: "sub_4" }));
+  assert.deepEqual(h.writes.map((write) => write.nonce), [7, 8, 7, 7], "a slow transaction is waited for; a lost one is sent again");
+  assert.equal(h.writes[0].maxFeePerGas, undefined);
+  assert.equal(h.writes[1].maxFeePerGas, undefined, "within the window the next nonce pays the network's own fees");
+  assert.equal(h.writes[2].maxPriorityFeePerGas, 2_000_000n);
+  assert.equal(h.writes[3].maxPriorityFeePerGas, 4_000_000n);
+});
+
+test("a queue whose transactions land never outbids", async () => {
+  let latest = 7;
+  const h = harness({
+    getTransactionCount: async () => latest,
+    estimateFeesPerGas: async () => { throw new Error("fees are not read when nothing is outbid"); },
+    waitForTransactionReceipt: async () => { latest += 1; return { status: "success", blockNumber: 1n }; },
+  });
+  for (const entityId of ["sub_x", "sub_y", "sub_z"]) assert.equal((await h.send(mint({ entityId }))).status, 200);
+  assert.deepEqual(h.writes.map((write) => [write.nonce, write.maxFeePerGas]), [[7, undefined], [8, undefined], [9, undefined]]);
 });

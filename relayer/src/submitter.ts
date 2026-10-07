@@ -25,14 +25,24 @@ import { idempotencyKey } from "./ids";
 import { readSettlement, writeSettlement, type StoredSettlement } from "./store";
 import type { Env } from "./env";
 import { settlementChain } from "./chain";
+import { nonceCounts, outbidFees } from "./fees";
 
 /** Well inside the app's 45 s request budget; an unconfirmed hash is reconciled on the next ask. */
 const RECEIPT_TIMEOUT_MS = 12_000;
 /** The one product whose shares live on the configured FundShare ledger. */
 const DEFAULT_TOKENIZED_PRODUCT = "core-20";
+/** One queue that waits for each receipt keeps at most a few transactions ahead of the chain. */
+const MAX_AHEAD = 8;
+/** How long the oldest transaction ahead of the chain may wait before it counts as lost. */
+const STALL_MS = 120_000;
 
 export class Submitter implements DurableObject {
   private nextNonce: number | null = null;
+  /** Nonces below this were sent before: some node may still hold a copy, so a send there outbids it. */
+  private outbidBelow = 0;
+  /** When each nonce ahead of the chain was last sent, and how many times. */
+  private sent = new Map<number, { at: number; times: number }>();
+  private now = () => Date.now();
   private queue = new SubmissionQueue();
 
   constructor(private readonly state: DurableObjectState, private readonly env: Env) {}
@@ -75,14 +85,32 @@ export class Submitter implements DurableObject {
     return raw as Address;
   }
 
-  /** Nonce is issued here and nowhere else, so concurrent cycles cannot collide. */
+  /**
+   * Nonce is issued here and nowhere else, so concurrent cycles cannot collide. Transactions the
+   * chain has not taken are lost when there are more of them than one queue keeps in flight, or when
+   * the oldest has waited STALL_MS (a network stall dropped them while some nodes kept counting them):
+   * the queue then starts again from the chain's own count, outbidding any copies nodes still hold.
+   */
   private async takeNonce(publicClient: ReturnType<typeof this.clients>["publicClient"], address: Address) {
-    if (this.nextNonce === null) {
-      this.nextNonce = await publicClient.getTransactionCount({ address, blockTag: "pending" });
+    const now = this.now();
+    const { latest, pending } = await nonceCounts(publicClient, address);
+    for (const nonce of this.sent.keys()) if (nonce < latest) this.sent.delete(nonce);
+    if (pending > latest) this.outbidBelow = Math.max(this.outbidBelow, pending);
+    if (this.nextNonce === null || this.nextNonce < latest) this.nextNonce = pending - latest > MAX_AHEAD ? latest : Math.max(latest, pending);
+    if (this.nextNonce > latest) {
+      const oldest = this.sent.get(latest) ?? { at: now, times: 1 };
+      this.sent.set(latest, oldest);
+      if (this.nextNonce - latest > MAX_AHEAD || now - oldest.at > STALL_MS) {
+        console.error(`Transactions from nonce ${latest} to ${this.nextNonce - 1} were not taken by the chain; sending again from ${latest}`);
+        this.outbidBelow = Math.max(this.outbidBelow, this.nextNonce);
+        this.nextNonce = latest;
+      }
     }
     const nonce = this.nextNonce;
     this.nextNonce = nonce + 1;
-    return nonce;
+    const times = this.sent.get(nonce)?.times ?? (nonce < this.outbidBelow ? 1 : 0);
+    this.sent.set(nonce, { at: now, times: times + 1 });
+    return { nonce, fees: times > 0 ? await outbidFees(publicClient, times) : {} };
   }
 
   private async resyncNonce(publicClient: ReturnType<typeof this.clients>["publicClient"], address: Address) {
@@ -176,10 +204,9 @@ export class Submitter implements DurableObject {
 
     let txHash: Hex;
     try {
-      txHash = await walletClient.writeContract({
-        ...simulated.request,
-        nonce: await this.takeNonce(publicClient, account.address),
-      });
+      const { nonce, fees } = await this.takeNonce(publicClient, account.address);
+      // The fees, when set, are EIP-1559 ones; the simulated request carries none of its own.
+      txHash = await walletClient.writeContract({ ...simulated.request, nonce, ...fees } as typeof simulated.request);
     } catch (error) {
       // A nonce that drifted (restart, external send) is recoverable. Forget the local
       // counter first, so that if the resync read also fails the next submission reads

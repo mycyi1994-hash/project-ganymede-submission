@@ -3,7 +3,7 @@ import test from "node:test";
 import {
   ContractFunctionExecutionError, ContractFunctionRevertedError, encodeAbiParameters, encodeErrorResult, keccak256, parseAbi, parseTransaction, toFunctionSelector,
 } from "viem";
-import { MIN_PROFIT_MICROS, RANGE_OPEN_GAP, revertReason, runKeeper, runRangeArbitrage, runRepeg, xlayerKeeperChain } from "../src/keeper.ts";
+import { MIN_PROFIT_MICROS, RANGE_OPEN_GAP, nonceSender, revertReason, runKeeper, runRangeArbitrage, runRepeg, xlayerKeeperChain } from "../src/keeper.ts";
 
 const USD = 1_000_000n;
 const MAX = 2n ** 256n - 1n;
@@ -234,11 +234,12 @@ test("a write that fails before it is mined leaves no nonce gap for the next one
   assert.equal(repegged.success, true);
   assert.equal(sent.length, 1);
   assert.equal(sent[0].nonce, 7);
-  assert.equal(counts, 2, "the nonce is asked for again after the failure");
+  assert.equal(counts, 4, "the nonce is asked for again after the failure (the chain's count and a node's)");
+  assert.equal(sent[0].maxPriorityFeePerGas, 2_000_000n, "the lost broadcast may sit in a node's pool, so the second pays enough to replace it");
   // The next write in the run takes the following nonce without asking.
   await chain.approve();
   assert.deepEqual(sent.map((transaction) => transaction.nonce), [7, 8]);
-  assert.equal(counts, 2);
+  assert.equal(counts, 4);
 });
 
 test("the range pool's arbitrage is sent when it pays a cent, insisting on half of it, or to bring back a price that keeps positions out", async () => {
@@ -354,4 +355,42 @@ test("reads the range pool's price against the NAV from the hook and Uniswap's P
   // A NAV the hook will not use: no gap to act on.
   state.nav = "stale";
   assert.equal(await chain.range.navGap(), null);
+});
+
+// After the X Layer Testnet stall of 6 October 2026 the keeper's count stood at 1445 while nodes counted 1520.
+test("a keeper run starts from the chain's own count and outbids the writes a node still counts", async () => {
+  let latest = 1445;
+  const client = {
+    getTransactionCount: async ({ blockTag }) => blockTag === "latest" ? latest : 1520,
+    estimateFeesPerGas: async () => ({ maxFeePerGas: 24_000_001n, maxPriorityFeePerGas: 1n }),
+    waitForTransactionReceipt: async () => { latest += 1; return { status: "success" }; },
+  };
+  const send = nonceSender(client, "0x" + "a".repeat(40));
+  const calls = [];
+  let refuse = true;
+  const write = async (nonce, fees) => {
+    calls.push({ nonce, ...fees });
+    if (refuse) { refuse = false; throw new Error("replacement transaction underpriced"); }
+    return "0x" + "1".repeat(64);
+  };
+  await assert.rejects(send(write), /underpriced/);
+  assert.equal((await send(write)).success, true);
+  assert.equal((await send(write)).success, true);
+  assert.deepEqual(calls.map((call) => [call.nonce, call.maxPriorityFeePerGas]), [[1445, 2_000_000n], [1445, 4_000_000n], [1446, 2_000_000n]],
+    "a refused write is tried again at its nonce paying double, and later nonces a node counted outbid too");
+});
+
+test("a keeper run with nothing counted beyond the chain pays the network's own fees", async () => {
+  let latest = 12;
+  const client = {
+    getTransactionCount: async () => latest,
+    estimateFeesPerGas: async () => { throw new Error("fees are not read when nothing is outbid"); },
+    waitForTransactionReceipt: async () => { latest += 1; return { status: "success" }; },
+  };
+  const send = nonceSender(client, "0x" + "a".repeat(40));
+  const calls = [];
+  const write = async (nonce, fees) => { calls.push({ nonce, ...fees }); return "0x" + "2".repeat(64); };
+  await send(write);
+  await send(write);
+  assert.deepEqual(calls, [{ nonce: 12 }, { nonce: 13 }]);
 });

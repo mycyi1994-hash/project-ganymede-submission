@@ -89,6 +89,7 @@ Ganymede was selected as one of 30 finalists from 150 teams. The organizers conf
 | 2026-10-06 19:37 | `80346dd` | A fund page whose records wait for X Layer shows its last verified NAV, marked delayed, instead of a dash |
 | 2026-10-06 19:52 | `9cd07e5` | The USTX holdings table fits a phone at 390, 375 and 360px |
 | 2026-10-06 20:27 | `73ecbfc` | Every script a page writes carries a nonce made for its response, and the script policy built on it is reported; enforcing it waits for a test with OKX Wallet |
+| 2026-10-07 00:15 | `9dfc2aa` | The relayer and the keeper send again from the chain's own count when a network stall drops their transactions, outbidding the copies some nodes still hold; NAV records resumed after nearly ten hours |
 
 ## Every commit in the build period (UTC)
 

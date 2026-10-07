@@ -4,6 +4,7 @@ import {
 } from "viem";
 import { privateKeyToAccount } from "viem/accounts";
 import { xlayerTestnet } from "./chain";
+import { nonceCounts, outbidFees, type Fees } from "./fees";
 
 /**
  * The USTX arbitrage keeper, a Worker of its own (wrangler.keeper.jsonc). Every five minutes it
@@ -311,25 +312,7 @@ export function xlayerKeeperChain(env: KeeperEnv): KeeperChain {
   const transport = http(env.SETTLEMENT_RPC_URL || xlayerTestnet.rpcUrls.default.http[0]);
   const publicClient = createPublicClient({ chain: xlayerTestnet, transport });
   const walletClient = createWalletClient({ chain: xlayerTestnet, transport, account });
-
-  // Writes in one run take consecutive nonces and wait for each receipt, so a node of the
-  // load-balanced RPC that lags the last receipt cannot hand out a used nonce. A write that fails
-  // may or may not have reached the network, so the next one asks the network again rather than
-  // skip a nonce and wait behind a gap.
-  let nonce: number | undefined;
-  async function send(write: (nonce: number) => Promise<Hex>): Promise<Sent> {
-    const current = nonce ?? await publicClient.getTransactionCount({ address: account.address, blockTag: "pending" });
-    let hash: Hex;
-    try {
-      hash = await write(current);
-    } catch (error) {
-      nonce = undefined;
-      throw error;
-    }
-    nonce = current + 1;
-    const receipt = await publicClient.waitForTransactionReceipt({ hash, timeout: 60_000 });
-    return { hash, success: receipt.status === "success" };
-  }
+  const send = nonceSender(publicClient, account.address);
 
   return {
     async quote() {
@@ -356,15 +339,16 @@ export function xlayerKeeperChain(env: KeeperEnv): KeeperChain {
         return { revert: reason };
       }
     },
-    claim: () => send(n => walletClient.writeContract({ address: dollar, abi: DOLLAR_ABI, functionName: "claim", nonce: n, gas: 150_000n })),
-    approve: () => send(n => walletClient.writeContract({ address: dollar, abi: DOLLAR_ABI, functionName: "approve", args: [arbitrage, maxUint256], nonce: n, gas: 80_000n })),
+    claim: () => send((n, fees) => walletClient.writeContract({ address: dollar, abi: DOLLAR_ABI, functionName: "claim", nonce: n, ...fees, gas: 150_000n })),
+    approve: () => send((n, fees) => walletClient.writeContract({ address: dollar, abi: DOLLAR_ABI, functionName: "approve", args: [arbitrage, maxUint256], nonce: n, ...fees, gas: 80_000n })),
     arbitrage: (buyInPool, dollarsIn, minProfit) =>
-      send(n => walletClient.writeContract({
+      send((n, fees) => walletClient.writeContract({
         address: arbitrage,
         abi: ARBITRAGE_ABI,
         functionName: buyInPool ? "buyAndRedeem" : "investAndSell",
         args: [dollarsIn, minProfit],
         nonce: n,
+        ...fees,
         gas: 400_000n,
       })),
     v4: hook && {
@@ -390,11 +374,11 @@ export function xlayerKeeperChain(env: KeeperEnv): KeeperChain {
         }
       },
       // Removing both ranges, moving the empty pool and adding them back: about 500,000 gas.
-      repeg: () => send(n => walletClient.writeContract({ address: hook, abi: HOOK_ABI, functionName: "repeg", nonce: n, gas: 900_000n })),
+      repeg: () => send((n, fees) => walletClient.writeContract({ address: hook, abi: HOOK_ABI, functionName: "repeg", nonce: n, ...fees, gas: 900_000n })),
     },
     range: rangeArbitrage && {
       dollarAllowance: () => publicClient.readContract({ address: dollar, abi: DOLLAR_ABI, functionName: "allowance", args: [account.address, rangeArbitrage] }),
-      approveDollars: () => send(n => walletClient.writeContract({ address: dollar, abi: DOLLAR_ABI, functionName: "approve", args: [rangeArbitrage, maxUint256], nonce: n, gas: 80_000n })),
+      approveDollars: () => send((n, fees) => walletClient.writeContract({ address: dollar, abi: DOLLAR_ABI, functionName: "approve", args: [rangeArbitrage, maxUint256], nonce: n, ...fees, gas: 80_000n })),
       async simulate() {
         try {
           const { result } = await publicClient.simulateContract({ account, address: rangeArbitrage, abi: RANGE_ARBITRAGE_ABI, functionName: "arbitrage", args: [0n] });
@@ -430,8 +414,48 @@ export function xlayerKeeperChain(env: KeeperEnv): KeeperChain {
         return (assetIsCurrency0 ? ratio : 1 / ratio) - 1;
       },
       // A swap across the pool's bins, a redemption or an investment at the fund: about 300,000 gas, more when it crosses many bins.
-      arbitrage: minProfit => send(n => walletClient.writeContract({ address: rangeArbitrage, abi: RANGE_ARBITRAGE_ABI, functionName: "arbitrage", args: [minProfit], nonce: n, gas: 1_500_000n })),
+      arbitrage: minProfit => send((n, fees) => walletClient.writeContract({ address: rangeArbitrage, abi: RANGE_ARBITRAGE_ABI, functionName: "arbitrage", args: [minProfit], nonce: n, ...fees, gas: 1_500_000n })),
     },
+  };
+}
+
+type SenderClient = Parameters<typeof nonceCounts>[0] & Parameters<typeof outbidFees>[0] & {
+  waitForTransactionReceipt(args: { hash: Hex; timeout: number }): Promise<{ status: "success" | "reverted" }>;
+};
+
+/**
+ * The keeper's writes. Each run waits for every write's receipt, so a run starts from the chain's own
+ * count; a node that counts more holds writes the chain never took (a network stall dropped them), and
+ * a write at such a nonce outbids that copy. Writes in one run take consecutive nonces, so a node of
+ * the load-balanced RPC that lags the last receipt cannot hand out a used nonce. A write that fails may
+ * or may not have reached the network, so the next one asks the network again, paying more if a node
+ * already held a write at its nonce.
+ */
+export function nonceSender(client: SenderClient, address: Address) {
+  let nonce: number | undefined;
+  let outbidBelow = 0;
+  let failedAt: number | undefined;
+  let tries = 0;
+  return async function send(write: (nonce: number, fees: Fees) => Promise<Hex>): Promise<Sent> {
+    let current = nonce;
+    if (current === undefined) {
+      const { latest, pending } = await nonceCounts(client, address);
+      if (pending > latest) outbidBelow = Math.max(outbidBelow, pending);
+      current = latest;
+    }
+    tries = failedAt === current ? tries + 1 : current < outbidBelow ? 1 : 0;
+    let hash: Hex;
+    try {
+      hash = await write(current, tries > 0 ? await outbidFees(client, tries) : {});
+    } catch (error) {
+      nonce = undefined;
+      failedAt = current;
+      throw error;
+    }
+    nonce = current + 1;
+    failedAt = undefined;
+    const receipt = await client.waitForTransactionReceipt({ hash, timeout: 60_000 });
+    return { hash, success: receipt.status === "success" };
   };
 }
 

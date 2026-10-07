@@ -31,6 +31,12 @@ publication per product, plus rebalance evidence and fund flows. Signing those
 concurrently hands the same nonce to several transactions and all but one fail.
 Every submission funnels through a single Durable Object instance, so nonces are
 issued in order. A drifted nonce triggers a resync rather than poisoning the queue.
+Before each send the queue reads the chain's own count. When it is more than eight
+transactions ahead, or the oldest it waits on has gone two minutes without landing, those
+transactions were lost (X Layer Testnet's stall of 6 October 2026 dropped them while some
+nodes kept counting them), and the queue sends again from the chain's count, paying at least
+double the network's fees at any nonce a node may still hold a copy for. The arbitrage keeper
+starts each run from the chain's count in the same way.
 
 **Idempotency, three deep.** Keyed on `entityType:entityId:action` — the same
 string the engine already sends as its `Idempotency-Key`.

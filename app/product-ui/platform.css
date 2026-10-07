@@ -18,45 +18,46 @@
 /* One family everywhere, as the console uses; code keeps its own. */
 .gmd-app *:not(code, pre, kbd, samp) { font-family: inherit !important; }
 .gmd-app :is(h1,h2,h3) { font-weight: 600; letter-spacing: -.01em; }
-.gmd-app h1 { font-size: 22px; }
-.gmd-app h2 { font-size: 17px; }
-.gmd-app h3 { font-size: 15px; }
+.gmd-app h1 { font-size: 26px; }
+.gmd-app h2 { font-size: 20px; }
+.gmd-app h3 { font-size: 17px; }
 .gmd-app .gmd-positive { color: #0f8a5f; }
 .gmd-app .gmd-negative { color: #d4373a; }
 .gmd-app :is(a,button,input,select,summary):focus-visible { outline: 2px solid var(--gmd-ink); outline-offset: 2px; }
 
 /* The top bar across the canvas: brand and network on the left, the wallet on the right. */
-.gmd-app .gmd-testnet-bar { background: #e9e9e9; color: #4d4d4d; font-size: 12px; padding: 5px 16px; }
+.gmd-app .gmd-testnet-bar { background: #e9e9e9; color: #4d4d4d; font-size: 14px; padding: 5px 16px; }
 .gmd-header { background: transparent; color: var(--gmd-ink); }
-.gmd-header-inner { max-width: none; min-height: 52px; padding-inline: 18px 20px; gap: 12px; }
-.gmd-brand { font-size: 15px; gap: 8px; }
-.gmd-brand svg { width: 22px; height: 22px; }
-.gmd-header-end { gap: 10px; font-size: 13px; }
-.gmd-network { color: var(--gmd-copy); border: 1px solid var(--gmd-line); background: #fff; font-size: 12px; padding: 4px 10px; }
+.gmd-header-inner { max-width: none; min-height: 62px; padding-inline: 20px 24px; gap: 14px; }
+.gmd-brand { font-size: 17px; gap: 8px; }
+.gmd-brand svg { width: 26px; height: 26px; }
+.gmd-header-end { gap: 10px; font-size: 15px; }
+.gmd-network { color: var(--gmd-copy); border: 1px solid var(--gmd-line); background: #fff; font-size: 14px; padding: 6px 12px; }
 .gmd-network i { background: #10a37f; }
 .gmd-environment { color: var(--gmd-copy); }
-.gmd-app .gmd-wallet-connect { background: var(--gmd-ink); color: #fff; min-height: 32px; padding: 6px 12px; border-radius: 8px; font-size: 13px; font-weight: 500; }
-.gmd-app .gmd-wallet-chip { color: var(--gmd-ink); border-color: var(--gmd-line); background: #fff; min-height: 32px; padding: 6px 12px; font-size: 13px; }
+.gmd-app .gmd-wallet-connect { background: var(--gmd-ink); color: #fff; min-height: 42px; padding: 9px 16px; border-radius: 10px; font-size: 15px; font-weight: 600; }
+.gmd-app .gmd-wallet-chip { color: var(--gmd-ink); border-color: var(--gmd-line); background: #fff; min-height: 42px; padding: 9px 16px; font-size: 15px; }
 .gmd-wallet-chip i { background: #10a37f; }
-.gmd-account summary, .gmd-example-account { color: var(--gmd-ink); border-color: var(--gmd-line); background: #fff; min-height: 32px; padding: 6px 12px; font-size: 13px; }
+.gmd-account summary, .gmd-example-account { color: var(--gmd-ink); border-color: var(--gmd-line); background: #fff; min-height: 42px; padding: 9px 16px; font-size: 15px; }
 .gmd-account[open] summary { background: var(--gmd-soft); }
 @media (hover:hover) and (pointer:fine) { .gmd-app .gmd-wallet-connect:hover { background: #2e2e2e; } }
 
 /* Below the bar: the sidebar on the canvas, and the page in a white panel. */
-.gmd-frame { display: grid; grid-template-columns: 212px minmax(0,1fr); align-items: start; }
-.gmd-sidebar { position: sticky; top: 0; display: flex; flex-direction: column; gap: 16px; min-height: calc(100dvh - 84px); padding: 4px 10px 18px 12px; font-size: 13px; }
+.gmd-frame { display: grid; grid-template-columns: 244px minmax(0,1fr); align-items: start; }
+.gmd-sidebar { position: sticky; top: 0; display: flex; flex-direction: column; gap: 20px; min-height: calc(100dvh - 94px); padding: 6px 12px 20px 14px; font-size: 16px; }
 .gmd-sidebar-group { display: grid; gap: 1px; }
-.gmd-sidebar-label { padding: 4px 8px; font-size: 12px; color: #8a8a8a; }
-.gmd-app .gmd-sidebar a { display: flex; align-items: center; gap: 9px; min-height: 32px; padding: 6px 8px; border-radius: 7px; color: #303030; }
+.gmd-sidebar-label { padding: 4px 12px; font-size: 14px; font-weight: 500; color: #8a8a8a; }
+.gmd-app .gmd-sidebar a { display: flex; align-items: center; gap: 12px; min-height: 44px; padding: 10px 12px; border-radius: 10px; color: #303030; }
+.gmd-sidebar a svg { width: 20px; height: 20px; }
 .gmd-sidebar a svg { color: #5d5d5d; }
 .gmd-app .gmd-sidebar a[aria-current] { background: #e4e4e4; color: var(--gmd-ink); font-weight: 500; }
-.gmd-app .gmd-sidebar-note { margin-top: auto; padding: 10px 12px; border: 1px solid var(--gmd-line); border-radius: 10px; background: #fff; font-size: 12px; line-height: 1.45; color: var(--gmd-copy); }
+.gmd-app .gmd-sidebar-note { margin-top: auto; padding: 12px 14px; border: 1px solid var(--gmd-line); border-radius: 12px; background: #fff; font-size: 14px; line-height: 1.5; color: var(--gmd-copy); }
 .gmd-sidebar-note b { display: block; margin-bottom: 2px; color: var(--gmd-ink); }
 @media (hover:hover) and (pointer:fine) { .gmd-app .gmd-sidebar a:not([aria-current]):hover { background: #eaeaea; } }
-.gmd-workspace { --gmd-pad: 28px; min-width: 0; min-height: calc(100dvh - 84px); background: #fff; border: 1px solid #e2e2e2; border-right: 0; border-bottom: 0; border-top-left-radius: 14px; }
+.gmd-workspace { --gmd-pad: 32px; min-width: 0; min-height: calc(100dvh - 94px); background: #fff; border: 1px solid #e2e2e2; border-right: 0; border-bottom: 0; border-top-left-radius: 14px; }
 /* The page spans the panel; --gmd-pad is its side margin, which the edge-to-edge regions step back over. */
 .gmd-main { max-width: none; padding: 0 var(--gmd-pad) 56px; min-height: 0; }
-.gmd-footer { max-width: none; padding: 18px var(--gmd-pad); font-size: 12px; }
+.gmd-footer { max-width: none; padding: 22px var(--gmd-pad); font-size: 15px; }
 /* The sidebar holds the pages on a wide screen; below that the header's own links stay. */
 @media (min-width: 931px) { .gmd-header .gmd-navigation { display: none; } }
 @media (max-width: 930px) {
@@ -77,33 +78,33 @@
 /* The title bar: the page's name and one line under it on the left, its pills on the right, on a
    rule across the panel. A breadcrumb sits small above the name; tabs, where a page has them, sit
    under it and carry the rule instead. */
-.gmd-app .gmd-main > :is(.gmd-page-heading, .gmd-product-heading) { display: flex; align-items: center; justify-content: space-between; gap: 12px 20px; min-height: 66px; margin: 0 calc(-1 * var(--gmd-pad)) 20px; padding: 16px var(--gmd-pad) 14px; border-bottom: 1px solid var(--gmd-line); }
-.gmd-app .gmd-main > :is(.gmd-page-heading, .gmd-product-heading) h1 { font-size: 18px; line-height: 1.3; }
-.gmd-app .gmd-main > .gmd-page-heading h1 + p { margin-top: 2px; font-size: 13px; }
-.gmd-app .gmd-main > .gmd-page-heading .gmd-ticker { margin-bottom: 2px; font-size: 12px; }
-.gmd-app .gmd-main > .gmd-breadcrumb { display: flex; width: max-content; margin: 0; padding-top: 14px; gap: 4px; font-size: 12px; }
-.gmd-app .gmd-main > .gmd-breadcrumb svg { width: 14px; height: 14px; }
+.gmd-app .gmd-main > :is(.gmd-page-heading, .gmd-product-heading) { display: flex; align-items: center; justify-content: space-between; gap: 14px 24px; min-height: 88px; margin: 0 calc(-1 * var(--gmd-pad)) 24px; padding: 22px var(--gmd-pad) 18px; border-bottom: 1px solid var(--gmd-line); }
+.gmd-app .gmd-main > :is(.gmd-page-heading, .gmd-product-heading) h1 { font-size: 28px; line-height: 1.25; letter-spacing: -.02em; }
+.gmd-app .gmd-main > .gmd-page-heading h1 + p { margin-top: 4px; font-size: 16px; }
+.gmd-app .gmd-main > .gmd-page-heading .gmd-ticker { margin-bottom: 2px; font-size: 14px; }
+.gmd-app .gmd-main > .gmd-breadcrumb { display: flex; width: max-content; margin: 0; padding-top: 18px; gap: 6px; font-size: 15px; }
+.gmd-app .gmd-main > .gmd-breadcrumb svg { width: 16px; height: 16px; }
 .gmd-app .gmd-main > .gmd-breadcrumb + :is(.gmd-page-heading, .gmd-product-heading) { min-height: 0; padding-top: 4px; }
 .gmd-app .gmd-main > .gmd-breadcrumb:not(:has(+ :is(.gmd-page-heading, .gmd-product-heading))) { margin-bottom: 16px; }
 .gmd-app .gmd-main > :is(.gmd-page-heading, .gmd-product-heading):has(+ :is(.gmd-categories, .gmd-product-sections)) { margin-bottom: 0; padding-bottom: 8px; border-bottom: 0; }
 .gmd-page-actions { display: flex; align-items: center; gap: 8px; flex-shrink: 0; }
-.gmd-app .gmd-pill { display: inline-flex; align-items: center; gap: 6px; min-height: 32px; padding: 5px 12px; border: 1px solid var(--gmd-line); border-radius: 999px; background: #fff; color: var(--gmd-ink); font-size: 13px; font-weight: 500; white-space: nowrap; text-decoration: none; }
+.gmd-app .gmd-pill { display: inline-flex; align-items: center; gap: 8px; min-height: 42px; padding: 8px 16px; border: 1px solid var(--gmd-line); border-radius: 999px; background: #fff; color: var(--gmd-ink); font-size: 15px; font-weight: 500; white-space: nowrap; text-decoration: none; }
 .gmd-pill svg { color: var(--gmd-copy); }
-.gmd-app .gmd-page-actions .gmd-button { min-height: 32px; padding: 5px 14px; }
+.gmd-app .gmd-page-actions .gmd-button { min-height: 42px; padding: 8px 18px; }
 @media (hover:hover) and (pointer:fine) { .gmd-app .gmd-pill:hover { background: var(--gmd-soft); } }
 /* A product's name in the bar: its mark small, the name with its ticker beside it, the line under. */
 .gmd-main > .gmd-product-heading .gmd-product-identity { gap: 12px; }
-.gmd-main > .gmd-product-heading .gmd-product-monogram { width: 38px; height: 40px; padding: 7px 6px; gap: 2px; border-radius: 8px; }
-.gmd-main > .gmd-product-heading .gmd-product-monogram i { width: 3px; }
+.gmd-main > .gmd-product-heading .gmd-product-monogram { width: 50px; height: 54px; padding: 9px 7px; gap: 3px; border-radius: 10px; }
+.gmd-main > .gmd-product-heading .gmd-product-monogram i { width: 4px; }
 .gmd-main > .gmd-product-heading .gmd-product-identity > div:last-child { display: flex; flex-wrap: wrap; align-items: center; column-gap: 8px; }
 .gmd-main > .gmd-product-heading .gmd-product-identity h1 { order: 1; }
-.gmd-app .gmd-main > .gmd-product-heading .gmd-ticker { order: 2; margin: 0; padding: 1px 8px; border-radius: 999px; background: var(--gmd-tint); color: var(--gmd-accent); font-size: 12px; }
+.gmd-app .gmd-main > .gmd-product-heading .gmd-ticker { order: 2; margin: 0; padding: 1px 8px; border-radius: 999px; background: var(--gmd-tint); color: var(--gmd-accent); font-size: 14px; }
 .gmd-main > .gmd-product-heading .gmd-ticker span { margin-inline-start: 4px; color: var(--gmd-copy); }
-.gmd-app .gmd-main > .gmd-product-heading .gmd-product-identity p { order: 3; flex-basis: 100%; max-width: none; margin-top: 2px; font-size: 13px; }
+.gmd-app .gmd-main > .gmd-product-heading .gmd-product-identity p { order: 3; flex-basis: 100%; max-width: none; margin-top: 2px; font-size: 15px; }
 /* Tabs under the title: the console's underlined ones, the first marked. */
-.gmd-app .gmd-main > :is(.gmd-categories, .gmd-product-sections) { display: flex; flex-wrap: nowrap; gap: 2px; margin: 0 calc(-1 * var(--gmd-pad)) 20px; padding: 0 calc(var(--gmd-pad) - 12px); border-bottom: 1px solid var(--gmd-line); border-radius: 0; background: transparent; overflow-x: auto; scrollbar-width: none; font-size: 13px; }
-.gmd-app .gmd-main > :is(.gmd-categories, .gmd-product-sections) > :is(a, button) { display: inline-flex; align-items: center; gap: 5px; padding: 8px 12px 9px; margin: 0 0 -1px; border-radius: 0; border-bottom: 2px solid transparent; background: transparent; box-shadow: none; color: var(--gmd-copy); font-weight: 500; white-space: nowrap; text-decoration: none; }
-.gmd-app .gmd-categories button b { font-size: 13px; font-weight: 500; color: inherit; }
+.gmd-app .gmd-main > :is(.gmd-categories, .gmd-product-sections) { display: flex; flex-wrap: nowrap; gap: 2px; margin: 0 calc(-1 * var(--gmd-pad)) 20px; padding: 0 calc(var(--gmd-pad) - 16px); border-bottom: 1px solid var(--gmd-line); border-radius: 0; background: transparent; overflow-x: auto; scrollbar-width: none; font-size: 16px; }
+.gmd-app .gmd-main > :is(.gmd-categories, .gmd-product-sections) > :is(a, button) { display: inline-flex; align-items: center; gap: 6px; padding: 12px 16px 13px; margin: 0 0 -1px; border-radius: 0; border-bottom: 2px solid transparent; background: transparent; box-shadow: none; color: var(--gmd-copy); font-weight: 500; white-space: nowrap; text-decoration: none; }
+.gmd-app .gmd-categories button b { font-size: 16px; font-weight: 500; color: inherit; }
 .gmd-app .gmd-categories button small { display: none; }
 .gmd-app .gmd-main > .gmd-categories > button[aria-pressed="true"], .gmd-app .gmd-main > .gmd-product-sections > a:first-child { border-bottom-color: var(--gmd-ink); background: transparent; box-shadow: none; color: var(--gmd-ink); }
 .gmd-app .gmd-categories button[aria-pressed="true"] b { color: var(--gmd-ink); }
@@ -111,7 +112,7 @@
 @media (max-width: 600px) {
   .gmd-app .gmd-main > :is(.gmd-page-heading, .gmd-product-heading) { flex-wrap: wrap; align-items: flex-start; min-height: 0; padding-block: 14px 12px; }
   .gmd-app .gmd-main > .gmd-breadcrumb + :is(.gmd-page-heading, .gmd-product-heading) { padding-top: 4px; }
-  .gmd-app .gmd-main > :is(.gmd-page-heading, .gmd-product-heading) h1 { font-size: 17px; }
+  .gmd-app .gmd-main > :is(.gmd-page-heading, .gmd-product-heading) h1 { font-size: 20px; }
   .gmd-main > .gmd-product-heading .gmd-product-monogram { width: 32px; height: 34px; padding: 6px 5px; }
   .gmd-page-actions { width: 100%; }
   .gmd-page-actions .gmd-button { margin-inline-start: auto; }
@@ -121,37 +122,37 @@
 
 /* Type: copy at 14px, captions at 12px. */
 .gmd-app .gmd-section-heading { margin-bottom: 16px; }
-.gmd-app .gmd-section-heading h2 { font-size: 16px; }
-.gmd-app .gmd-section-heading p { font-size: 13px; margin-top: 3px; }
+.gmd-app .gmd-section-heading h2 { font-size: 18px; }
+.gmd-app .gmd-section-heading p { font-size: 15px; margin-top: 3px; }
 .gmd-app p { color: var(--gmd-copy); }
-.gmd-app .gmd-caption { font-size: 12px; }
+.gmd-app .gmd-caption { font-size: 14px; }
 
 /* Buttons: black pills; the secondary ones white with a thin border. */
-.gmd-app .gmd-button { gap: 8px; min-height: 34px; padding: 6px 14px; border-radius: 8px; background: var(--gmd-ink); border-color: var(--gmd-ink); color: #fff; font-size: 13px; font-weight: 500; box-shadow: none; }
-.gmd-app .gmd-button.is-secondary, .gmd-app .gmd-small-button { background: #fff; color: var(--gmd-ink); border: 1px solid var(--gmd-line); border-radius: 8px; min-height: 32px; padding: 5px 12px; font-size: 13px; }
-.gmd-feature-title > .gmd-button { min-height: 34px; padding: 6px 14px; }
+.gmd-app .gmd-button { gap: 8px; min-height: 44px; padding: 10px 18px; border-radius: 10px; background: var(--gmd-ink); border-color: var(--gmd-ink); color: #fff; font-size: 15px; font-weight: 500; box-shadow: none; }
+.gmd-app .gmd-button.is-secondary, .gmd-app .gmd-small-button { background: #fff; color: var(--gmd-ink); border: 1px solid var(--gmd-line); border-radius: 10px; min-height: 40px; padding: 8px 16px; font-size: 15px; }
+.gmd-feature-title > .gmd-button { min-height: 44px; padding: 10px 18px; }
 @media (hover:hover) and (pointer:fine) {
   .gmd-app .gmd-button:hover { background: #2e2e2e; border-color: #2e2e2e; }
   .gmd-app .gmd-button.is-secondary:hover, .gmd-app .gmd-small-button:hover { background: var(--gmd-soft); }
   .gmd-activity-rows > a:hover, .gmd-app .gmd-activity-list li > a:hover, .gmd-app .gmd-constituent:hover:not(:disabled), .gmd-app .gmd-drawer-nav button:hover, .gmd-flow-steps button:hover, .gmd-app .gmd-range-history .gmd-icon-button:hover:not(:disabled), .gmd-shape-chip button:hover { background: var(--gmd-soft); }
 }
 .gmd-inline-link { color: var(--gmd-ink) !important; text-decoration: underline; text-underline-offset: 3px; text-decoration-color: #c4c4c4; }
-.gmd-app .gmd-text-button { font-size: 13px; }
+.gmd-app .gmd-text-button { font-size: 15px; }
 
 /* Cards: white, a thin grey border, 12px corners, 20px inside; no coloured rule on top. */
 .gmd-app :is(.gmd-fund, .gmd-fund-list, .gmd-market-pulse, .gmd-pools-more, .gmd-pool-list, .gmd-order-panel) { border-color: var(--gmd-line); border-radius: 12px; }
 .gmd-app .gmd-order-panel { border-top: 1px solid var(--gmd-line); }
 .gmd-app :is(.gmd-fund, .gmd-fund-list, .gmd-market-pulse) { padding: 20px 22px; margin-top: 20px; }
 .gmd-app .gmd-price-confidence { margin-block: 20px; padding: 22px; border-color: var(--gmd-line); border-radius: 12px; }
-.gmd-badge { border-radius: 999px; padding: 2px 9px; font-size: 12px; background: #fff; }
+.gmd-badge { border-radius: 999px; padding: 2px 9px; font-size: 14px; background: #fff; }
 @media (max-width: 600px) { .gmd-app :is(.gmd-fund, .gmd-fund-list, .gmd-market-pulse, .gmd-price-confidence) { padding: 16px; } }
 
 /* Figures in a row: one bordered strip, its cells on hairlines, as the console's stats. */
 .gmd-app :is(.gmd-fund-grid, .gmd-pools-summary-stats, .gmd-strategy-facts, .gmd-activity-day) { gap: 1px; background: var(--gmd-line); border: 1px solid var(--gmd-line); border-radius: 10px; overflow: hidden; }
-.gmd-app :is(.gmd-fund-grid article, .gmd-pools-summary-stats > div, .gmd-strategy-facts > div, .gmd-activity-day > div) { background: #fff; border: 0; border-radius: 0; padding: 12px 16px; }
-.gmd-fund-grid strong { font-size: 19px; }
-.gmd-pools-summary-stats strong { font-size: 19px; }
-.gmd-strategy-facts dd { font-size: 16px; }
+.gmd-app :is(.gmd-fund-grid article, .gmd-pools-summary-stats > div, .gmd-strategy-facts > div, .gmd-activity-day > div) { background: #fff; border: 0; border-radius: 0; padding: 16px 20px; }
+.gmd-fund-grid strong { font-size: 24px; }
+.gmd-pools-summary-stats strong { font-size: 24px; }
+.gmd-strategy-facts dd { font-size: 18px; }
 
 /* Segmented controls: a grey track with the chosen one raised in white. */
 .gmd-segmented { background: #efefef; border-radius: 8px; }
@@ -159,8 +160,9 @@
 .gmd-segmented button[aria-pressed=true] { color: var(--gmd-ink); font-weight: 500; box-shadow: 0 1px 2px #0000001f; }
 
 /* Tables: small uppercase headings in grey, rows on thin dividers. */
-.gmd-table { font-size: 13px; }
-.gmd-table thead th { font-size: 11px; font-weight: 600; letter-spacing: .04em; text-transform: uppercase; color: #6b6b6b; }
+.gmd-app .gmd-table { font-size: 16px; }
+.gmd-app .gmd-table :is(th,td) { padding-block: 15px; }
+.gmd-app .gmd-table thead th { font-size: 14px; font-weight: 500; letter-spacing: 0; text-transform: none; color: #6b6b6b; padding-block: 8px 12px; }
 
 /* A chosen option or row: the accent's tint; marks and states in the accent, not the old green. */
 .gmd-app .gmd-check-chip.is-matched { border-color: var(--gmd-tint-line); background: var(--gmd-tint); }
@@ -196,17 +198,17 @@
    under the title (its figures, three questions and a next step), the chat button in the corner, the
    chat itself and the explain buttons on Pools. */
 .gmd-app { --gmd-ai: #6d4aff; --gmd-ai-2: #2f6bff; --gmd-ai-ink: #2d1b84; --gmd-ai-line: #d8ccff; --gmd-ai-wash: linear-gradient(110deg, #f5f1ff 0%, #eef2ff 55%, #ecf7ff 100%); --gmd-ai-fill: linear-gradient(135deg, var(--gmd-ai), var(--gmd-ai-2)); }
-.gmd-app .gmd-ask-guide { grid-template-columns: minmax(0,1fr); gap: 10px; margin: 0 0 20px; padding: 12px 14px; border: 1px solid var(--gmd-ai-line); border-radius: 12px; background: var(--gmd-ai-wash); }
+.gmd-app .gmd-ask-guide { grid-template-columns: minmax(0,1fr); gap: 12px; margin: 0 0 24px; padding: 16px 18px; border: 1px solid var(--gmd-ai-line); border-radius: 12px; background: var(--gmd-ai-wash); }
 .gmd-ask-guide-head { align-items: center; gap: 10px; }
-.gmd-app .gmd-ask-guide-mark { flex: 0 0 30px; width: 30px; height: 30px; border-radius: 9px; background: var(--gmd-ai-fill); color: #fff; box-shadow: 0 2px 8px #6d4aff47; }
-.gmd-app .gmd-ask-guide h2 { font-size: 14px; color: var(--gmd-ai-ink); }
+.gmd-app .gmd-ask-guide-mark { flex: 0 0 38px; width: 38px; height: 38px; border-radius: 11px; background: var(--gmd-ai-fill); color: #fff; box-shadow: 0 2px 8px #6d4aff47; }
+.gmd-app .gmd-ask-guide h2 { font-size: 18px; color: var(--gmd-ai-ink); }
 .gmd-app .gmd-ask-guide h2 small { background: var(--gmd-ai-fill); color: #fff; }
-.gmd-app .gmd-ask-guide-head p { margin-top: 1px; font-size: 13px; color: #4b4470; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+.gmd-app .gmd-ask-guide-head p { margin-top: 2px; font-size: 16px; color: #4b4470; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
 .gmd-app .gmd-ask-guide-head p.is-open { display: block; overflow: visible; }
 .gmd-ask-guide-actions { gap: 6px; }
-.gmd-app .gmd-ask-guide-actions button { min-height: 30px; padding: 4px 11px; font-size: 12px; color: var(--gmd-ai-ink); border-color: var(--gmd-ai-line) !important; background: #ffffffcc !important; }
+.gmd-app .gmd-ask-guide-actions button { min-height: 40px; padding: 8px 15px; font-size: 15px; color: var(--gmd-ai-ink); border-color: var(--gmd-ai-line) !important; background: #ffffffcc !important; }
 @media (hover:hover) and (pointer:fine) { .gmd-app .gmd-ask-guide-actions button:hover { border-color: var(--gmd-ai) !important; background: #fff !important; } }
-.gmd-app .gmd-ask-guide-step { min-height: 30px; padding: 4px 12px; font-size: 12px; font-weight: 500; background: var(--gmd-ai-fill); }
+.gmd-app .gmd-ask-guide-step { min-height: 40px; padding: 8px 16px; font-size: 15px; font-weight: 600; background: var(--gmd-ai-fill); }
 .gmd-app :is(.gmd-pool-ask, .gmd-strategy-ask) { border-color: var(--gmd-ai-line); background: var(--gmd-ai-wash); }
 .gmd-app :is(.gmd-pool-ask, .gmd-strategy-ask) b { color: var(--gmd-ai-ink); }
 .gmd-app .gmd-lq-explain { border-color: var(--gmd-ai-line) !important; background: #f5f1ff !important; color: var(--gmd-ai-ink); }
@@ -214,11 +216,12 @@
 @media (hover:hover) and (pointer:fine) { .gmd-app .gmd-lq-explain:hover { border-color: var(--gmd-ai) !important; } }
 
 /* The chat button in the bottom-right corner, over the phone's bottom bar there. */
-.gmd-app .gmd-ask-launcher { position: fixed; z-index: 41; right: 24px; bottom: 24px; display: inline-flex; align-items: center; gap: 8px; min-height: 48px; padding: 10px 16px 10px 14px; border: 0; border-radius: 999px; background: var(--gmd-ai-fill); color: #fff; font-size: 14px; font-weight: 600; box-shadow: 0 10px 28px #4c30d659, 0 2px 6px #0000001f; transition: transform 160ms var(--gmd-ease-out), box-shadow 160ms; }
-.gmd-ask-launcher small { padding: 1px 6px; border-radius: 999px; background: #ffffff38; font-size: 10px; font-weight: 700; letter-spacing: .04em; }
+.gmd-app .gmd-ask-launcher { position: fixed; z-index: 41; right: 24px; bottom: 24px; display: inline-flex; align-items: center; gap: 8px; min-height: 56px; padding: 12px 20px 12px 18px; border: 0; border-radius: 999px; background: var(--gmd-ai-fill); color: #fff; font-size: 17px; font-weight: 600; box-shadow: 0 10px 28px #4c30d659, 0 2px 6px #0000001f; transition: transform 160ms var(--gmd-ease-out), box-shadow 160ms; }
+.gmd-ask-launcher small { padding: 1px 6px; border-radius: 999px; background: #ffffff38; font-size: 12px; font-weight: 700; letter-spacing: .04em; }
 @media (hover:hover) and (pointer:fine) { .gmd-app .gmd-ask-launcher:hover { transform: translateY(-1px); box-shadow: 0 14px 34px #4c30d670, 0 2px 6px #0000001f; } }
 .gmd-app .gmd-ask-launcher:focus-visible { outline: 2px solid var(--gmd-ai-ink); outline-offset: 3px; }
-@media (max-width: 600px) { .gmd-app .gmd-ask-launcher { right: 16px; bottom: calc(76px + env(safe-area-inset-bottom)); min-height: 44px; padding: 8px 14px 8px 12px; } }
+/* On a phone the button is a round mark, so it covers less of the page. */
+@media (max-width: 600px) { .gmd-app .gmd-ask-launcher { right: 16px; bottom: calc(78px + env(safe-area-inset-bottom)); width: 56px; height: 56px; min-height: 0; padding: 0; justify-content: center; } .gmd-ask-launcher span, .gmd-ask-launcher small { display: none; } .gmd-ask-launcher svg { width: 24px; height: 24px; } }
 @media print { .gmd-ask-launcher { display: none; } }
 
 /* The fund's mark: black, grey and violet bars. */
@@ -230,27 +233,27 @@
 
 /* Markets: the featured fund across the panel, as the console's usage page lays out its spend: the NAV,
    the fund's figures and the chart on the left, and the basket in a column on the right behind a hairline. */
-.gmd-app .gmd-main > .gmd-market-feature { grid-template-columns: minmax(0,1fr) 340px; margin-inline: calc(-1 * var(--gmd-pad)); border-inline: 0; border-radius: 0; }
+.gmd-app .gmd-main > .gmd-market-feature { grid-template-columns: minmax(0,1fr) 400px; margin-inline: calc(-1 * var(--gmd-pad)); border-inline: 0; border-radius: 0; }
 .gmd-market-feature:focus-visible { outline-offset: -2px; }
 .gmd-market-primary { padding: 20px var(--gmd-pad) 18px; }
-.gmd-market-primary .gmd-value { font-size: 30px; letter-spacing: -.02em; }
+.gmd-market-primary .gmd-value { font-size: 46px; letter-spacing: -.02em; }
 .gmd-market-primary .gmd-nav-summary { margin-top: 16px; margin-bottom: 14px; }
 .gmd-market-primary .gmd-feature-bottom { margin-top: 16px; padding-top: 14px; border-top-color: var(--gmd-line); }
-.gmd-market-primary .gmd-product-monogram { width: 38px; height: 40px; padding: 7px 6px; gap: 2px; }
-.gmd-market-primary .gmd-product-monogram i { width: 3px; }
-.gmd-market-primary .gmd-feature-title :is(h1,h2) { font-size: 16px; }
-.gmd-market-primary .gmd-feature-title p { font-size: 13px; margin-top: 2px; }
-.gmd-market-primary .gmd-ticker { font-size: 12px; margin-bottom: 2px; }
+.gmd-market-primary .gmd-product-monogram { width: 50px; height: 54px; padding: 9px 7px; gap: 3px; }
+.gmd-market-primary .gmd-product-monogram i { width: 4px; }
+.gmd-market-primary .gmd-feature-title :is(h1,h2) { font-size: 24px; }
+.gmd-market-primary .gmd-feature-title p { font-size: 15px; margin-top: 2px; }
+.gmd-market-primary .gmd-ticker { font-size: 14px; margin-bottom: 2px; }
 /* The fund's figures under its NAV: one strip of three on hairlines; the pools' gaps on the line under. */
 .gmd-app .gmd-market-primary .gmd-fund-stats { gap: 1px; margin: 0 0 12px; padding: 0; border: 1px solid var(--gmd-line); border-radius: 10px; background: var(--gmd-line); overflow: hidden; }
-.gmd-app .gmd-market-primary .gmd-fund-stats > div { padding: 10px 14px; background: #fff; }
-.gmd-app .gmd-market-primary .gmd-fund-stats dd { font-size: 17px; }
-.gmd-app .gmd-market-primary .gmd-pool-gaps { margin: 0 0 6px; font-size: 13px; }
+.gmd-app .gmd-market-primary .gmd-fund-stats > div { padding: 14px 18px; background: #fff; }
+.gmd-app .gmd-market-primary .gmd-fund-stats dd { font-size: 24px; }
+.gmd-app .gmd-market-primary .gmd-pool-gaps { margin: 0 0 6px; font-size: 15px; }
 .gmd-app .gmd-market-composition { padding: 16px 20px; border-inline-start: 1px solid var(--gmd-line); background: #fff; }
 .gmd-market-composition .gmd-section-heading { margin-bottom: 10px; }
-.gmd-app .gmd-market-composition .gmd-section-heading h2 { font-size: 15px; }
+.gmd-app .gmd-market-composition .gmd-section-heading h2 { font-size: 17px; }
 .gmd-fund-list .gmd-section-heading { margin-bottom: 8px; }
-@media (max-width: 1180px) { .gmd-app .gmd-main > .gmd-market-feature { grid-template-columns: minmax(0,1fr) 300px; } }
+@media (max-width: 1180px) { .gmd-app .gmd-main > .gmd-market-feature { grid-template-columns: minmax(0,1fr) 360px; } }
 @media (max-width: 930px) {
   .gmd-app .gmd-main > .gmd-market-feature { grid-template-columns: minmax(0,1fr); }
   .gmd-app .gmd-market-composition { border-inline-start: 0; border-top: 1px solid var(--gmd-line); }
@@ -258,7 +261,7 @@
 @media (max-width: 600px) {
   .gmd-market-primary { padding: 16px var(--gmd-pad); }
   .gmd-app .gmd-market-primary .gmd-fund-stats > div { padding: 9px 10px; }
-  .gmd-app .gmd-market-primary .gmd-fund-stats dd { font-size: 15px; }
+  .gmd-app .gmd-market-primary .gmd-fund-stats dd { font-size: 17px; }
   .gmd-app .gmd-market-composition { padding-inline: var(--gmd-pad); }
 }
 
@@ -270,12 +273,12 @@
 .gmd-app .gmd-main > .gmd-detail-layout > .gmd-detail-aside > .gmd-order-panel { border: 0; border-radius: 0; padding: 20px 22px 24px; background: transparent; }
 .gmd-app .gmd-main > .gmd-pools-layout > .gmd-detail-aside { max-height: 100dvh; }
 .gmd-app .gmd-main > .gmd-detail-layout .gmd-price-surface { padding: 0 0 4px; border: 0; border-radius: 0; background: transparent; }
-.gmd-app .gmd-main > .gmd-detail-layout .gmd-price-surface .gmd-value { font-size: 30px; letter-spacing: -.02em; }
+.gmd-app .gmd-main > .gmd-detail-layout .gmd-price-surface .gmd-value { font-size: 46px; letter-spacing: -.02em; }
 .gmd-app .gmd-main > .gmd-detail-layout .gmd-composition-surface { margin-top: 20px; }
 .gmd-app .gmd-order-heading { margin-bottom: 16px; }
-.gmd-app .gmd-order-heading h2 { font-size: 16px; }
+.gmd-app .gmd-order-heading h2 { font-size: 18px; }
 .gmd-app .gmd-main > .gmd-pools-layout .gmd-pools-summary { margin: 0; padding: 0; border: 0; border-radius: 0; background: transparent; }
-.gmd-app .gmd-pools-summary h2 { font-size: 16px; }
+.gmd-app .gmd-pools-summary h2 { font-size: 18px; }
 .gmd-app .gmd-pools-more { margin-top: 20px; }
 @media (max-width: 1180px) { .gmd-app .gmd-main > .gmd-detail-layout { --gmd-aside: 320px; } }
 @media (max-width: 930px) {
@@ -285,16 +288,16 @@
 }
 @media (max-width: 600px) {
   .gmd-app .gmd-main > .gmd-detail-layout > .gmd-detail-content { padding: 16px var(--gmd-pad) 22px; }
-  .gmd-app .gmd-main > .gmd-detail-layout .gmd-price-surface .gmd-value { font-size: 28px; }
+  .gmd-app .gmd-main > .gmd-detail-layout .gmd-price-surface .gmd-value { font-size: 36px; }
 }
 
 /* The documents: the side menu as the console's settings list, small and grey. */
 .gmd-document-layout { gap: 48px; }
-.gmd-document-menu > span { font-size: 12px; color: #8a8a8a; margin-bottom: 6px; }
-.gmd-app .gmd-document-menu a { min-height: 32px; padding: 6px 10px; border-radius: 7px; border-inline-start: 0; font-size: 13px; color: #303030; }
-.gmd-document header h1 { font-size: 24px; }
-.gmd-document header p { font-size: 16px; margin-top: 10px; }
-.gmd-document section h2 { font-size: 18px; }
+.gmd-document-menu > span { font-size: 14px; color: #8a8a8a; margin-bottom: 6px; }
+.gmd-app .gmd-document-menu a { min-height: 32px; padding: 6px 10px; border-radius: 7px; border-inline-start: 0; font-size: 15px; color: #303030; }
+.gmd-document header h1 { font-size: 30px; }
+.gmd-document header p { font-size: 18px; margin-top: 10px; }
+.gmd-document section h2 { font-size: 22px; }
 
 /* The NAV over a chart, as the console heads one: the label, the figure, then one line of when it was
    recorded and when the next one is due, the price source last. The fund's name carries its ticker beside it. */
@@ -302,7 +305,7 @@
 .gmd-app :is(.gmd-market-primary, .gmd-price-surface) .gmd-nav-summary .gmd-value { margin-top: 2px; }
 .gmd-app :is(.gmd-market-primary, .gmd-price-surface) .gmd-nav-meta { flex-direction: row; flex-wrap: wrap; align-items: center; gap: 4px 14px; padding: 0; }
 .gmd-app :is(.gmd-market-primary, .gmd-price-surface) .gmd-nav-meta > :first-child { order: 9; }
-.gmd-app :is(.gmd-market-primary, .gmd-price-surface) .gmd-nav-meta time { font-size: 13px; }
+.gmd-app :is(.gmd-market-primary, .gmd-price-surface) .gmd-nav-meta time { font-size: 15px; }
 .gmd-market-primary .gmd-product-identity > div:last-child { display: flex; flex-wrap: wrap; align-items: center; column-gap: 8px; }
 .gmd-market-primary .gmd-product-identity :is(h1,h2) { order: 1; }
 .gmd-app .gmd-market-primary .gmd-ticker { order: 2; margin: 0; padding: 1px 8px; border-radius: 999px; background: var(--gmd-tint); color: var(--gmd-accent); }
@@ -317,37 +320,37 @@
 
 /* Transparency's price check: a card of three sources on hairlines, its title at 20px, no coloured
    rules; the browser's own result in the accent's tint. */
-.gmd-app .gmd-price-eyebrow { color: #8a8a8a; font-size: 11px; letter-spacing: .06em; margin-bottom: 4px; }
+.gmd-app .gmd-price-eyebrow { color: #8a8a8a; font-size: 13px; letter-spacing: .06em; margin-bottom: 4px; }
 .gmd-app .gmd-price-confidence-heading { margin-bottom: 18px; }
-.gmd-app .gmd-price-confidence-heading h2 { font-size: 20px; letter-spacing: -.01em; }
-.gmd-app .gmd-price-confidence.is-compact .gmd-price-confidence-heading h2 { font-size: 17px; }
-.gmd-app .gmd-price-confidence-heading p { margin-top: 3px; font-size: 13px; }
+.gmd-app .gmd-price-confidence-heading h2 { font-size: 25px; letter-spacing: -.01em; }
+.gmd-app .gmd-price-confidence.is-compact .gmd-price-confidence-heading h2 { font-size: 20px; }
+.gmd-app .gmd-price-confidence-heading p { margin-top: 3px; font-size: 15px; }
 .gmd-app .gmd-price-path { gap: 12px; }
 .gmd-app .gmd-price-source { padding: 16px 18px; border: 1px solid var(--gmd-line); background: #fff; }
 .gmd-app .gmd-price-source.is-browser { border-color: var(--gmd-tint-line); background: var(--gmd-tint); }
 .gmd-app .gmd-price-source-label { margin-bottom: 10px; }
-.gmd-app .gmd-price-source h3 { font-size: 15px; }
-.gmd-app .gmd-price-source > strong { margin-top: 10px; font-size: 24px; letter-spacing: -.02em; }
-.gmd-app .gmd-price-source p { font-size: 13px; margin-bottom: 12px; }
+.gmd-app .gmd-price-source h3 { font-size: 17px; }
+.gmd-app .gmd-price-source > strong { margin-top: 10px; font-size: 30px; letter-spacing: -.02em; }
+.gmd-app .gmd-price-source p { font-size: 15px; margin-bottom: 12px; }
 .gmd-price-path-join svg { stroke: #c4c4c4; }
 .gmd-app .gmd-price-outcome { padding: 16px 18px; }
-.gmd-app .gmd-price-outcome h3 { font-size: 16px; }
-.gmd-app .gmd-price-outcome p { font-size: 13px; }
-.gmd-app .gmd-price-difference b { font-size: 22px; }
+.gmd-app .gmd-price-outcome h3 { font-size: 18px; }
+.gmd-app .gmd-price-outcome p { font-size: 15px; }
+.gmd-app .gmd-price-difference b { font-size: 26px; }
 .gmd-app .gmd-price-tabs { gap: 2px; padding-top: 0; }
-.gmd-app .gmd-price-tabs button { padding: 9px 12px; margin-bottom: -1px; border-radius: 0; border-bottom: 2px solid transparent; background: transparent; color: var(--gmd-copy); font-size: 13px; font-weight: 500; }
+.gmd-app .gmd-price-tabs button { padding: 9px 12px; margin-bottom: -1px; border-radius: 0; border-bottom: 2px solid transparent; background: transparent; color: var(--gmd-copy); font-size: 15px; font-weight: 500; }
 .gmd-app .gmd-price-tabs button[aria-pressed="true"] { background: transparent; color: var(--gmd-ink); border-bottom-color: var(--gmd-ink); }
 .gmd-app .gmd-price-tabs { border-top: 0; border-bottom: 1px solid var(--gmd-line); margin-top: 6px; }
 .gmd-app .gmd-price-detail { padding-top: 18px; }
-.gmd-app .gmd-price-detail-heading h3 { font-size: 16px; }
+.gmd-app .gmd-price-detail-heading h3 { font-size: 18px; }
 .gmd-app :is(.gmd-price-gauge, .gmd-price-totals) { background: var(--gmd-soft); }
 .gmd-price-gauge-track { background: #e4e4e4; }
 .gmd-price-gauge-band { background: color-mix(in srgb, var(--gmd-ustx) 25%, transparent); }
 .gmd-price-gauge-dot { box-shadow: 0 0 0 1px var(--gmd-accent); }
-.gmd-app .gmd-price-totals strong { font-size: 21px; }
+.gmd-app .gmd-price-totals strong { font-size: 26px; }
 .gmd-app .gmd-evidence-summary { padding: 18px 20px; gap: 14px; grid-template-columns: 40px 1fr auto; }
-.gmd-app .gmd-evidence-summary h2 { font-size: 16px; }
-.gmd-app .gmd-evidence-summary p { font-size: 13px; margin-top: 4px; }
+.gmd-app .gmd-evidence-summary h2 { font-size: 18px; }
+.gmd-app .gmd-evidence-summary p { font-size: 15px; margin-top: 4px; }
 .gmd-app .gmd-evidence-icon { width: 40px; height: 40px; }
 
 /* A fund's page: the same two columns across the panel as USTX's, the order panel in the right one. */
@@ -355,18 +358,18 @@
 @media (max-width: 1180px) { .gmd-app .gmd-main > .gmd-fund-layout { --gmd-aside: 300px; } }
 .gmd-app .gmd-main > .gmd-fund-layout > .gmd-fund-main { min-width: 0; padding: 20px var(--gmd-pad) 28px; }
 .gmd-app .gmd-main > .gmd-fund-layout > .gmd-fund-order { top: 0; border: 0; border-radius: 0; padding: 20px 22px 24px; background: transparent; }
-.gmd-app .gmd-fund-order h2 { font-size: 16px; }
+.gmd-app .gmd-fund-order h2 { font-size: 18px; }
 .gmd-app .gmd-main > .gmd-fund-layout .gmd-fund-hero { padding: 0 0 4px; border: 0; border-radius: 0; background: transparent; }
-.gmd-app .gmd-fund-hero strong { font-size: 30px; }
+.gmd-app .gmd-fund-hero strong { font-size: 42px; }
 @media (max-width: 930px) {
   .gmd-app .gmd-main > .gmd-fund-layout { grid-template-columns: minmax(0,1fr); background: none; }
   .gmd-app .gmd-main > .gmd-fund-layout > * + * { border-top: 1px solid var(--gmd-line); }
   .gmd-app .gmd-main > .gmd-fund-layout > .gmd-fund-order { padding: 18px var(--gmd-pad) 22px; }
 }
-@media (max-width: 600px) { .gmd-app .gmd-main > .gmd-fund-layout > .gmd-fund-main { padding: 16px var(--gmd-pad) 22px; } .gmd-app .gmd-fund-hero strong { font-size: 28px; } }
+@media (max-width: 600px) { .gmd-app .gmd-main > .gmd-fund-layout > .gmd-fund-main { padding: 16px var(--gmd-pad) 22px; } .gmd-app .gmd-fund-hero strong { font-size: 36px; } }
 
 /* A document's title bar: where it sits, as the console's breadcrumb, over the side menu and the text. */
-.gmd-crumbs { display: flex; align-items: center; gap: 8px; font-size: 14px; color: var(--gmd-copy); }
+.gmd-crumbs { display: flex; align-items: center; gap: 8px; font-size: 16px; color: var(--gmd-copy); }
 .gmd-app .gmd-crumbs a { color: var(--gmd-copy); }
 .gmd-crumbs [aria-current] { color: var(--gmd-ink); font-weight: 600; }
 .gmd-crumbs > span[aria-hidden] { color: #b5b5b5; }
@@ -386,12 +389,12 @@
 .gmd-app .gmd-ask > header span { color: #ffffffcc; }
 .gmd-app .gmd-ask > header button { color: #fff; }
 .gmd-app .gmd-ask > header .gmd-ask-reset { border-color: #ffffff66; }
-.gmd-app .gmd-ask-turn p { font-size: 14px; }
+.gmd-app .gmd-ask-turn p { font-size: 16px; }
 .gmd-app .gmd-ask-turn.is-user { background: var(--gmd-ai-fill); }
 .gmd-app .gmd-ask-turn.is-user p { color: #fff; }
 .gmd-app .gmd-ask-turn.is-assistant { background: #f5f3fc; }
 .gmd-app .gmd-ask-turn small { color: #5b4fa3; }
-.gmd-app .gmd-ask-intro li button { border-color: var(--gmd-ai-line) !important; background: #faf8ff !important; color: var(--gmd-ai-ink); font-size: 13px; }
+.gmd-app .gmd-ask-intro li button { border-color: var(--gmd-ai-line) !important; background: #faf8ff !important; color: var(--gmd-ai-ink); font-size: 15px; }
 @media (hover:hover) and (pointer:fine) { .gmd-app .gmd-ask-intro li button:hover { border-color: var(--gmd-ai) !important; } }
 .gmd-app .gmd-ask textarea:focus { border-color: var(--gmd-ai); outline: none; }
 .gmd-app .gmd-ask form button { background: var(--gmd-ai-fill) !important; }
@@ -399,7 +402,7 @@
 .gmd-app .gmd-ask-note a { color: var(--gmd-ai-ink); }
 
 /* Rows of a table at the console's density where a mouse points; a touch screen keeps its taller targets. */
-@media (pointer: fine) { .gmd-app .gmd-asset-open { min-height: 0; } .gmd-app .gmd-basket-table .gmd-table :is(th,td) { padding-block: 9px; } }
+@media (pointer: fine) { .gmd-app .gmd-asset-open { min-height: 0; } }
 /* Ask USTX's mark keeps its square where it sits in a grid rather than a row. */
 .gmd-app :is(.gmd-strategy-ask, .gmd-pool-ask) .gmd-ask-guide-mark { width: 30px; height: 30px; flex: 0 0 30px; }
 
@@ -408,37 +411,37 @@
    them, and each action in a dialog with its amount and a transaction overview. */
 .gmd-lending { display: grid; gap: 20px; }
 .gmd-app .gmd-lending-summary { margin: 0 calc(-1 * var(--gmd-pad)); padding: 14px var(--gmd-pad) 18px; border-block: 1px solid var(--gmd-line); background: #fafafa; }
-.gmd-app .gmd-lending-summary h2 { margin: 0 0 10px; font-size: 11px; font-weight: 600; letter-spacing: .05em; text-transform: uppercase; color: #6b6b6b; }
+.gmd-app .gmd-lending-summary h2 { margin: 0 0 10px; font-size: 13px; font-weight: 600; letter-spacing: .05em; text-transform: uppercase; color: #6b6b6b; }
 .gmd-lending-summary dl { display: grid; grid-template-columns: repeat(5, minmax(0,1fr)); margin: 0; }
 .gmd-lending-summary dl > div { min-width: 0; padding: 2px 18px; border-inline-start: 1px solid var(--gmd-line); }
 .gmd-lending-summary dl > div:first-child { padding-inline-start: 0; border-inline-start: 0; }
-.gmd-lending-summary dt { font-size: 12px; color: var(--gmd-copy); }
+.gmd-lending-summary dt { font-size: 14px; color: var(--gmd-copy); }
 .gmd-lending-summary dd { display: grid; gap: 5px; margin: 4px 0 0; }
-.gmd-lending-summary strong { font-size: 20px; font-weight: 600; line-height: 1.25; font-variant-numeric: tabular-nums; color: var(--gmd-ink); }
-.gmd-lending-summary small { font-size: 12px; color: var(--gmd-copy); }
-.gmd-lending-meter { display: block; height: 6px; border-radius: 3px; background: #e6e6e6; overflow: hidden; }
+.gmd-lending-summary strong { font-size: 25px; font-weight: 600; line-height: 1.25; font-variant-numeric: tabular-nums; color: var(--gmd-ink); }
+.gmd-lending-summary small { font-size: 14px; color: var(--gmd-copy); }
+.gmd-lending-meter { display: block; height: 8px; border-radius: 4px; background: #e6e6e6; overflow: hidden; }
 .gmd-lending-meter i { display: block; height: 100%; border-radius: 3px; background: var(--gmd-ustx); transition: width 420ms var(--gmd-ease-out); }
 .gmd-lending-health.is-safe strong { color: #0f8a5f; }
 .gmd-lending-health.is-caution strong { color: var(--gmd-warn); }
 .gmd-lending-health.is-danger strong { color: #d4373a; }
 .gmd-app .gmd-lending-gate.is-page { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 10px 16px; padding: 14px 16px; border: 1px solid var(--gmd-line); border-radius: 12px; background: #fff; }
-.gmd-app .gmd-lending-gate.is-page p { flex: 1 1 320px; margin: 0; font-size: 14px; }
+.gmd-app .gmd-lending-gate.is-page p { flex: 1 1 320px; margin: 0; font-size: 16px; }
 .gmd-app .gmd-lending-gate.is-page .gmd-caption { flex-basis: 100%; }
 .gmd-lending-grid { display: grid; grid-template-columns: repeat(2, minmax(0,1fr)); gap: 16px; align-items: start; }
 .gmd-app .gmd-lending-card { min-width: 0; padding: 16px 18px 6px; border: 1px solid var(--gmd-line); border-radius: 12px; background: #fff; }
 .gmd-lending-card > header { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; margin-bottom: 6px; }
-.gmd-app .gmd-lending-card h3 { font-size: 15px; }
-.gmd-lending-card > header span { font-size: 12px; color: var(--gmd-copy); white-space: nowrap; }
+.gmd-app .gmd-lending-card h3 { font-size: 17px; }
+.gmd-lending-card > header span { font-size: 14px; color: var(--gmd-copy); white-space: nowrap; }
 .gmd-lending-card > header b { color: var(--gmd-ink); font-weight: 600; }
-.gmd-lending-empty { margin: 4px 0 10px; padding: 18px 0; border-top: 1px solid var(--gmd-line); text-align: center; font-size: 13px; color: var(--gmd-copy); }
+.gmd-lending-empty { margin: 4px 0 10px; padding: 18px 0; border-top: 1px solid var(--gmd-line); text-align: center; font-size: 15px; color: var(--gmd-copy); }
 .gmd-app .gmd-lending-card .gmd-data-table-scroll { margin-top: 0; }
-.gmd-app .gmd-lending-table :is(th,td) { padding: 10px 8px; vertical-align: middle; text-align: left; }
+.gmd-app .gmd-lending-table :is(th,td) { padding: 15px 10px; vertical-align: middle; text-align: left; }
 .gmd-app .gmd-lending-table :is(th,td):first-child { padding-inline-start: 0; }
 .gmd-app .gmd-lending-table tbody th { font-weight: 400; }
 .gmd-app .gmd-lending-table td:last-child { width: 1%; padding-inline-end: 0; white-space: nowrap; text-align: right; }
 .gmd-app .gmd-lending-table tbody tr:last-child :is(th,td) { border-bottom: 0; }
 .gmd-lending-table td b { display: block; font-weight: 600; font-variant-numeric: tabular-nums; }
-.gmd-lending-table td small { display: block; font-size: 11px; color: var(--gmd-copy); }
+.gmd-lending-table td small { display: block; font-size: 13px; color: var(--gmd-copy); }
 .gmd-lending-row-actions > button + button { margin-inline-start: 6px; }
 .gmd-app .gmd-small-button.is-primary { background: var(--gmd-ink); border-color: var(--gmd-ink); color: #fff; }
 @media (hover:hover) and (pointer:fine) { .gmd-app .gmd-small-button.is-primary:hover { background: #2e2e2e; } }
@@ -446,8 +449,8 @@
 .gmd-token { display: inline-flex; align-items: center; gap: 10px; }
 .gmd-token > span:last-child { display: grid; line-height: 1.25; }
 .gmd-token b { font-weight: 600; }
-.gmd-token small { font-size: 11px; color: var(--gmd-copy); }
-.gmd-token-mark { display: inline-grid; place-items: center; flex: 0 0 28px; width: 28px; height: 28px; border-radius: 50%; font-size: 13px; font-weight: 700; color: #fff; }
+.gmd-token small { font-size: 13px; color: var(--gmd-copy); }
+.gmd-token-mark { display: inline-grid; place-items: center; flex: 0 0 36px; width: 36px; height: 36px; border-radius: 50%; font-size: 16px; font-weight: 700; color: #fff; }
 .gmd-token-mark.is-ustx { background: var(--gmd-ustx); }
 .gmd-token-mark.is-dusd { background: var(--gmd-dusd); }
 .gmd-app .gmd-lending-market { padding: 18px 20px; border: 1px solid var(--gmd-line); border-radius: 12px; background: #fff; }
@@ -458,38 +461,38 @@
 .gmd-loan-health.is-safe .gmd-loan-health-track > i { background: #0f8a5f; }
 /* The dialog an action opens, centred; on a phone it rises from the bottom. */
 .gmd-lending-overlay { position: fixed; inset: 0; z-index: 60; display: grid; place-items: center; padding: 16px; background: #0d0d0d6b; }
-.gmd-app .gmd-lending-dialog { width: min(440px, 100%); max-height: calc(100dvh - 32px); overflow-y: auto; padding: 16px 20px 20px; border-radius: 16px; background: #fff; box-shadow: 0 24px 60px #00000040; }
+.gmd-app .gmd-lending-dialog { width: min(500px, 100%); max-height: calc(100dvh - 32px); overflow-y: auto; padding: 16px 20px 20px; border-radius: 16px; background: #fff; box-shadow: 0 24px 60px #00000040; }
 .gmd-lending-dialog:focus { outline: none; }
 .gmd-lending-dialog > header { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 14px; }
-.gmd-app .gmd-lending-dialog h2 { display: flex; align-items: center; gap: 10px; font-size: 17px; }
+.gmd-app .gmd-lending-dialog h2 { display: flex; align-items: center; gap: 10px; font-size: 20px; }
 .gmd-app .gmd-lending-close { display: inline-grid; place-items: center; width: 32px; height: 32px; min-height: 0; padding: 0; border-radius: 8px; color: var(--gmd-copy); }
 @media (hover:hover) and (pointer:fine) { .gmd-app .gmd-lending-close:hover:not(:disabled) { background: var(--gmd-soft); color: var(--gmd-ink); } }
 .gmd-app .gmd-lending-tabs { width: 100%; margin-bottom: 16px; }
-.gmd-app .gmd-lending-tabs button { flex: 1; min-height: 32px; font-size: 13px; }
-.gmd-lending-amount label { display: block; margin-bottom: 6px; font-size: 12px; color: var(--gmd-copy); }
+.gmd-app .gmd-lending-tabs button { flex: 1; min-height: 40px; font-size: 16px; }
+.gmd-lending-amount label { display: block; margin-bottom: 6px; font-size: 14px; color: var(--gmd-copy); }
 .gmd-lending-amount-box { display: flex; align-items: center; gap: 10px; padding: 10px 12px; border: 1px solid var(--gmd-line); border-radius: 12px; background: #fafafa; }
 .gmd-lending-amount-box:focus-within { border-color: var(--gmd-ink); background: #fff; }
-.gmd-app .gmd-lending-amount-box input { flex: 1; min-width: 0; min-height: 0; padding: 0; border: 0; background: transparent; font-size: 26px; font-weight: 500; font-variant-numeric: tabular-nums; color: var(--gmd-ink); }
+.gmd-app .gmd-lending-amount-box input { flex: 1; min-width: 0; min-height: 0; padding: 0; border: 0; background: transparent; font-size: 32px; font-weight: 500; font-variant-numeric: tabular-nums; color: var(--gmd-ink); }
 .gmd-app .gmd-lending-amount-box input:focus, .gmd-app .gmd-lending-amount-box input:focus-visible { outline: none; }
-.gmd-token-chip { display: inline-flex; align-items: center; gap: 6px; padding: 4px 10px 4px 4px; border: 1px solid var(--gmd-line); border-radius: 999px; background: #fff; font-size: 13px; font-weight: 600; white-space: nowrap; }
-.gmd-token-chip .gmd-token-mark { flex-basis: 22px; width: 22px; height: 22px; font-size: 11px; }
-.gmd-app .gmd-lending-amount p { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin-top: 6px; font-size: 12px; color: var(--gmd-copy); }
+.gmd-token-chip { display: inline-flex; align-items: center; gap: 6px; padding: 4px 10px 4px 4px; border: 1px solid var(--gmd-line); border-radius: 999px; background: #fff; font-size: 15px; font-weight: 600; white-space: nowrap; }
+.gmd-token-chip .gmd-token-mark { flex-basis: 26px; width: 26px; height: 26px; font-size: 13px; }
+.gmd-app .gmd-lending-amount p { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin-top: 6px; font-size: 14px; color: var(--gmd-copy); }
 .gmd-app .gmd-lending-amount p b { color: var(--gmd-ink); font-weight: 600; }
 .gmd-app .gmd-lending-amount p.is-problem { color: #b4232a; }
-.gmd-app .gmd-lending-max { margin-inline-start: auto; padding: 1px 9px; border: 1px solid var(--gmd-line); border-radius: 999px; background: #fff; color: var(--gmd-ink); font-size: 11px; font-weight: 600; text-decoration: none; }
+.gmd-app .gmd-lending-max { margin-inline-start: auto; padding: 1px 9px; border: 1px solid var(--gmd-line); border-radius: 999px; background: #fff; color: var(--gmd-ink); font-size: 13px; font-weight: 600; text-decoration: none; }
 .gmd-lending-overview { margin-top: 16px; padding: 12px 14px; border: 1px solid var(--gmd-line); border-radius: 12px; }
-.gmd-app .gmd-lending-overview h3 { margin: 0 0 8px; font-size: 12px; font-weight: 600; color: var(--gmd-copy); }
+.gmd-app .gmd-lending-overview h3 { margin: 0 0 8px; font-size: 14px; font-weight: 600; color: var(--gmd-copy); }
 .gmd-lending-overview dl { display: grid; gap: 7px; margin: 0; }
-.gmd-lending-overview dl > div { display: flex; justify-content: space-between; gap: 12px; font-size: 13px; }
+.gmd-lending-overview dl > div { display: flex; justify-content: space-between; gap: 12px; font-size: 15px; }
 .gmd-lending-overview dt { color: var(--gmd-copy); }
 .gmd-lending-overview dd { display: inline-flex; align-items: center; gap: 6px; margin: 0; text-align: right; font-variant-numeric: tabular-nums; }
 .gmd-lending-overview dd svg { color: var(--gmd-copy); }
 .gmd-lending-overview .gmd-loan-health { margin-top: 12px; }
 .gmd-app .gmd-lending-dialog .gmd-caption { margin-top: 12px; }
-.gmd-app .gmd-lending-submit { width: 100%; min-height: 42px; margin-top: 16px; font-size: 14px; }
-.gmd-app .gmd-lending-dialog .gmd-lending-done { display: flex; gap: 8px; align-items: flex-start; margin: 4px 0 0; color: #0f8a5f; font-size: 14px; }
+.gmd-app .gmd-lending-submit { width: 100%; min-height: 52px; margin-top: 18px; font-size: 17px; }
+.gmd-app .gmd-lending-dialog .gmd-lending-done { display: flex; gap: 8px; align-items: flex-start; margin: 4px 0 0; color: #0f8a5f; font-size: 16px; }
 .gmd-app .gmd-lending-dialog .gmd-lending-done:focus { outline: none; }
-.gmd-app .gmd-lending-gate p { margin: 0 0 12px; font-size: 14px; }
+.gmd-app .gmd-lending-gate p { margin: 0 0 12px; font-size: 16px; }
 .gmd-app .gmd-lending-gate .gmd-button { width: 100%; }
 .gmd-app .gmd-lending-gate.is-page .gmd-button { width: auto; }
 @media (max-width: 1180px) {
@@ -501,7 +504,7 @@
   .gmd-lending-summary dl { grid-template-columns: 1fr 1fr; }
   .gmd-lending-summary dl > div:nth-child(odd) { padding-inline-start: 0; border-inline-start: 0; }
   .gmd-lending-summary dl > div:nth-child(even) { padding-inline: 12px 0; border-inline-start: 1px solid var(--gmd-line); }
-  .gmd-app .gmd-lending-summary strong { font-size: 17px; }
+  .gmd-app .gmd-lending-summary strong { font-size: 20px; }
   .gmd-app .gmd-lending-card { padding-inline: 14px; }
   .gmd-lending-overlay { place-items: end stretch; padding: 0; }
   .gmd-app .gmd-lending-dialog { width: 100%; max-height: 90dvh; border-radius: 16px 16px 0 0; padding-bottom: calc(20px + env(safe-area-inset-bottom)); }
@@ -509,3 +512,29 @@
   .gmd-app .gmd-navigation { gap: 2px; padding-inline: 6px; justify-content: space-between; }
   .gmd-app .gmd-navigation a { flex: 1 1 0; min-width: 0; padding-inline: 2px; }
 }
+
+/* Larger at a glance: the assets' marks and names in tables, the phone's bar sized to fit five pages. */
+.gmd-app .gmd-table .gmd-asset-mark { width: 40px; height: 40px; border-radius: 10px; }
+.gmd-app .gmd-table .gmd-asset-mark img { width: 26px; height: 26px; }
+/* The products list's row of marks keeps to its column: the marks a little larger, the column wider. */
+@media (min-width: 961px) { .gmd-app .gmd-fund-row { grid-template-columns: minmax(170px,1.2fr) 196px minmax(0,1.3fr) 128px 120px 44px; } }
+.gmd-app .gmd-basket-asset { gap: 14px; }
+.gmd-app .gmd-asset-open { font-size: 16px; }
+.gmd-app .gmd-basket-asset a { font-size: 14px; }
+.gmd-app .gmd-weight-track { height: 4px; width: 72px; }
+@media (max-width: 600px) {
+  .gmd-app .gmd-navigation a { font-size: 12px; }
+  .gmd-app .gmd-main > :is(.gmd-page-heading, .gmd-product-heading) h1 { font-size: 24px; }
+  .gmd-app .gmd-table { font-size: 15px; }
+  .gmd-app .gmd-table :is(th,td) { padding-block: 12px; }
+  .gmd-market-primary .gmd-value, .gmd-app .gmd-main > .gmd-detail-layout .gmd-price-surface .gmd-value { font-size: 38px; }
+  .gmd-app .gmd-table .gmd-asset-mark { width: 32px; height: 32px; }
+  .gmd-app .gmd-table .gmd-asset-mark img { width: 21px; height: 21px; }
+}
+@media (max-width: 420px) { .gmd-app .gmd-basket-table .gmd-table { font-size: 13px; } .gmd-app .gmd-basket-table .gmd-table :is(th,td) { padding-block: 10px; } }
+/* The basket beside Markets' chart: the name keeps the room its larger type needs. */
+.gmd-app .gmd-holdings.is-compact .gmd-constituents-head { grid-template-columns: minmax(0,1fr) 84px 72px 14px; gap: 8px; }
+.gmd-app .gmd-holdings.is-compact .gmd-constituent { grid-template-columns: 34px minmax(0,1fr) 84px 72px 14px; gap: 8px; }
+.gmd-app .gmd-holdings.is-compact .gmd-constituent-name b { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+/* On a phone a price source's name keeps one line beside its figure. */
+@media (max-width: 600px) { .gmd-app .gmd-price-source > strong { font-size: 23px; } .gmd-app .gmd-price-source h3 { font-size: 16px; } }

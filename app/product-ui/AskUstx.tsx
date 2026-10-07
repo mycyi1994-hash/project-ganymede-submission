@@ -142,7 +142,7 @@ export function AskProvider({ children, launcher = true }: { children: ReactNode
       </form>
       <p className="gmd-ask-note">Demo dollars and USTX have no value. Answers are not investment advice and can be wrong; check figures on <Link prefetch={false} href="/products/ustx/transparency">Transparency</Link>.</p>
     </section>}
-    {launcher && !open && <button ref={launcherRef} type="button" className="gmd-ask-launcher" aria-haspopup="dialog" onClick={() => setOpen(true)}><Icon name="spark" size={18} /><span>Ask USTX</span><small>AI</small></button>}
+    {launcher && !open && <button ref={launcherRef} type="button" className="gmd-ask-launcher" aria-haspopup="dialog" aria-label="Ask USTX, AI chat" onClick={() => setOpen(true)}><Icon name="spark" size={18} /><span>Ask USTX</span><small>AI</small></button>}
   </AskContext.Provider>;
 }
 

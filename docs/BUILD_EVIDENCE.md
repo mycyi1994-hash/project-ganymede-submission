@@ -1,6 +1,6 @@
 # Build provenance
 
-Production source revision: `d57afbd58bfd9f2f20a1d8ad143a530f3e503b6a`.
+Production source revision: `880159e926f60406bfe6834ebe9d493bcde1547f`.
 
 This is a source snapshot, not a claim that the entire project was newly built for this event. The original repository remains private. The entries below were exported from its Git history; reviewers can inspect current implementations and tests, and request original history access from the team if needed. No old secrets, local environment files or full private Git history are published.
 
@@ -847,5 +847,13 @@ These are point-in-time observations, not continuous availability or a security 
 Production source: `d57afbd58bfd9f2f20a1d8ad143a530f3e503b6a`. App Worker version: `b98f7623-d216-4030-a1df-c6bfdbeaa487`; prior version: `d05c6916-1689-44ea-aff8-1e741accacf0`. The relayer, the keeper and the contracts are unchanged. Exported development commit: `813d85bd1f695361a381186dc893323a1bed0a37`, which adds only the release record and the build-period row to the production source.
 
 Borrow reads as Aave's and Venus's dashboards do: the wallet's position (net worth, borrow limit used, loan to value with the NAV that would liquidate it, both rates), its supplies and borrows, the assets it can supply and borrow, then the market's terms. Each row's action opens a dialog with its pair as tabs, the amount against the wallet's balance or limit, a transaction overview before and after, and the steps; the lending logic is unchanged. Ask USTX alone takes violet-to-blue AI colours: the guide under each title keeps its figures and questions, and its question box moved to a chat button in the bottom-right corner. Checks: 298 application tests passed; in production, with an injected read-only wallet at 1440 and 390 px, the position band, the tables, the Deposit and Lend dialogs and the corner chat worked, with no horizontal overflow and no console errors, and the 05:15 UTC NAV record ($101.447276) landed after the deploy.
+
+These are point-in-time observations, not continuous availability or a security audit.
+
+## Everything larger and easier to read — 7 October 2026
+
+Production source: `880159e926f60406bfe6834ebe9d493bcde1547f`. App Worker version: `6cf7e0f7-9bde-4a42-90d6-001c920f80f2`; prior version: `b98f7623-d216-4030-a1df-c6bfdbeaa487`. The relayer, the keeper and the contracts are unchanged. Exported development commit: `12d03a9fed29d420133b604d018ea1f320e4840e`, which adds only the release record and the build-period row to the production source.
+
+Every page reads at a larger size: body copy and tables at 16px, page titles at 28px, the NAV at 46px, 44px buttons and 42px pills, a sidebar with 44px rows and 20px icons, and 40px asset marks in the holdings and other tables. The featured fund's holdings column on Markets is wider, so basket names no longer run into their prices, and on phones the corner chat is a round button that leaves the content clear. Only styles changed; the figures, the lending logic and the APIs are as before. Checks: 298 application tests passed; in production at 1440, 1024 and 390 px the pages returned 200 with no horizontal overflow and no console errors, and the 05:50 UTC NAV record ($101.424638) landed after the deploy.
 
 These are point-in-time observations, not continuous availability or a security audit.

@@ -3,8 +3,8 @@ import { PROOF_DEPLOYMENT } from "@/lib/xstocks/proof";
 import { XSTOCKS_PRODUCT_KEY } from "@/lib/xstocks/onchain";
 import { FUND_DEPLOYMENT } from "@/lib/xstocks/fund";
 import { V4_POOL_DEPLOYMENT } from "@/lib/xstocks/v4-liquidity";
-import { ProductShell } from "./ProductShell";
-import { DocumentMenu } from "./DocumentMenu";
+import { PageGuide, ProductShell } from "./ProductShell";
+import { DocumentBar, DocumentMenu } from "./DocumentMenu";
 import { Icon } from "./Icons";
 import VerifyYourself from "./VerifyYourself";
 import BasketCheckPanel from "./BasketCheck";
@@ -177,7 +177,7 @@ function Code({ label, children }: { label: string; children: string }) {
 }
 
 export function DevelopersPage() {
-  return <ProductShell><Link className="gmd-breadcrumb" prefetch={false} href="/"><Icon name="back" size={16} />Markets</Link>
+  return <ProductShell><DocumentBar current="developers" parent={{ href: "/", label: "Markets" }} /><PageGuide />
     <div className="gmd-document-layout"><DocumentMenu current="developers" />
       <article className="gmd-document"><header><h1>Build with a NAV anyone can verify.</h1><p>Every USTX NAV is priced with OKX OnchainOS and recorded on X Layer with a fingerprint of its composition. Read it from our API, read it straight from the chain, or embed a badge that checks it in your visitor’s browser.</p></header>
         <section id="api"><h2>Public NAV API</h2><p>The latest USTX record, read from the registry on X Layer within the last 90 seconds (<code>readAt</code> says when). No key, no cookies, CORS open to every origin, cacheable for 30 seconds.</p>
@@ -214,7 +214,7 @@ export function DevelopersPage() {
         </section>
         <section id="lending"><h2>Use USTX as collateral</h2><p><code>GanymedeLendingMarket</code> on X Layer Testnet lends demo dollars against USTX. It values collateral with the fund&rsquo;s <code>currentNav()</code>, the same registry record the feed serves, so a stale NAV stops new loans. A wallet can borrow up to 50% of its USTX value. Past 65%, anyone can repay up to half of the loan and take USTX worth 8% more, which the fund redeems at the NAV. The borrow rate follows a jump-rate curve on utilization, and lenders earn what borrowers pay less a 10% reserve. The USTX page&rsquo;s Borrow section runs the whole cycle from OKX Wallet.</p>
           <Code label="Borrow against USTX with viem">{lendingExample}</Code>
-          <div className="gmd-terms-links"><a className="gmd-inline-link" href={`${FUND_DEPLOYMENT.explorerUrl}/address/${FUND_DEPLOYMENT.lending}`} target="_blank" rel="noreferrer">Lending market on the OKX explorer <Icon name="external" size={14} /></a><a className="gmd-inline-link" href="/products/ustx#borrow">Borrow on the USTX page <Icon name="arrow" size={14} /></a></div>
+          <div className="gmd-terms-links"><a className="gmd-inline-link" href={`${FUND_DEPLOYMENT.explorerUrl}/address/${FUND_DEPLOYMENT.lending}`} target="_blank" rel="noreferrer">Lending market on the OKX explorer <Icon name="external" size={14} /></a><a className="gmd-inline-link" href="/borrow">Borrow against USTX <Icon name="arrow" size={14} /></a></div>
         </section>
         <section id="embed"><h2>Embed the verified NAV badge</h2><p>Show the USTX NAV on your site, wallet or dashboard. The badge reads X Layer from the visitor’s browser, hashes the published document and recalculates the NAV before it says “Verified”.</p>
           <Code label="HTML">{embedExample}</Code>
@@ -253,7 +253,7 @@ const issuerServices = [
 ] as const;
 
 export function IssuersPage() {
-  return <ProductShell><Link className="gmd-breadcrumb" prefetch={false} href="/"><Icon name="back" size={16} />Markets</Link>
+  return <ProductShell><DocumentBar current="issuers" parent={{ href: "/", label: "Markets" }} /><PageGuide />
     <div className="gmd-document-layout"><DocumentMenu current="issuers" />
       <article className="gmd-document"><header><h1>Give your basket a clear price.</h1><p>Explore pricing and verification for a stock basket on X Layer. Start with a testnet evaluation before discussing a wider launch.</p></header>
         <section><h2>Built around your customers</h2><ul className="gmd-stack-list">{issuerServices.map(([title, copy]) => <li key={title}><b>{title}</b><span>{copy}</span></li>)}</ul></section>

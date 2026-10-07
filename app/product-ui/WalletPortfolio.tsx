@@ -12,6 +12,7 @@ import { useWalletAccount } from "./WalletAccount";
 import { useRecordCheck } from "./useRecordCheck";
 import { Icon } from "./Icons";
 import { OkxAppLink } from "./OkxApp";
+import { PageGuide } from "./ProductShell";
 
 const percent = (bps: number) => `${(bps / 100).toFixed(2)}%`;
 const shortAddress = (value: string) => `${value.slice(0, 6)}…${value.slice(-4)}`;
@@ -71,6 +72,7 @@ export default function WalletPortfolio() {
 
   return <>
     <div className="gmd-page-heading"><div><h1>Portfolio</h1><p>Your USTX and your xStocks on X Layer, valued at OKX OnchainOS prices.</p></div></div>
+    <PageGuide />
     <header id="wallet" className="gmd-section-heading gmd-wallet-heading"><div><h2>Your wallet on X Layer</h2><p>{address ? "Your USTX on X Layer Testnet and your xStocks on X Layer mainnet." : "View your USTX on Testnet and your xStocks on X Layer mainnet. Connect OKX Wallet or enter a public address."}</p></div></header>
     <AddressBar />
     {address && <WalletFundPosition address={address} />}

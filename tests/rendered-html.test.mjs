@@ -44,10 +44,11 @@ test("a tab from before a deploy loads the page it was opening again, once, when
 });
 
 test("public product routes share navigation and select the right destination before hydration", async () => {
-  const expected = [["/", "Markets"], ["/pools", "Pools"], ["/portfolio", "Portfolio"], ["/products/ustx/transparency", "Transparency"]];
+  const expected = [["/", "Markets"], ["/pools", "Pools"], ["/borrow", "Borrow"], ["/portfolio", "Portfolio"], ["/products/ustx/transparency", "Transparency"]];
   for (const [path, current, heading] of [
     ["/", "/", "US Tech Basket"],
     ["/pools", "/pools", "Provide liquidity to USTX"],
+    ["/borrow", "/borrow", "USTX lending market"],
     ["/products/ustx", "/", "Fund overview"],
     ["/products/ustx/transparency", "/products/ustx/transparency", "Transparency"],
     ["/portfolio", "/portfolio", "Your wallet on X Layer"],
@@ -75,9 +76,14 @@ test("product pages offer investing from a wallet on X Layer Testnet next to the
   }
   const product = visible(await (await render("/products/ustx")).text());
   assert.match(product, /Invest in USTX/);
-  assert.match(product, /Borrow against USTX/);
-  assert.match(product, /Borrow up to/);
-  assert.match(product, /href="#borrow"/);
+  assert.match(product, /href="\/borrow"/, "the USTX page's Borrow tab opens the Borrow page");
+  assert.doesNotMatch(product, /USTX lending market/, "the lending market has its own page");
+  const borrow = visible(await (await render("/borrow")).text());
+  assert.match(borrow, /<h1[^>]*>Borrow<\/h1>/);
+  assert.match(borrow, /USTX lending market/);
+  assert.match(borrow, /Borrow up to/);
+  assert.match(borrow, /id="borrow"/);
+  assert.match(borrow, /Your position/);
   assert.match(product, /href="\/pools"/, "the USTX page links to its liquidity pools");
   assert.match(product, /You are on X Layer Testnet/);
   assert.match(product, /No real stocks or money/);
@@ -186,7 +192,7 @@ test("the developer page keeps the checks, the experiment on a local copy and th
 });
 
 test("public pages are in US dollars and say nothing of paper portfolios", async () => {
-  for (const path of ["/", "/pools", "/products/ustx", "/products/ustx/transparency", "/portfolio", "/developers", "/issuers", "/methodology", "/limitations"]) {
+  for (const path of ["/", "/pools", "/borrow", "/products/ustx", "/products/ustx/transparency", "/portfolio", "/developers", "/issuers", "/methodology", "/limitations"]) {
     const html = visible(await (await render(path)).text());
     assert.doesNotMatch(html, /\bKRW\b|₩|paper portfolio|paper strateg|Strategy Lab|GMDCORE|share ledger|earlier work/i, path);
     if (!["/developers", "/issuers"].includes(path)) {

@@ -141,7 +141,7 @@ export function AskProvider({ children }: { children: ReactNode }) {
   </AskContext.Provider>;
 }
 
-type Screen = "markets" | "income" | "structured" | "product" | "pools" | "portfolio" | "verify" | "fund" | "other";
+type Screen = "markets" | "income" | "structured" | "product" | "pools" | "borrow" | "portfolio" | "verify" | "fund" | "other";
 
 /** Markets announces its category so the guide above it can follow; see ProductScreens. */
 export const CATEGORY_EVENT = "gmd-category";
@@ -152,6 +152,7 @@ function screenOf(path: string, category: string | null): Screen {
   if (path === "/") return category === "income" ? "income" : category === "structured" ? "structured" : "markets";
   if (path.startsWith("/funds/")) { const id = path.slice("/funds/".length); if (INCOME_IDS.includes(id)) return "income"; if (NOTE_IDS.includes(id)) return "structured"; }
   if (path === "/pools") return "pools";
+  if (path === "/borrow") return "borrow";
   if (path === "/portfolio") return "portfolio";
   if (path === "/products/ustx/transparency") return "verify";
   if (path === "/products/ustx") return "product";
@@ -180,6 +181,10 @@ const GUIDE: Record<Screen, { questions: string[]; action?: { label: string; hre
   pools: {
     questions: ["How does a pool earn fees for me?", "What happens to a $1,000 deposit if the NAV moves 10%?", "How have the two pools done for providers?"],
     action: { label: "Add liquidity in one step", href: "/pools#provide" },
+  },
+  borrow: {
+    questions: ["How much could I borrow against 10 USTX?", "What happens to a loan if the NAV falls 20%?", "What do lenders earn here?"],
+    action: { label: "Get USTX to post", href: "/products/ustx#investment" },
   },
   portfolio: {
     questions: ["What is inside one USTX share?", "How is my USTX valued?", "How do I get demo dollars for my wallet?"],
@@ -253,6 +258,7 @@ function insight(screen: Screen, facts: Facts | null, now: number): string {
       facts?.v4Value != null ? `The v4 pool holds ${dollars(facts.v4Value, 0)} and is held at the NAV.` : null,
       "Add liquidity from demo dollars alone, in one step.",
     ].filter(Boolean).join(" ");
+    case "borrow": return [nav, "Borrow up to half your USTX's value in demo dollars, priced at the NAV recorded on X Layer; past 65% a loan can be liquidated."].filter(Boolean).join(" ");
     case "income": return "Covered calls on SPYx and QQQx: hold the ETF, sell a call 2% above it each month and keep the premium. Each value is recorded on X Layer every five minutes.";
     case "structured": return "A step-down note on the worse of SPYx and QQQx: 7% a year if both hold up, paid back early at six-monthly observations; capital at risk only after a 50% fall.";
     case "portfolio": return "Everything here is on chain: connect OKX Wallet to see the USTX in your wallet on X Layer Testnet, with any you posted as collateral or put in a pool, and your xStocks on X Layer mainnet.";

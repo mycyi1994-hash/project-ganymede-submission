@@ -32,6 +32,7 @@ import { PoolResults } from "./PoolResults";
 import { DEFAULT_CHOICE, SHAPE_LABELS, ShapeEditingProvider, StrategyChart, StrategyPicker, ownRangeOf, strategyPercent, useShapeEditing, type StrategyChoice } from "./PoolStrategy";
 import { RangePositions, useRangePool, type RangeReader } from "./PoolsRange";
 import type { RangePosition } from "@/lib/xstocks/range-liquidity";
+import { PageGuide } from "./ProductShell";
 
 // Providing liquidity to the USTX/dUSD pool on X Layer Testnet from OKX Wallet: deposit USTX and
 // demo dollars at the pool's ratio (or demo dollars alone, half invested at the fund at the NAV),
@@ -141,6 +142,7 @@ export function PoolsScreen() {
   const select = (pool: "live" | "v4") => { setSelected(pool); if (pool === "v4") setMore(true); };
   return <ActivityProvider><ShapeEditingProvider value={editing}>
     <div className="gmd-page-heading"><div><h1>Pools</h1><p>Provide liquidity to USTX and earn a fee on every trade: pick a strategy, enter demo dollars and press one button.</p></div></div>
+    <PageGuide />
     {/* The panel comes first, as it shows on a phone; on a wide screen it sits beside the summary. */}
     <div className="gmd-detail-layout gmd-pools-layout">
       <div className="gmd-detail-aside" id="provide"><LiquidityPanel provider={provider} chain={chain} owner={owner} reader={reader} v4={V4_POOL_DEPLOYMENT ? v4 : null} range={RANGE_POOL_DEPLOYMENT ? range : null} onBusy={setBusy} amount={amount} onAmount={setAmount} strategy={strategy} onStrategy={setStrategy} /></div>

@@ -1,7 +1,7 @@
 import Link from "next/link";
-import { ProductShell } from "./product-ui/ProductShell";
+import { PageGuide, ProductShell } from "./product-ui/ProductShell";
 import { Icon } from "./product-ui/Icons";
-import { DocumentMenu } from "./product-ui/DocumentMenu";
+import { DocumentBar, DocumentMenu } from "./product-ui/DocumentMenu";
 
 const guides = {
   methodology: {
@@ -34,7 +34,7 @@ const guides = {
 
 export default function ProductGuide({ kind }: { kind: keyof typeof guides }) {
   const guide = guides[kind];
-  return <ProductShell><Link className="gmd-breadcrumb" href="/products/ustx"><Icon name="back" size={16} />US Tech Basket</Link>
+  return <ProductShell><DocumentBar current={kind} parent={{ href: "/products/ustx", label: "US Tech Basket" }} /><PageGuide />
     <div className="gmd-document-layout"><DocumentMenu current={kind} />
       <article className="gmd-document"><header><h1>{guide.title}</h1><p>{guide.intro}</p></header>
         {guide.sections.map(([title, copy]) => <section key={title}><h2>{title}</h2><p>{copy}</p></section>)}

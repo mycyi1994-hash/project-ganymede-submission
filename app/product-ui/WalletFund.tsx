@@ -73,7 +73,7 @@ export function WalletFundPosition({ address }: { address: string }) {
             <div><span className="gmd-mobile-label">Shares</span><b>{formatShares(collateral)}</b><small>{nav !== null ? `${formatUsdMicros(nav, 4)} / share` : ""}</small></div>
             <div><span className="gmd-mobile-label">Value</span><b>{position ? formatUsdRounded(position.valueMicros) : "—"}</b><small>{position ? `Borrow limit ${formatUsdMicros(position.borrowLimitMicros, 2)}` : ""}</small></div>
             <div><span className="gmd-mobile-label">Loan</span><b>{formatUsdMicros(debt, 2)}</b><small>{debt > 0n && position ? `borrowed · ${formatWadPercent(position.loanToValueWad)} of its value, liquidated above 65%` : "No loan"}</small>{debt > 0n && position && <LoanHealth loanToValueWad={position.loanToValueWad} compact />}</div>
-            <div className="gmd-position-actions"><Link className="gmd-small-button" prefetch={false} href="/products/ustx#borrow">Manage</Link></div>
+            <div className="gmd-position-actions"><Link className="gmd-small-button" prefetch={false} href="/borrow">Manage</Link></div>
           </div>}
           {pooled && <div className="gmd-position-row">
             <div className="gmd-position-name"><span className="gmd-mini-monogram">G</span><div><b>USTX / dUSD pool</b><small>{formatShares(lp)} USTX-LP · {formatSharePpm(pooled.sharePpm, true)} of the pool</small></div></div>
@@ -83,7 +83,7 @@ export function WalletFundPosition({ address }: { address: string }) {
             <div className="gmd-position-actions"><Link className="gmd-small-button" prefetch={false} href="/pools#provide">Manage</Link></div>
           </div>}
         </div>
-        {loan && loan.suppliedMicros > 0n && lending && <p className="gmd-caption">This wallet also lends {formatUsdMicros(loan.suppliedMicros, 2)} of demo dollars in the lending market, earning {formatWadPercent(lending.market.supplyRateWad)} a year. <Link prefetch={false} href="/products/ustx#borrow">Manage lending</Link></p>}
+        {loan && loan.suppliedMicros > 0n && lending && <p className="gmd-caption">This wallet also lends {formatUsdMicros(loan.suppliedMicros, 2)} of demo dollars in the lending market, earning {formatWadPercent(lending.market.supplyRateWad)} a year. <Link prefetch={false} href="/borrow">Manage lending</Link></p>}
         {owned > 0n && composition && <div className="gmd-inside-table">
           <BasketTable composition={composition} sharesMicros={owned} label={`The USTX ${places.length > 1 ? `${places.slice(0, -1).join(", ")} and ${places.at(-1)}` : places[0] ?? "in this wallet"}, looked through to each xStock`} chart />
         </div>}

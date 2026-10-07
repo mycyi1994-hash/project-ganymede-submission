@@ -12,6 +12,7 @@ import {
 } from "@/lib/xstocks/fund";
 import { V4_POOL_DEPLOYMENT, formatFeePips, readV4Quote, v4ErrorMessage, v4SwapCalls, v4SwapFill, type V4Deployment, type V4Quote } from "@/lib/xstocks/v4-liquidity";
 import { RANGE_POOL_DEPLOYMENT, rangeErrorMessage } from "@/lib/xstocks/range-liquidity";
+import { sendWalletTransaction } from "@/lib/xstocks/wallet-send";
 import { Icon } from "./Icons";
 import GasNotice from "./GasNotice";
 import { OkxAppLink } from "./OkxApp";
@@ -105,14 +106,12 @@ export async function switchToTestnet(provider: Provider) {
   }
 }
 
-/** Sends one call from the connected wallet, only while it is on X Layer Testnet. */
+/** Sends one call from the connected wallet, only while it is on X Layer Testnet (lib/xstocks/wallet-send.ts says how it reaches the network). */
 export async function sendFromWallet(provider: Provider, from: string, request: TransactionCall): Promise<string> {
   // Checked right before signing, so a network switch between steps cannot send it elsewhere.
   const chain = String(await provider.request({ method: "eth_chainId" })).toLowerCase();
   if (chain !== FUND_WALLET_CHAIN.chainId) throw new Error("Switch your wallet to X Layer Testnet, then try again.");
-  const hash = await provider.request({ method: "eth_sendTransaction", params: [{ from, to: request.to, data: request.data }] });
-  if (typeof hash !== "string") throw new Error("The wallet did not return a transaction.");
-  return hash;
+  return sendWalletTransaction(provider, from, request);
 }
 
 /** Asks the wallet to list a token; wallets that do not support it simply decline. */

@@ -130,7 +130,7 @@ For OKX Dev Day we moved settlement to X Layer and built the tokenized-stock pro
 | OKX explorer | Every record, token and transaction links to the OKX X Layer explorer |
 | Public API and badge | `/api/v1/ustx` and `/embed/ustx` let other X Layer apps show the verified NAV; `/api/v1/ustx/activity` serves the market's latest events; `/api/v1/ustx/pools` the pool's reserves, value, fee APR and last 24 hours; `/mcp` serves the same reads to AI agents over the Model Context Protocol |
 | USTX market | `GanymedeUstxPool` is a constant-product USTX/dUSD pool, and `GanymedeNavArbitrage` closes its gap to the NAV through the fund in one transaction, like ETF creation and redemption. A keeper Worker checks the pool every five minutes and sends that trade when closing the gap earns at least a cent; [one such trade](https://web3.okx.com/explorer/x-layer-testnet/tx/0xbec5c89a1546e65c1f03a4131c85c1ef50e1ac9e3f4e6e09f929b33f7c33d26f) closed a 6.02% gap to 0.29%. The USTX page shows the pool price and its premium or discount to the NAV |
-| USTX lending | `GanymedeLendingMarket` lends demo dollars against USTX valued at the fund's recorded NAV, up to 50% of it, with liquidation past 65% that the fund's redemption at NAV pays out. The USTX page's Borrow section deposits USTX from OKX Wallet, borrows, repays, withdraws and lends |
+| USTX lending | `GanymedeLendingMarket` lends demo dollars against USTX valued at the fund's recorded NAV, up to 50% of it, with liquidation past 65% that the fund's redemption at NAV pays out. The Borrow page (in the sidebar beside Pools) deposits USTX from OKX Wallet, borrows, repays, withdraws and lends |
 | NAV price feed | `GanymedeNavFeed` serves the registry's USTX NAV through `AggregatorV3Interface`, the interface Chainlink price feeds use (8 decimals, "USTX / USD"), so X Layer contracts that read Chainlink prices can read USTX without custom code |
 | Browser verifier | Reads the registry over public RPC after checking the chain ID, then verifies exact document bytes and integer arithmetic |
 | Evidence command | Re-checks a downloaded file and matches it to the `NavPublished` event in its transaction receipt |
@@ -196,7 +196,7 @@ See `.env.example` for setting names and [the engine reference](docs/ENGINE_REFE
 
 ## Source and release
 
-This public review snapshot corresponds to production source commit `24e7ad54e59b8c92568ae76af900037e153a4b09`. Application code matches the recorded source; documentation may be newer. The original development history remains private, and public-hosting identifiers are adjusted. See [snapshot provenance](docs/BUILD_EVIDENCE.md). Cloudflare deployment messages identify the production source commit. [Release rules and identity model](docs/release-identity.md).
+This public review snapshot corresponds to production source commit `8e5505189bd721ea88708b01cee60c9b0356aabc`. Application code matches the recorded source; documentation may be newer. The original development history remains private, and public-hosting identifiers are adjusted. See [snapshot provenance](docs/BUILD_EVIDENCE.md). Cloudflare deployment messages identify the production source commit. [Release rules and identity model](docs/release-identity.md).
 
 - [Dev Day submission notes](docs/OKX_DEV_DAY.md) and [build-period work](docs/BUILD_PERIOD.md)
 - [Asset credits](public/ASSET-CREDITS.md)

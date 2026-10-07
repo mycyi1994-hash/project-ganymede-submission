@@ -94,6 +94,8 @@ Ganymede was selected as one of 30 finalists from 150 teams. The organizers conf
 | 2026-10-07 02:08 | `32ef9c1` | A send a node refuses (it still holds a copy from the 6 October stall) is sent again at its nonce paying double, and the relayer keeps its outbid floor across evictions; two USTX records had missed their cycle |
 | 2026-10-07 02:21 | `6ab07eb` | Transparency shows placeholders while the browser reads the record, instead of "Time unavailable" |
 | 2026-10-07 02:56 | `24e7ad5` | On a wide screen Custom's grid of blocks is drawn in the chart at full size, sharing its shape and undo history with the panel's, and the chart opens on the narrowest view that holds the position |
+| 2026-10-07 04:26 | `03f4f09` | The product takes the OpenAI Platform console's layout: a grouped sidebar and a white panel, each page opening on a title bar with its pills and tabs and then Ask USTX, and the featured fund, a product's order column and Pools' liquidity panel laid across the panel on hairlines |
+| 2026-10-07 04:43 | `8e55051` | Borrow gets a page of its own in the sidebar beside Pools: the lending market's figures and terms on the left and the wallet's position in the right column, opened from the USTX page's Borrow tab and the Portfolio |
 
 ## Every commit in the build period (UTC)
 

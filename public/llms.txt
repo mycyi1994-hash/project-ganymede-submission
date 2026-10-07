@@ -22,7 +22,8 @@
 
 - [Markets](https://ganymede-xlayer.gana003.workers.dev/): the nine products with their NAVs, and the market's latest activity.
 - [Pools](https://ganymede-xlayer.gana003.workers.dev/pools): liquidity in the three pools from a wallet, including a range position drawn bin by bin.
-- [USTX](https://ganymede-xlayer.gana003.workers.dev/products/ustx): invest, borrow, holdings and terms.
+- [USTX](https://ganymede-xlayer.gana003.workers.dev/products/ustx): invest, holdings and terms.
+- [Borrow](https://ganymede-xlayer.gana003.workers.dev/borrow): post USTX as collateral and borrow demo dollars at the recorded NAV, or lend them.
 - [Transparency](https://ganymede-xlayer.gana003.workers.dev/products/ustx/transparency): the record checked in your browser. Who controls each contract is read on the [developer page](https://ganymede-xlayer.gana003.workers.dev/developers#proof-controls).
 - [Methodology](https://ganymede-xlayer.gana003.workers.dev/methodology) and [Risks](https://ganymede-xlayer.gana003.workers.dev/limitations).
 

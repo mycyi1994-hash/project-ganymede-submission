@@ -2,8 +2,12 @@ import type { CSSProperties } from "react";
 // The product stylesheet rides on this module, which every product screen and badge imports:
 // a stylesheet imported on its own becomes an empty chunk that the build drops but still preloads.
 import "./product.css";
+// The workspace's look, after the product stylesheet it restyles: a sidebar and a white panel on a grey canvas.
+import "./platform.css";
 
-export function Icon({ name, size = 20 }: { name: "arrow" | "back" | "external" | "wallet" | "market" | "portfolio" | "activity" | "check" | "info" | "refresh" | "chevron" | "lock" | "download" | "close" | "pool" | "spark" | "send" | "undo" | "redo"; size?: number }) {
+export type IconName = "arrow" | "back" | "external" | "wallet" | "market" | "portfolio" | "activity" | "check" | "info" | "refresh" | "chevron" | "lock" | "download" | "close" | "pool" | "spark" | "send" | "undo" | "redo" | "book" | "shield" | "code" | "building" | "coins";
+
+export function Icon({ name, size = 20 }: { name: IconName; size?: number }) {
   const paths: Record<string, string> = {
     arrow: "M5 12h14m-5-5 5 5-5 5", back: "M19 12H5m5-5-5 5 5 5", external: "M8 5h11v11M19 5 5 19",
     wallet: "M4 7V5a2 2 0 0 1 2-2h12v4M4 7h16v14H4V7Zm12 5h4v5h-4a2.5 2.5 0 0 1 0-5Z",
@@ -18,6 +22,11 @@ export function Icon({ name, size = 20 }: { name: "arrow" | "back" | "external" 
     send: "M4 12 20 4l-6 16-3-7-7-1Z",
     undo: "M9 14 4 9l5-5M4 9h10.5a5.5 5.5 0 0 1 0 11H11", redo: "m15 14 5-5-5-5m5 5H9.5a5.5 5.5 0 0 0 0 11H13",
     pool: "M3 15c2.5 0 2.5-2 5-2s2.5 2 5 2 2.5-2 5-2 3 2 3 2M3 20c2.5 0 2.5-2 5-2s2.5 2 5 2 2.5-2 5-2 3 2 3 2M12 3c2.5 3 4 5 4 6.5a4 4 0 0 1-8 0C8 8 9.5 6 12 3Z",
+    book: "M5 4.5A1.5 1.5 0 0 1 6.5 3H19v15H6.5A1.5 1.5 0 0 0 5 19.5v-15Zm0 15A1.5 1.5 0 0 0 6.5 21H19",
+    shield: "M12 3 19 6v5.5c0 4.2-2.9 7.9-7 9.5-4.1-1.6-7-5.3-7-9.5V6l7-3Z",
+    code: "m8 8-4 4 4 4m8-8 4 4-4 4M13.5 5l-3 14",
+    building: "M4 21V5.5L12 3v18M12 8h7v13M7.5 8h1M7.5 12h1M7.5 16h1M15 12h1M15 16h1M2 21h20",
+    coins: "M14 8A6 6 0 1 1 2 8a6 6 0 0 1 12 0Zm4.1 2.4A6 6 0 1 1 10.4 18.1M7 6h1v4m8.7 3.9.7.7-2.8 2.8",
   };
   return <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d={paths[name]} /></svg>;
 }

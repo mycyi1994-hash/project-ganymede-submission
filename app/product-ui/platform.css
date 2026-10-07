@@ -1,0 +1,419 @@
+/*
+ * The workspace's look, after a developer platform console: a grey canvas with the page in one white
+ * panel, a sidebar of grouped pages, a slim top bar, black pill buttons, thin borders, small system
+ * type, uppercase table headings and violet charts. Each page opens on a title bar across the panel,
+ * its pills on the right; the regions that make a page (a chart beside its figures, a product beside
+ * its order column) reach the panel's edges on thin rules, as the console's usage page lays them out.
+ * It restyles product.css, loaded just before it.
+ */
+.gmd-app {
+  --gmd-bg: #f3f3f3; --gmd-surface: #fff; --gmd-ink: #0d0d0d; --gmd-copy: #5d5d5d;
+  --gmd-line: #e5e5e5; --gmd-soft: #f4f4f4; --gmd-accent: #6e4fe0; --gmd-warn: #9a5b00;
+  --gmd-ustx: #7c5cfc; --gmd-dusd: #e19a3b; --gmd-chart: #7c5cfc;
+  /* A chosen row or option: the accent at a tint, on a line of it. */
+  --gmd-tint: #f3f1fd; --gmd-tint-line: #ccc1f4;
+  font: 400 14px/1.55 ui-sans-serif, -apple-system, BlinkMacSystemFont, "Segoe UI", "Helvetica Neue", Arial, sans-serif;
+  -webkit-font-smoothing: antialiased;
+}
+/* One family everywhere, as the console uses; code keeps its own. */
+.gmd-app *:not(code, pre, kbd, samp) { font-family: inherit !important; }
+.gmd-app :is(h1,h2,h3) { font-weight: 600; letter-spacing: -.01em; }
+.gmd-app h1 { font-size: 22px; }
+.gmd-app h2 { font-size: 17px; }
+.gmd-app h3 { font-size: 15px; }
+.gmd-app .gmd-positive { color: #0f8a5f; }
+.gmd-app .gmd-negative { color: #d4373a; }
+.gmd-app :is(a,button,input,select,summary):focus-visible { outline: 2px solid var(--gmd-ink); outline-offset: 2px; }
+
+/* The top bar across the canvas: brand and network on the left, the wallet on the right. */
+.gmd-app .gmd-testnet-bar { background: #e9e9e9; color: #4d4d4d; font-size: 12px; padding: 5px 16px; }
+.gmd-header { background: transparent; color: var(--gmd-ink); }
+.gmd-header-inner { max-width: none; min-height: 52px; padding-inline: 18px 20px; gap: 12px; }
+.gmd-brand { font-size: 15px; gap: 8px; }
+.gmd-brand svg { width: 22px; height: 22px; }
+.gmd-header-end { gap: 10px; font-size: 13px; }
+.gmd-network { color: var(--gmd-copy); border: 1px solid var(--gmd-line); background: #fff; font-size: 12px; padding: 4px 10px; }
+.gmd-network i { background: #10a37f; }
+.gmd-environment { color: var(--gmd-copy); }
+.gmd-app .gmd-wallet-connect { background: var(--gmd-ink); color: #fff; min-height: 32px; padding: 6px 12px; border-radius: 8px; font-size: 13px; font-weight: 500; }
+.gmd-app .gmd-wallet-chip { color: var(--gmd-ink); border-color: var(--gmd-line); background: #fff; min-height: 32px; padding: 6px 12px; font-size: 13px; }
+.gmd-wallet-chip i { background: #10a37f; }
+.gmd-account summary, .gmd-example-account { color: var(--gmd-ink); border-color: var(--gmd-line); background: #fff; min-height: 32px; padding: 6px 12px; font-size: 13px; }
+.gmd-account[open] summary { background: var(--gmd-soft); }
+@media (hover:hover) and (pointer:fine) { .gmd-app .gmd-wallet-connect:hover { background: #2e2e2e; } }
+
+/* Below the bar: the sidebar on the canvas, and the page in a white panel. */
+.gmd-frame { display: grid; grid-template-columns: 212px minmax(0,1fr); align-items: start; }
+.gmd-sidebar { position: sticky; top: 0; display: flex; flex-direction: column; gap: 16px; min-height: calc(100dvh - 84px); padding: 4px 10px 18px 12px; font-size: 13px; }
+.gmd-sidebar-group { display: grid; gap: 1px; }
+.gmd-sidebar-label { padding: 4px 8px; font-size: 12px; color: #8a8a8a; }
+.gmd-app .gmd-sidebar a { display: flex; align-items: center; gap: 9px; min-height: 32px; padding: 6px 8px; border-radius: 7px; color: #303030; }
+.gmd-sidebar a svg { color: #5d5d5d; }
+.gmd-app .gmd-sidebar a[aria-current] { background: #e4e4e4; color: var(--gmd-ink); font-weight: 500; }
+.gmd-app .gmd-sidebar-note { margin-top: auto; padding: 10px 12px; border: 1px solid var(--gmd-line); border-radius: 10px; background: #fff; font-size: 12px; line-height: 1.45; color: var(--gmd-copy); }
+.gmd-sidebar-note b { display: block; margin-bottom: 2px; color: var(--gmd-ink); }
+@media (hover:hover) and (pointer:fine) { .gmd-app .gmd-sidebar a:not([aria-current]):hover { background: #eaeaea; } }
+.gmd-workspace { --gmd-pad: 28px; min-width: 0; min-height: calc(100dvh - 84px); background: #fff; border: 1px solid #e2e2e2; border-right: 0; border-bottom: 0; border-top-left-radius: 14px; }
+/* The page spans the panel; --gmd-pad is its side margin, which the edge-to-edge regions step back over. */
+.gmd-main { max-width: none; padding: 0 var(--gmd-pad) 56px; min-height: 0; }
+.gmd-footer { max-width: none; padding: 18px var(--gmd-pad); font-size: 12px; }
+/* The sidebar holds the pages on a wide screen; below that the header's own links stay. */
+@media (min-width: 931px) { .gmd-header .gmd-navigation { display: none; } }
+@media (max-width: 930px) {
+  .gmd-frame { display: block; }
+  .gmd-sidebar { display: none; }
+  .gmd-workspace { --gmd-pad: 24px; border: 0; border-radius: 0; min-height: 0; }
+  .gmd-header { background: #fff; border-bottom: 1px solid var(--gmd-line); }
+  .gmd-navigation a { color: var(--gmd-copy); }
+  .gmd-navigation a[aria-current] { color: var(--gmd-ink); border-bottom-color: var(--gmd-ink); }
+}
+@media (max-width: 600px) {
+  .gmd-workspace { --gmd-pad: 16px; }
+  .gmd-app .gmd-navigation a[aria-current] { color: var(--gmd-ink); background: #ececec; }
+  .gmd-main { padding-bottom: 36px; }
+  .gmd-footer { padding-bottom: calc(95px + env(safe-area-inset-bottom)); }
+}
+
+/* The title bar: the page's name and one line under it on the left, its pills on the right, on a
+   rule across the panel. A breadcrumb sits small above the name; tabs, where a page has them, sit
+   under it and carry the rule instead. */
+.gmd-app .gmd-main > :is(.gmd-page-heading, .gmd-product-heading) { display: flex; align-items: center; justify-content: space-between; gap: 12px 20px; min-height: 66px; margin: 0 calc(-1 * var(--gmd-pad)) 20px; padding: 16px var(--gmd-pad) 14px; border-bottom: 1px solid var(--gmd-line); }
+.gmd-app .gmd-main > :is(.gmd-page-heading, .gmd-product-heading) h1 { font-size: 18px; line-height: 1.3; }
+.gmd-app .gmd-main > .gmd-page-heading h1 + p { margin-top: 2px; font-size: 13px; }
+.gmd-app .gmd-main > .gmd-page-heading .gmd-ticker { margin-bottom: 2px; font-size: 12px; }
+.gmd-app .gmd-main > .gmd-breadcrumb { display: flex; width: max-content; margin: 0; padding-top: 14px; gap: 4px; font-size: 12px; }
+.gmd-app .gmd-main > .gmd-breadcrumb svg { width: 14px; height: 14px; }
+.gmd-app .gmd-main > .gmd-breadcrumb + :is(.gmd-page-heading, .gmd-product-heading) { min-height: 0; padding-top: 4px; }
+.gmd-app .gmd-main > .gmd-breadcrumb:not(:has(+ :is(.gmd-page-heading, .gmd-product-heading))) { margin-bottom: 16px; }
+.gmd-app .gmd-main > :is(.gmd-page-heading, .gmd-product-heading):has(+ :is(.gmd-categories, .gmd-product-sections)) { margin-bottom: 0; padding-bottom: 8px; border-bottom: 0; }
+.gmd-page-actions { display: flex; align-items: center; gap: 8px; flex-shrink: 0; }
+.gmd-app .gmd-pill { display: inline-flex; align-items: center; gap: 6px; min-height: 32px; padding: 5px 12px; border: 1px solid var(--gmd-line); border-radius: 999px; background: #fff; color: var(--gmd-ink); font-size: 13px; font-weight: 500; white-space: nowrap; text-decoration: none; }
+.gmd-pill svg { color: var(--gmd-copy); }
+.gmd-app .gmd-page-actions .gmd-button { min-height: 32px; padding: 5px 14px; }
+@media (hover:hover) and (pointer:fine) { .gmd-app .gmd-pill:hover { background: var(--gmd-soft); } }
+/* A product's name in the bar: its mark small, the name with its ticker beside it, the line under. */
+.gmd-main > .gmd-product-heading .gmd-product-identity { gap: 12px; }
+.gmd-main > .gmd-product-heading .gmd-product-monogram { width: 38px; height: 40px; padding: 7px 6px; gap: 2px; border-radius: 8px; }
+.gmd-main > .gmd-product-heading .gmd-product-monogram i { width: 3px; }
+.gmd-main > .gmd-product-heading .gmd-product-identity > div:last-child { display: flex; flex-wrap: wrap; align-items: center; column-gap: 8px; }
+.gmd-main > .gmd-product-heading .gmd-product-identity h1 { order: 1; }
+.gmd-app .gmd-main > .gmd-product-heading .gmd-ticker { order: 2; margin: 0; padding: 1px 8px; border-radius: 999px; background: var(--gmd-tint); color: var(--gmd-accent); font-size: 12px; }
+.gmd-main > .gmd-product-heading .gmd-ticker span { margin-inline-start: 4px; color: var(--gmd-copy); }
+.gmd-app .gmd-main > .gmd-product-heading .gmd-product-identity p { order: 3; flex-basis: 100%; max-width: none; margin-top: 2px; font-size: 13px; }
+/* Tabs under the title: the console's underlined ones, the first marked. */
+.gmd-app .gmd-main > :is(.gmd-categories, .gmd-product-sections) { display: flex; flex-wrap: nowrap; gap: 2px; margin: 0 calc(-1 * var(--gmd-pad)) 20px; padding: 0 calc(var(--gmd-pad) - 12px); border-bottom: 1px solid var(--gmd-line); border-radius: 0; background: transparent; overflow-x: auto; scrollbar-width: none; font-size: 13px; }
+.gmd-app .gmd-main > :is(.gmd-categories, .gmd-product-sections) > :is(a, button) { display: inline-flex; align-items: center; gap: 5px; padding: 8px 12px 9px; margin: 0 0 -1px; border-radius: 0; border-bottom: 2px solid transparent; background: transparent; box-shadow: none; color: var(--gmd-copy); font-weight: 500; white-space: nowrap; text-decoration: none; }
+.gmd-app .gmd-categories button b { font-size: 13px; font-weight: 500; color: inherit; }
+.gmd-app .gmd-categories button small { display: none; }
+.gmd-app .gmd-main > .gmd-categories > button[aria-pressed="true"], .gmd-app .gmd-main > .gmd-product-sections > a:first-child { border-bottom-color: var(--gmd-ink); background: transparent; box-shadow: none; color: var(--gmd-ink); }
+.gmd-app .gmd-categories button[aria-pressed="true"] b { color: var(--gmd-ink); }
+@media (hover:hover) and (pointer:fine) { .gmd-app .gmd-main > :is(.gmd-categories, .gmd-product-sections) > :is(a, button):hover { color: var(--gmd-ink); } }
+@media (max-width: 600px) {
+  .gmd-app .gmd-main > :is(.gmd-page-heading, .gmd-product-heading) { flex-wrap: wrap; align-items: flex-start; min-height: 0; padding-block: 14px 12px; }
+  .gmd-app .gmd-main > .gmd-breadcrumb + :is(.gmd-page-heading, .gmd-product-heading) { padding-top: 4px; }
+  .gmd-app .gmd-main > :is(.gmd-page-heading, .gmd-product-heading) h1 { font-size: 17px; }
+  .gmd-main > .gmd-product-heading .gmd-product-monogram { width: 32px; height: 34px; padding: 6px 5px; }
+  .gmd-page-actions { width: 100%; }
+  .gmd-page-actions .gmd-button { margin-inline-start: auto; }
+}
+/* Below the bar: the notice when the NAV record is late, then Ask USTX. */
+.gmd-app .gmd-delay-notice { margin: 0 0 16px; border-radius: 10px; }
+
+/* Type: copy at 14px, captions at 12px. */
+.gmd-app .gmd-section-heading { margin-bottom: 16px; }
+.gmd-app .gmd-section-heading h2 { font-size: 16px; }
+.gmd-app .gmd-section-heading p { font-size: 13px; margin-top: 3px; }
+.gmd-app p { color: var(--gmd-copy); }
+.gmd-app .gmd-caption { font-size: 12px; }
+
+/* Buttons: black pills; the secondary ones white with a thin border. */
+.gmd-app .gmd-button { gap: 8px; min-height: 34px; padding: 6px 14px; border-radius: 8px; background: var(--gmd-ink); border-color: var(--gmd-ink); color: #fff; font-size: 13px; font-weight: 500; box-shadow: none; }
+.gmd-app .gmd-button.is-secondary, .gmd-app .gmd-small-button { background: #fff; color: var(--gmd-ink); border: 1px solid var(--gmd-line); border-radius: 8px; min-height: 32px; padding: 5px 12px; font-size: 13px; }
+.gmd-feature-title > .gmd-button { min-height: 34px; padding: 6px 14px; }
+@media (hover:hover) and (pointer:fine) {
+  .gmd-app .gmd-button:hover { background: #2e2e2e; border-color: #2e2e2e; }
+  .gmd-app .gmd-button.is-secondary:hover, .gmd-app .gmd-small-button:hover { background: var(--gmd-soft); }
+  .gmd-activity-rows > a:hover, .gmd-app .gmd-activity-list li > a:hover, .gmd-app .gmd-constituent:hover:not(:disabled), .gmd-app .gmd-drawer-nav button:hover, .gmd-flow-steps button:hover, .gmd-app .gmd-range-history .gmd-icon-button:hover:not(:disabled), .gmd-shape-chip button:hover { background: var(--gmd-soft); }
+}
+.gmd-inline-link { color: var(--gmd-ink) !important; text-decoration: underline; text-underline-offset: 3px; text-decoration-color: #c4c4c4; }
+.gmd-app .gmd-text-button { font-size: 13px; }
+
+/* Cards: white, a thin grey border, 12px corners, 20px inside; no coloured rule on top. */
+.gmd-app :is(.gmd-fund, .gmd-fund-list, .gmd-market-pulse, .gmd-pools-more, .gmd-pool-list, .gmd-order-panel) { border-color: var(--gmd-line); border-radius: 12px; }
+.gmd-app .gmd-order-panel { border-top: 1px solid var(--gmd-line); }
+.gmd-app :is(.gmd-fund, .gmd-fund-list, .gmd-market-pulse) { padding: 20px 22px; margin-top: 20px; }
+.gmd-app .gmd-price-confidence { margin-block: 20px; padding: 22px; border-color: var(--gmd-line); border-radius: 12px; }
+.gmd-badge { border-radius: 999px; padding: 2px 9px; font-size: 12px; background: #fff; }
+@media (max-width: 600px) { .gmd-app :is(.gmd-fund, .gmd-fund-list, .gmd-market-pulse, .gmd-price-confidence) { padding: 16px; } }
+
+/* Figures in a row: one bordered strip, its cells on hairlines, as the console's stats. */
+.gmd-app :is(.gmd-fund-grid, .gmd-pools-summary-stats, .gmd-strategy-facts, .gmd-activity-day) { gap: 1px; background: var(--gmd-line); border: 1px solid var(--gmd-line); border-radius: 10px; overflow: hidden; }
+.gmd-app :is(.gmd-fund-grid article, .gmd-pools-summary-stats > div, .gmd-strategy-facts > div, .gmd-activity-day > div) { background: #fff; border: 0; border-radius: 0; padding: 12px 16px; }
+.gmd-fund-grid strong { font-size: 19px; }
+.gmd-pools-summary-stats strong { font-size: 19px; }
+.gmd-strategy-facts dd { font-size: 16px; }
+
+/* Segmented controls: a grey track with the chosen one raised in white. */
+.gmd-segmented { background: #efefef; border-radius: 8px; }
+.gmd-segmented button { border-radius: 6px; color: var(--gmd-copy); }
+.gmd-segmented button[aria-pressed=true] { color: var(--gmd-ink); font-weight: 500; box-shadow: 0 1px 2px #0000001f; }
+
+/* Tables: small uppercase headings in grey, rows on thin dividers. */
+.gmd-table { font-size: 13px; }
+.gmd-table thead th { font-size: 11px; font-weight: 600; letter-spacing: .04em; text-transform: uppercase; color: #6b6b6b; }
+
+/* A chosen option or row: the accent's tint; marks and states in the accent, not the old green. */
+.gmd-app .gmd-check-chip.is-matched { border-color: var(--gmd-tint-line); background: var(--gmd-tint); }
+.gmd-order-presets button[aria-pressed=true], .gmd-lending-actions button[aria-pressed=true], .gmd-route-out em { background: var(--gmd-tint); }
+.gmd-route label.is-selected, .gmd-pool-list tbody tr[aria-current] :is(th,td) { background: var(--gmd-tint); }
+.gmd-fund-list li.is-selected { background: var(--gmd-tint); }
+.gmd-app .gmd-strategy-options button[aria-checked="true"] { background: var(--gmd-tint); }
+.gmd-mini-monogram { border-color: var(--gmd-line); background: var(--gmd-soft); }
+.gmd-evidence-summary.is-matched .gmd-evidence-icon, .gmd-flow-local i { background: var(--gmd-tint); }
+.gmd-liquidity-position, .gmd-liquidity-waiting.is-ready { border-color: var(--gmd-line); background: var(--gmd-soft); }
+.gmd-flow-step-number, .gmd-flow-calculation select { border-color: #cfcfcf; }
+.gmd-price-source.is-browser { border-top-color: var(--gmd-accent); background: var(--gmd-tint); }
+.gmd-document-menu a[aria-current] { background: var(--gmd-soft); color: var(--gmd-ink); border-color: var(--gmd-ink); }
+.gmd-live i { background: #10a37f; }
+.gmd-live i::after { border-color: #10a37f; }
+.gmd-income-done { fill: color-mix(in srgb, var(--gmd-ustx) 7%, transparent); }
+.gmd-income-meter span { background: linear-gradient(90deg, color-mix(in srgb, var(--gmd-ustx) 20%, transparent), color-mix(in srgb, var(--gmd-ustx) 67%, transparent)); }
+.gmd-lq-legend i.is-zone-call { background: color-mix(in srgb, var(--gmd-ustx) 15%, transparent); border-color: color-mix(in srgb, var(--gmd-ustx) 40%, transparent); }
+.gmd-autocall-zone { fill: color-mix(in srgb, var(--gmd-ustx) 11%, transparent); }
+.gmd-autocall-stepper-bar i { background: linear-gradient(180deg, color-mix(in srgb, var(--gmd-ustx) 40%, transparent), color-mix(in srgb, var(--gmd-ustx) 13%, transparent)); }
+.gmd-autocall-stepper li.is-called { background: color-mix(in srgb, var(--gmd-ustx) 6%, transparent); }
+
+/* Charts and colour tints: violet for USTX, amber for demo dollars. */
+.gmd-grid-col.is-dollars rect.is-off { fill: color-mix(in srgb, var(--gmd-dusd) 12%, transparent); }
+.gmd-grid-col.is-shares rect.is-off { fill: color-mix(in srgb, var(--gmd-ustx) 12%, transparent); }
+.gmd-strategy-near { fill: color-mix(in srgb, var(--gmd-ustx) 5%, transparent); stroke: color-mix(in srgb, var(--gmd-ustx) 30%, transparent); }
+.gmd-strategy-near-label { fill: var(--gmd-ustx); }
+.gmd-lq-legend i.is-cp { background: linear-gradient(90deg, color-mix(in srgb, var(--gmd-dusd) 40%, transparent), color-mix(in srgb, var(--gmd-ustx) 40%, transparent)); }
+.gmd-premium { background: var(--gmd-soft); }
+.gmd-premium-band { background: color-mix(in srgb, var(--gmd-ustx) 22%, transparent); }
+
+/* Ask USTX: the console's composer, one slim bar under the title: the line of figures beside the
+   question box, the suggested questions in one row under them, the next step a black pill. */
+.gmd-app .gmd-ask-guide { grid-template-columns: minmax(0,1fr) minmax(300px,420px); gap: 10px 18px; margin: 0 0 20px; padding: 12px 14px; border-color: var(--gmd-line); border-radius: 12px; background: #fafafa; }
+.gmd-ask-guide-head { grid-column: 1; grid-row: 1; align-items: center; gap: 10px; }
+.gmd-ask-guide-mark { flex-basis: 30px; height: 30px; border-radius: 8px; color: #fff; }
+.gmd-ask-guide h2 { font-size: 14px; }
+.gmd-ask-guide h2 small { background: #ececec; color: #3d3d3d; }
+.gmd-ask-guide-head p { margin-top: 1px; font-size: 13px; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+.gmd-ask-guide-head p.is-open { display: block; overflow: visible; }
+.gmd-ask-guide-form { grid-column: 2; grid-row: 1; align-self: center; }
+.gmd-ask-guide-form input { min-height: 36px; font-size: 13px; border-color: var(--gmd-line); }
+.gmd-ask-guide-form button { flex-basis: 38px; min-height: 36px; }
+.gmd-ask-guide-actions { grid-column: 1 / -1; grid-row: 2; gap: 6px; }
+.gmd-ask-guide-actions button { min-height: 30px; padding: 4px 11px; font-size: 12px; border-color: var(--gmd-line) !important; }
+.gmd-ask-guide-actions button:hover { border-color: #bdbdbd !important; }
+.gmd-ask-guide-step { min-height: 30px; padding: 4px 12px; font-size: 12px; font-weight: 500; background: var(--gmd-ink); }
+@media (max-width: 860px) {
+  .gmd-app .gmd-ask-guide { grid-template-columns: minmax(0,1fr); }
+  .gmd-ask-guide-head, .gmd-ask-guide-form, .gmd-ask-guide-actions { grid-column: 1; grid-row: auto; }
+}
+.gmd-ask > header strong svg { color: #fff; }
+/* The other Ask boxes in a page, and the chart's explain chip, in the same neutral tone. */
+.gmd-pool-ask, .gmd-strategy-ask { border-color: var(--gmd-line); background: #fafafa; }
+.gmd-lq-explain { border-color: var(--gmd-line) !important; background: #fff !important; color: var(--gmd-ink); }
+.gmd-lq-explain:hover { border-color: #bdbdbd !important; }
+
+/* The fund's mark: black, grey and violet bars. */
+.gmd-product-monogram { background: var(--gmd-soft); }
+.gmd-product-monogram i { background: var(--gmd-ink); }
+.gmd-product-monogram i:nth-child(2n) { background: #b9b9b9; }
+.gmd-product-monogram i:nth-child(3n) { background: var(--gmd-ustx); }
+.gmd-app .gmd-skip { border-color: var(--gmd-ink); }
+
+/* Markets: the featured fund across the panel, as the console's usage page lays out its spend: the NAV,
+   the fund's figures and the chart on the left, and the basket in a column on the right behind a hairline. */
+.gmd-app .gmd-main > .gmd-market-feature { grid-template-columns: minmax(0,1fr) 340px; margin-inline: calc(-1 * var(--gmd-pad)); border-inline: 0; border-radius: 0; }
+.gmd-market-feature:focus-visible { outline-offset: -2px; }
+.gmd-market-primary { padding: 20px var(--gmd-pad) 18px; }
+.gmd-market-primary .gmd-value { font-size: 30px; letter-spacing: -.02em; }
+.gmd-market-primary .gmd-nav-summary { margin-top: 16px; margin-bottom: 14px; }
+.gmd-market-primary .gmd-feature-bottom { margin-top: 16px; padding-top: 14px; border-top-color: var(--gmd-line); }
+.gmd-market-primary .gmd-product-monogram { width: 38px; height: 40px; padding: 7px 6px; gap: 2px; }
+.gmd-market-primary .gmd-product-monogram i { width: 3px; }
+.gmd-market-primary .gmd-feature-title :is(h1,h2) { font-size: 16px; }
+.gmd-market-primary .gmd-feature-title p { font-size: 13px; margin-top: 2px; }
+.gmd-market-primary .gmd-ticker { font-size: 12px; margin-bottom: 2px; }
+/* The fund's figures under its NAV: one strip of three on hairlines; the pools' gaps on the line under. */
+.gmd-app .gmd-market-primary .gmd-fund-stats { gap: 1px; margin: 0 0 12px; padding: 0; border: 1px solid var(--gmd-line); border-radius: 10px; background: var(--gmd-line); overflow: hidden; }
+.gmd-app .gmd-market-primary .gmd-fund-stats > div { padding: 10px 14px; background: #fff; }
+.gmd-app .gmd-market-primary .gmd-fund-stats dd { font-size: 17px; }
+.gmd-app .gmd-market-primary .gmd-pool-gaps { margin: 0 0 6px; font-size: 13px; }
+.gmd-app .gmd-market-composition { padding: 16px 20px; border-inline-start: 1px solid var(--gmd-line); background: #fff; }
+.gmd-market-composition .gmd-section-heading { margin-bottom: 10px; }
+.gmd-app .gmd-market-composition .gmd-section-heading h2 { font-size: 15px; }
+.gmd-fund-list .gmd-section-heading { margin-bottom: 8px; }
+@media (max-width: 1180px) { .gmd-app .gmd-main > .gmd-market-feature { grid-template-columns: minmax(0,1fr) 300px; } }
+@media (max-width: 930px) {
+  .gmd-app .gmd-main > .gmd-market-feature { grid-template-columns: minmax(0,1fr); }
+  .gmd-app .gmd-market-composition { border-inline-start: 0; border-top: 1px solid var(--gmd-line); }
+}
+@media (max-width: 600px) {
+  .gmd-market-primary { padding: 16px var(--gmd-pad); }
+  .gmd-app .gmd-market-primary .gmd-fund-stats > div { padding: 9px 10px; }
+  .gmd-app .gmd-market-primary .gmd-fund-stats dd { font-size: 15px; }
+  .gmd-app .gmd-market-composition { padding-inline: var(--gmd-pad); }
+}
+
+/* A product page and Pools: the page across the panel in two columns, the content on the left and
+   the order or liquidity panel in a column on the right, behind one hairline down the panel. */
+.gmd-app .gmd-main > .gmd-detail-layout { --gmd-aside: 360px; grid-template-columns: minmax(0,1fr) var(--gmd-aside); gap: 0; margin-inline: calc(-1 * var(--gmd-pad)); border-block: 1px solid var(--gmd-line); background: linear-gradient(var(--gmd-line), var(--gmd-line)) no-repeat calc(100% - var(--gmd-aside)) 0 / 1px 100%; }
+.gmd-app .gmd-main > .gmd-detail-layout > .gmd-detail-content { padding: 20px var(--gmd-pad) 28px; }
+.gmd-app .gmd-main > .gmd-detail-layout > .gmd-detail-aside { top: 0; margin: 0; }
+.gmd-app .gmd-main > .gmd-detail-layout > .gmd-detail-aside > .gmd-order-panel { border: 0; border-radius: 0; padding: 20px 22px 24px; background: transparent; }
+.gmd-app .gmd-main > .gmd-pools-layout > .gmd-detail-aside { max-height: 100dvh; }
+.gmd-app .gmd-main > .gmd-detail-layout .gmd-price-surface { padding: 0 0 4px; border: 0; border-radius: 0; background: transparent; }
+.gmd-app .gmd-main > .gmd-detail-layout .gmd-price-surface .gmd-value { font-size: 30px; letter-spacing: -.02em; }
+.gmd-app .gmd-main > .gmd-detail-layout .gmd-composition-surface { margin-top: 20px; }
+.gmd-app .gmd-order-heading { margin-bottom: 16px; }
+.gmd-app .gmd-order-heading h2 { font-size: 16px; }
+.gmd-app .gmd-main > .gmd-pools-layout .gmd-pools-summary { margin: 0; padding: 0; border: 0; border-radius: 0; background: transparent; }
+.gmd-app .gmd-pools-summary h2 { font-size: 16px; }
+.gmd-app .gmd-pools-more { margin-top: 20px; }
+@media (max-width: 1180px) { .gmd-app .gmd-main > .gmd-detail-layout { --gmd-aside: 320px; } }
+@media (max-width: 930px) {
+  .gmd-app .gmd-main > .gmd-detail-layout { background: none; }
+  .gmd-app .gmd-main > .gmd-detail-layout > * + * { border-top: 1px solid var(--gmd-line); }
+  .gmd-app .gmd-main > .gmd-detail-layout > .gmd-detail-aside > .gmd-order-panel { padding: 18px var(--gmd-pad) 22px; }
+}
+@media (max-width: 600px) {
+  .gmd-app .gmd-main > .gmd-detail-layout > .gmd-detail-content { padding: 16px var(--gmd-pad) 22px; }
+  .gmd-app .gmd-main > .gmd-detail-layout .gmd-price-surface .gmd-value { font-size: 28px; }
+}
+
+/* The documents: the side menu as the console's settings list, small and grey. */
+.gmd-document-layout { gap: 48px; }
+.gmd-document-menu > span { font-size: 12px; color: #8a8a8a; margin-bottom: 6px; }
+.gmd-app .gmd-document-menu a { min-height: 32px; padding: 6px 10px; border-radius: 7px; border-inline-start: 0; font-size: 13px; color: #303030; }
+.gmd-document header h1 { font-size: 24px; }
+.gmd-document header p { font-size: 16px; margin-top: 10px; }
+.gmd-document section h2 { font-size: 18px; }
+
+/* The NAV over a chart, as the console heads one: the label, the figure, then one line of when it was
+   recorded and when the next one is due, the price source last. The fund's name carries its ticker beside it. */
+.gmd-app :is(.gmd-market-primary, .gmd-price-surface) .gmd-nav-summary { flex-direction: column; align-items: flex-start; gap: 6px; }
+.gmd-app :is(.gmd-market-primary, .gmd-price-surface) .gmd-nav-summary .gmd-value { margin-top: 2px; }
+.gmd-app :is(.gmd-market-primary, .gmd-price-surface) .gmd-nav-meta { flex-direction: row; flex-wrap: wrap; align-items: center; gap: 4px 14px; padding: 0; }
+.gmd-app :is(.gmd-market-primary, .gmd-price-surface) .gmd-nav-meta > :first-child { order: 9; }
+.gmd-app :is(.gmd-market-primary, .gmd-price-surface) .gmd-nav-meta time { font-size: 13px; }
+.gmd-market-primary .gmd-product-identity > div:last-child { display: flex; flex-wrap: wrap; align-items: center; column-gap: 8px; }
+.gmd-market-primary .gmd-product-identity :is(h1,h2) { order: 1; }
+.gmd-app .gmd-market-primary .gmd-ticker { order: 2; margin: 0; padding: 1px 8px; border-radius: 999px; background: var(--gmd-tint); color: var(--gmd-accent); }
+.gmd-market-primary .gmd-ticker span { margin-inline-start: 4px; color: var(--gmd-copy); }
+.gmd-app .gmd-market-primary .gmd-product-identity p { order: 3; flex-basis: 100%; max-width: 64ch; }
+
+/* Checks that pass read green, as the console marks a healthy service; a failed one stays red. */
+.gmd-app :is(.gmd-price-check.is-matched, .gmd-check-chip.is-matched) { color: #0f8a5f; }
+.gmd-app .gmd-check-chip.is-matched { border-color: #bfe3d2; background: #f0faf5; }
+.gmd-app :is(.gmd-price-outcome.is-matched, .gmd-evidence-summary.is-matched) { border-color: #bfe3d2; background: #f0faf5; }
+.gmd-app :is(.is-matched > .gmd-price-outcome-icon, .gmd-evidence-summary.is-matched .gmd-evidence-icon) { background: #fff; color: #0f8a5f; }
+
+/* Transparency's price check: a card of three sources on hairlines, its title at 20px, no coloured
+   rules; the browser's own result in the accent's tint. */
+.gmd-app .gmd-price-eyebrow { color: #8a8a8a; font-size: 11px; letter-spacing: .06em; margin-bottom: 4px; }
+.gmd-app .gmd-price-confidence-heading { margin-bottom: 18px; }
+.gmd-app .gmd-price-confidence-heading h2 { font-size: 20px; letter-spacing: -.01em; }
+.gmd-app .gmd-price-confidence.is-compact .gmd-price-confidence-heading h2 { font-size: 17px; }
+.gmd-app .gmd-price-confidence-heading p { margin-top: 3px; font-size: 13px; }
+.gmd-app .gmd-price-path { gap: 12px; }
+.gmd-app .gmd-price-source { padding: 16px 18px; border: 1px solid var(--gmd-line); background: #fff; }
+.gmd-app .gmd-price-source.is-browser { border-color: var(--gmd-tint-line); background: var(--gmd-tint); }
+.gmd-app .gmd-price-source-label { margin-bottom: 10px; }
+.gmd-app .gmd-price-source h3 { font-size: 15px; }
+.gmd-app .gmd-price-source > strong { margin-top: 10px; font-size: 24px; letter-spacing: -.02em; }
+.gmd-app .gmd-price-source p { font-size: 13px; margin-bottom: 12px; }
+.gmd-price-path-join svg { stroke: #c4c4c4; }
+.gmd-app .gmd-price-outcome { padding: 16px 18px; }
+.gmd-app .gmd-price-outcome h3 { font-size: 16px; }
+.gmd-app .gmd-price-outcome p { font-size: 13px; }
+.gmd-app .gmd-price-difference b { font-size: 22px; }
+.gmd-app .gmd-price-tabs { gap: 2px; padding-top: 0; }
+.gmd-app .gmd-price-tabs button { padding: 9px 12px; margin-bottom: -1px; border-radius: 0; border-bottom: 2px solid transparent; background: transparent; color: var(--gmd-copy); font-size: 13px; font-weight: 500; }
+.gmd-app .gmd-price-tabs button[aria-pressed="true"] { background: transparent; color: var(--gmd-ink); border-bottom-color: var(--gmd-ink); }
+.gmd-app .gmd-price-tabs { border-top: 0; border-bottom: 1px solid var(--gmd-line); margin-top: 6px; }
+.gmd-app .gmd-price-detail { padding-top: 18px; }
+.gmd-app .gmd-price-detail-heading h3 { font-size: 16px; }
+.gmd-app :is(.gmd-price-gauge, .gmd-price-totals) { background: var(--gmd-soft); }
+.gmd-price-gauge-track { background: #e4e4e4; }
+.gmd-price-gauge-band { background: color-mix(in srgb, var(--gmd-ustx) 25%, transparent); }
+.gmd-price-gauge-dot { box-shadow: 0 0 0 1px var(--gmd-accent); }
+.gmd-app .gmd-price-totals strong { font-size: 21px; }
+.gmd-app .gmd-evidence-summary { padding: 18px 20px; gap: 14px; grid-template-columns: 40px 1fr auto; }
+.gmd-app .gmd-evidence-summary h2 { font-size: 16px; }
+.gmd-app .gmd-evidence-summary p { font-size: 13px; margin-top: 4px; }
+.gmd-app .gmd-evidence-icon { width: 40px; height: 40px; }
+
+/* A fund's page: the same two columns across the panel as USTX's, the order panel in the right one. */
+.gmd-app .gmd-main > .gmd-fund-layout { --gmd-aside: 340px; grid-template-columns: minmax(0,1fr) var(--gmd-aside); gap: 0; margin: 0 calc(-1 * var(--gmd-pad)); border-block: 1px solid var(--gmd-line); background: linear-gradient(var(--gmd-line), var(--gmd-line)) no-repeat calc(100% - var(--gmd-aside)) 0 / 1px 100%; }
+@media (max-width: 1180px) { .gmd-app .gmd-main > .gmd-fund-layout { --gmd-aside: 300px; } }
+.gmd-app .gmd-main > .gmd-fund-layout > .gmd-fund-main { min-width: 0; padding: 20px var(--gmd-pad) 28px; }
+.gmd-app .gmd-main > .gmd-fund-layout > .gmd-fund-order { top: 0; border: 0; border-radius: 0; padding: 20px 22px 24px; background: transparent; }
+.gmd-app .gmd-fund-order h2 { font-size: 16px; }
+.gmd-app .gmd-main > .gmd-fund-layout .gmd-fund-hero { padding: 0 0 4px; border: 0; border-radius: 0; background: transparent; }
+.gmd-app .gmd-fund-hero strong { font-size: 30px; }
+@media (max-width: 930px) {
+  .gmd-app .gmd-main > .gmd-fund-layout { grid-template-columns: minmax(0,1fr); background: none; }
+  .gmd-app .gmd-main > .gmd-fund-layout > * + * { border-top: 1px solid var(--gmd-line); }
+  .gmd-app .gmd-main > .gmd-fund-layout > .gmd-fund-order { padding: 18px var(--gmd-pad) 22px; }
+}
+@media (max-width: 600px) { .gmd-app .gmd-main > .gmd-fund-layout > .gmd-fund-main { padding: 16px var(--gmd-pad) 22px; } .gmd-app .gmd-fund-hero strong { font-size: 28px; } }
+
+/* A document's title bar: where it sits, as the console's breadcrumb, over the side menu and the text. */
+.gmd-crumbs { display: flex; align-items: center; gap: 8px; font-size: 14px; color: var(--gmd-copy); }
+.gmd-app .gmd-crumbs a { color: var(--gmd-copy); }
+.gmd-crumbs [aria-current] { color: var(--gmd-ink); font-weight: 600; }
+.gmd-crumbs > span[aria-hidden] { color: #b5b5b5; }
+@media (hover:hover) and (pointer:fine) { .gmd-app .gmd-crumbs a:hover { color: var(--gmd-ink); } }
+
+/* A fund's name in the bar carries its ticker beside it, as the product page's does. */
+.gmd-main > .gmd-page-heading > div:has(> .gmd-ticker) { display: flex; flex-wrap: wrap; align-items: center; column-gap: 8px; }
+.gmd-main > .gmd-page-heading > div:has(> .gmd-ticker) h1 { order: 1; }
+.gmd-app .gmd-main > .gmd-page-heading > div > .gmd-ticker { order: 2; margin: 0; padding: 1px 8px; border-radius: 999px; background: var(--gmd-tint); color: var(--gmd-accent); }
+.gmd-main > .gmd-page-heading > div > .gmd-ticker span { margin-inline-start: 4px; color: var(--gmd-copy); }
+.gmd-app .gmd-main > .gmd-page-heading > div:has(> .gmd-ticker) p { order: 3; flex-basis: 100%; }
+
+/* The Ask USTX conversation: a white panel on a hairline, the question in a grey bubble, the answer as text. */
+.gmd-app .gmd-ask { border-color: var(--gmd-line); border-radius: 14px; box-shadow: 0 12px 40px #0000002e; }
+.gmd-app .gmd-ask > header { background: #fff; color: var(--gmd-ink); border-bottom: 1px solid var(--gmd-line); }
+.gmd-app .gmd-ask > header strong svg { color: var(--gmd-ink); }
+.gmd-app .gmd-ask > header span { color: var(--gmd-copy); }
+.gmd-app .gmd-ask > header button { color: var(--gmd-ink); }
+.gmd-app .gmd-ask > header .gmd-ask-reset { border-color: var(--gmd-line); }
+.gmd-app .gmd-ask-turn { font-size: 14px; }
+.gmd-app .gmd-ask-turn p { font-size: 14px; }
+.gmd-app .gmd-ask-turn.is-user { background: #f0f0f0; }
+.gmd-app .gmd-ask-turn.is-user p { color: var(--gmd-ink); }
+.gmd-app .gmd-ask-turn.is-assistant { background: transparent; padding-inline: 2px; }
+.gmd-app .gmd-ask-turn small { color: var(--gmd-copy); }
+.gmd-app .gmd-ask form button { background: var(--gmd-ink) !important; }
+.gmd-app .gmd-ask form button:disabled { background: #c9c9c9 !important; }
+.gmd-app .gmd-ask-note a { color: var(--gmd-ink); }
+
+/* Rows of a table at the console's density where a mouse points; a touch screen keeps its taller targets. */
+@media (pointer: fine) { .gmd-app .gmd-asset-open { min-height: 0; } .gmd-app .gmd-basket-table .gmd-table :is(th,td) { padding-block: 9px; } }
+/* Ask USTX's mark keeps its square where it sits in a grid rather than a row. */
+.gmd-app :is(.gmd-strategy-ask, .gmd-pool-ask) .gmd-ask-guide-mark { width: 30px; height: 30px; flex: 0 0 30px; }
+
+/* Borrow: the lending market across the panel, its figures and terms on the left and the wallet's
+   position in the right column behind a hairline, as Pools lays out its liquidity panel. On a phone
+   the position comes first, as Pools' panel does. */
+.gmd-app .gmd-main > .gmd-lending { --gmd-aside: 360px; display: grid; grid-template-columns: minmax(0,1fr) var(--gmd-aside); align-items: start; margin: 0 calc(-1 * var(--gmd-pad)); border-block: 1px solid var(--gmd-line); background: linear-gradient(var(--gmd-line), var(--gmd-line)) no-repeat calc(100% - var(--gmd-aside)) 0 / 1px 100%; }
+.gmd-app .gmd-lending-main { min-width: 0; padding: 20px var(--gmd-pad) 28px; }
+.gmd-app .gmd-lending-main > .gmd-fund-facts { margin-top: 20px; }
+.gmd-app .gmd-main > .gmd-lending > .gmd-lending-panel { position: sticky; top: 0; min-width: 0; padding: 20px 22px 24px; border: 0; border-radius: 0; background: transparent; }
+.gmd-app .gmd-lending-panel h3 { font-size: 16px; }
+@media (max-width: 1180px) { .gmd-app .gmd-main > .gmd-lending { --gmd-aside: 320px; } }
+@media (max-width: 930px) {
+  .gmd-app .gmd-main > .gmd-lending { grid-template-columns: minmax(0,1fr); background: none; }
+  .gmd-app .gmd-main > .gmd-lending > .gmd-lending-panel { position: static; order: -1; padding: 18px var(--gmd-pad) 22px; border-bottom: 1px solid var(--gmd-line); }
+}
+@media (max-width: 600px) {
+  .gmd-app .gmd-lending-main { padding: 16px var(--gmd-pad) 22px; }
+  /* Five pages share the phone's bottom bar in equal parts. */
+  .gmd-app .gmd-navigation { gap: 2px; padding-inline: 6px; justify-content: space-between; }
+  .gmd-app .gmd-navigation a { flex: 1 1 0; min-width: 0; padding-inline: 2px; }
+}

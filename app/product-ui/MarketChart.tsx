@@ -6,6 +6,9 @@ import { shortTime, signedPercent, type HistoryPoint } from "@/lib/product-marke
 import { useChartEvents } from "./MarketActivity";
 import { useWidth } from "./ChartParts";
 
+// The NAV line's colour: the workspace's chart colour, the product's teal without it.
+const CHART_COLOR = "var(--gmd-chart, #0b625b)";
+
 const RANGES = [{ id: "24h", label: "24H", ms: 86_400_000 }, { id: "7d", label: "7D", ms: 7 * 86_400_000 }, { id: "all", label: "All", ms: Infinity }] as const;
 type Range = typeof RANGES[number]["id"];
 
@@ -53,11 +56,11 @@ export default function MarketChart({ points: all, loading, showActivity = true,
     {points.length < 2 ? <div className={`gmd-chart-empty${loading ? " is-loading" : ""}`} aria-busy={loading}><div className="gmd-chart-empty-grid" aria-hidden="true" />{loading ? <><i className="gmd-skeleton is-chart" aria-hidden="true" /><span className="gmd-sr-only">Loading NAV history</span></> : <p>Not enough history for this range yet.</p>}</div> : <>
       <div className="gmd-chart-plot" ref={plotRef} onPointerLeave={() => { setIndex(null); setMarked(null); }}>
         <svg className="gmd-chart" viewBox={`0 0 ${W} ${H}`} role="img" onPointerMove={event => { const box = event.currentTarget.getBoundingClientRect(); const ratio = Math.max(0, Math.min(1, ((event.clientX - box.left) / box.width * W - LEFT) / (RIGHT - LEFT))); setIndex(nearest(timeMin + ratio * (timeMax - timeMin))); }} aria-label={`NAV per share from ${shortTime(points[0].at)} to ${shortTime(points[points.length - 1].at)}, between $${min.toFixed(4)} and $${max.toFixed(4)}.`}>
-          <defs><linearGradient id={gradient} x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stopColor="#0B625B" stopOpacity=".12" /><stop offset="100%" stopColor="#0B625B" stopOpacity="0" /></linearGradient></defs>
+          <defs><linearGradient id={gradient} x1="0" y1="0" x2="0" y2="1"><stop offset="0%" style={{ stopColor: CHART_COLOR }} stopOpacity=".12" /><stop offset="100%" style={{ stopColor: CHART_COLOR }} stopOpacity="0" /></linearGradient></defs>
           {[0, .5, 1].map(f => <g key={f}><line x1={LEFT} x2={RIGHT} y1={TOP + f * (BOTTOM - TOP)} y2={TOP + f * (BOTTOM - TOP)} stroke="#e4eaed" /><text x={RIGHT + 20} y={TOP + 5 + f * (BOTTOM - TOP)} fontSize="12" fill="#526570">${(high - f * (high - low)).toFixed(3)}</text></g>)}
-          <path d={`${path} L${RIGHT},184 L${LEFT},184 Z`} fill={`url(#${gradient})`} /><path d={path} fill="none" stroke="#0B625B" strokeWidth="2" strokeLinejoin="round" strokeLinecap="round" />
-          {points.length <= 12 && points.map((p, i) => <circle key={p.at} cx={x(i)} cy={y(vals[i])} r="4" fill="#0B625B" stroke="#fff" strokeWidth="2" />)}
-          {tip && !mark && <g><line x1={tip.x} x2={tip.x} y1={TOP - 8} y2="184" stroke="#526570" strokeDasharray="3 3" /><circle cx={tip.x} cy={tip.y} r="5.5" fill="white" stroke="#0B625B" strokeWidth="2" /></g>}
+          <path d={`${path} L${RIGHT},184 L${LEFT},184 Z`} fill={`url(#${gradient})`} /><path d={path} fill="none" style={{ stroke: CHART_COLOR }} strokeWidth="2" strokeLinejoin="round" strokeLinecap="round" />
+          {points.length <= 12 && points.map((p, i) => <circle key={p.at} cx={x(i)} cy={y(vals[i])} r="4" style={{ fill: CHART_COLOR }} stroke="#fff" strokeWidth="2" />)}
+          {tip && !mark && <g><line x1={tip.x} x2={tip.x} y1={TOP - 8} y2="184" stroke="#526570" strokeDasharray="3 3" /><circle cx={tip.x} cy={tip.y} r="5.5" fill="white" style={{ stroke: CHART_COLOR }} strokeWidth="2" /></g>}
         </svg>
         {marks.map(item => <span key={item.key} className={`gmd-chart-event is-${item.kind}${item.key === marked ? " is-active" : ""}`} style={{ left: left(item.x), top: top(item.y) }} aria-hidden="true" onPointerEnter={() => { setMarked(item.key); setIndex(nearest(Date.parse(item.at))); }} onPointerLeave={() => setMarked(null)}><i /></span>)}
         {tip && <div className={`gmd-chart-tip${mark ? " is-event" : ""}${tip.x > (LEFT + RIGHT) * .62 ? " is-left" : ""}`} style={{ left: left(tip.x), top: top(tip.y) }} aria-hidden="true">

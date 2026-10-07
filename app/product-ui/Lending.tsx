@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
 import { formatUsdMicros } from "@/lib/nav-display";
 import { DEMO_ORDER_EVENT, formatShares, parseShares } from "@/lib/demo/format";
@@ -14,6 +15,7 @@ import { Icon, Skeleton } from "./Icons";
 import GasNotice from "./GasNotice";
 import { useWalletAccount } from "./WalletAccount";
 import { useNavDelay } from "./NavDelay";
+import { PageGuide } from "./ProductShell";
 import { TxLink, sendFromWallet, switchToTestnet, useInjectedWallet, useWalletChain } from "./WalletInvest";
 
 // Borrowing against USTX on X Layer Testnet: post USTX as collateral in GanymedeLendingMarket and
@@ -270,8 +272,9 @@ export function LendingSection() {
     </>;
   }
 
-  return <section id="borrow" className="gmd-fund gmd-lending" aria-labelledby="lending-title">
-    <header className="gmd-section-heading"><div><h2 id="lending-title">Borrow against USTX</h2><p>Post USTX as collateral and borrow demo dollars, or lend them and earn what borrowers pay.</p></div><span className="gmd-badge">{status}</span></header>
+  return <section id="borrow" className="gmd-lending" aria-labelledby="lending-title">
+    <div className="gmd-lending-main">
+    <header className="gmd-section-heading"><div><h2 id="lending-title">USTX lending market</h2><p>Loans of demo dollars against USTX, valued at the NAV recorded on X Layer.</p></div><span className="gmd-badge">{status}</span></header>
     {readFailure && !market && <p className="gmd-inline-error" role="status">The lending market could not be read right now. <button type="button" className="gmd-text-button" onClick={() => setReload(value => value + 1)}>Try again</button></p>}
     <div className="gmd-fund-grid" aria-busy={!market && !readFailure}>
       <article><span>Available to borrow</span><strong>{market ? usd(market.cashMicros) : wait(92)}</strong><small>Demo dollars in the market</small></article>
@@ -279,7 +282,6 @@ export function LendingSection() {
       <article><span>Borrow rate</span><strong>{market ? formatWadPercent(market.borrowRateWad) : wait(56)}</strong><small>A year, rising with use</small></article>
       <article><span>Lending rate</span><strong>{market ? formatWadPercent(market.supplyRateWad) : wait(56)}</strong><small>A year, paid by borrowers</small></article>
     </div>
-    <div className="gmd-lending-body">
       <dl className="gmd-fund-facts gmd-lending-terms">
         <div><dt>Borrow up to</dt><dd>50% of the USTX value</dd></div>
         <div><dt>Collateral priced at</dt><dd>The NAV recorded on X Layer</dd></div>
@@ -288,8 +290,17 @@ export function LendingSection() {
         <div><dt>Smallest loan</dt><dd>$10</dd></div>
         <div><dt>View lending market</dt><dd><a className="gmd-inline-tx" href={fundExplorer.address(FUND_DEPLOYMENT.lending)} target="_blank" rel="noreferrer">X Layer Testnet<Icon name="external" size={12} /><span className="gmd-sr-only"> (opens in a new tab)</span></a></dd></div>
       </dl>
-      <div className="gmd-lending-panel"><h3>Your position</h3>{wallet}</div>
-    </div>
     <p className="gmd-caption">If the NAV falls far enough that a loan passes 65% of its collateral, anyone can repay up to half of it and take USTX worth 8% more, which the fund redeems at the NAV. Demo dollars and USTX have no value.</p>
+    </div>
+    <div className="gmd-lending-panel"><h3>Your position</h3>{wallet}</div>
   </section>;
+}
+
+/** Borrow, a page of its own as Pools is: the market and its terms on the left, the wallet's position and its actions in the right column. */
+export function BorrowScreen() {
+  return <>
+    <div className="gmd-page-heading"><div><h1>Borrow</h1><p>Post USTX as collateral and borrow demo dollars, or lend them and earn what borrowers pay.</p></div><div className="gmd-page-actions"><Link prefetch={false} className="gmd-pill" href="/products/ustx#investment"><Icon name="wallet" size={15} />Get USTX</Link></div></div>
+    <PageGuide />
+    <LendingSection />
+  </>;
 }

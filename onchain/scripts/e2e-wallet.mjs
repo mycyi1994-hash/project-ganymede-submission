@@ -122,6 +122,12 @@ if (process.env.E2E_FLOW === "lending") {
       await page.getByText("USTX in wallet").waitFor({ timeout: 60000 });
     });
     await step("buy $80 at the fund", () => buyAtFund(80));
+    await step("open Borrow", async () => {
+      await page.goto(SITE + "/borrow", { waitUntil: "domcontentloaded", timeout: 90000 });
+      const connect = page.getByRole("button", { name: "Connect OKX Wallet" }).first();
+      if (await connect.isVisible().catch(() => false)) await connect.click();
+      await page.locator("#borrow #lending-amount").waitFor({ timeout: 60000 });
+    });
     await step("deposit 0.5 USTX as collateral", () => lendingStep("Deposit USTX", "0.5"));
     await step("borrow $12", () => lendingStep("Borrow", "12"));
     await step("repay the loan (max)", () => lendingStep("Repay", null, true));

@@ -123,8 +123,8 @@ current NAV (rules in `../contracts/README.md`; 13 tests in
 and live: the administrator unpaused it with the user's approval
 ([unpause](https://web3.okx.com/explorer/x-layer-testnet/tx/0x1acb998775cb55926d585611f9cc18171ab63015b86b62927828d237af6a873f)), a test wallet
 supplied the first $5,000 of demo dollars
-([supply](https://web3.okx.com/explorer/x-layer-testnet/tx/0xaae154df99a842a354c832fbaefff5fdadaf5ae0538fdb3408b0dce1a5ea67af)), and the USTX page's
-Borrow section deposits USTX, borrows, repays, withdraws and lends through it.
+([supply](https://web3.okx.com/explorer/x-layer-testnet/tx/0xaae154df99a842a354c832fbaefff5fdadaf5ae0538fdb3408b0dce1a5ea67af)), and the Borrow page
+(`/borrow`) deposits USTX, borrows, repays, withdraws and lends through it.
 Pausing it again needs the user's approval.
 
 Try a full cycle against the live contracts without touching the deployment:

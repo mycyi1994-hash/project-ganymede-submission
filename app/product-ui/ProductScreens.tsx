@@ -15,11 +15,10 @@ import { CATEGORY_EVENT } from "./AskUstx";
 import { Icon } from "./Icons";
 import { delayText, useNavDelay } from "./NavDelay";
 import { PoolGapsLine } from "./PoolGaps";
-import { designLink } from "./ProductShell";
+import { PageGuide, designLink } from "./ProductShell";
 import MarketChart from "./MarketChart";
 import { InvestPanel } from "./InvestPanel";
 import { FundHoldings, FundOverview, FundStats } from "./Fund";
-import { LendingSection } from "./Lending";
 import { ActivityProvider, MarketActivitySection, MarketPulse } from "./MarketActivity";
 import Holdings from "./Holdings";
 import { useRecordCheck } from "./useRecordCheck";
@@ -121,8 +120,9 @@ export function MarketScreen({ preview = false }: { preview?: boolean }) {
   const points = data ? publicationHistory(data) : [];
   const detail = preview ? designLink("product") : "/products/ustx";
   const baskets = category === "all" || category === "basket";
-  const screen = <><div className="gmd-page-heading"><div><h1>Markets</h1><p>RWA baskets, covered-call income and structured notes on tokenized US stocks, priced by OKX and recorded on X Layer.</p></div>{preview && <span className="gmd-badge">Example account view</span>}</div>
+  const screen = <><div className="gmd-page-heading"><div><h1>Markets</h1><p>RWA baskets, covered-call income and structured notes on tokenized US stocks, priced by OKX and recorded on X Layer.</p></div>{preview ? <span className="gmd-badge">Example account view</span> : <div className="gmd-page-actions"><Link prefetch={false} className="gmd-pill" href={VERIFY}><Icon name="check" size={15} />Verify the NAV</Link><Link prefetch={false} className="gmd-pill" href="/developers"><Icon name="code" size={15} />API</Link></div>}</div>
     {!preview && <nav className="gmd-categories" aria-label="Product categories">{CATEGORIES.map(item => <button type="button" key={item.id} aria-pressed={category === item.id} onClick={() => { setCategory(item.id); window.history.replaceState(null, "", item.id === "all" ? "/" : `/?category=${item.id}`); window.dispatchEvent(new Event(CATEGORY_EVENT)); }}><b>{item.label}</b><small>{item.note}</small></button>)}</nav>}
+    {!preview && <PageGuide />}
     {!preview && !baskets && <><div className="gmd-category-intro"><h2>{category === "income" ? "Covered-call income" : "Structured notes (ELS)"}</h2><p>{category === "income" ? "Hold the S&P 500 or the Nasdaq-100 and sell a call each month: income now, in exchange for the gains above the strike. Like XYLD and QYLD." : "A step-down autocallable note on the S&P 500 and the Nasdaq-100: 7% a year if both hold up, paid back early at six-monthly observations; capital at risk only after a 50% fall."}</p></div>
       <IncomeMarket key={category} kind={category === "income" ? "covered-call" : "autocall"} /></>}
     {baskets && <>{!selectedFund && <DataState />}
@@ -138,8 +138,10 @@ export function ProductScreen({ preview = false, orderPanel, holding = false }: 
   const { data, loading } = useMarket();
   const composition = data ? compositionForRecord(data) : null;
   const points = data ? publicationHistory(data) : [];
-  const screen = <><Link prefetch={false} className="gmd-breadcrumb" href={holding ? designLink("portfolio") : preview ? designLink("markets") : "/"}><Icon name="back" size={16} />{holding ? "Your portfolio" : "All markets"}</Link><div className="gmd-product-heading"><ProductIdentity />{preview && <span className="gmd-badge">Example account view</span>}</div><div className={`gmd-mobile-entry${holding ? " is-holding" : ""}`}>{preview ? <a className="gmd-button" href="#investment">View investment panel<Icon name="arrow" size={16} /></a> : <a className="gmd-button" href="#investment">Invest<Icon name="arrow" size={16} /></a>}</div><DataState />
-    <div className={`gmd-detail-layout${holding ? " is-holding" : ""}`}><div className="gmd-detail-content"><section className="gmd-price-surface" aria-label="Basket value"><NavValue /><MarketChart points={points} loading={loading} /></section><nav className="gmd-product-sections" aria-label="Product sections">{!preview && <a href="#overview">Overview</a>}{!preview && <a href="#activity">Activity</a>}{!preview && <a href="#borrow">Borrow</a>}<a href="#holdings">Holdings</a>{!preview && <Link prefetch={false} href="/pools">Pools <Icon name="arrow" size={14} /></Link>}<Link prefetch={false} href={VERIFY}>Transparency <Icon name="external" size={14} /></Link></nav>{!preview && <FundOverview />}{!preview && <MarketActivitySection />}{!preview && <LendingSection />}<div id="holdings" className="gmd-composition-surface">{preview ? <Holdings composition={composition} loading={loading} /> : <FundHoldings />}</div>
+  const screen = <><Link prefetch={false} className="gmd-breadcrumb" href={holding ? designLink("portfolio") : preview ? designLink("markets") : "/"}><Icon name="back" size={16} />{holding ? "Your portfolio" : "All markets"}</Link><div className="gmd-product-heading"><ProductIdentity />{preview ? <span className="gmd-badge">Example account view</span> : <div className="gmd-page-actions"><Link prefetch={false} className="gmd-pill" href={VERIFY}><Icon name="check" size={15} />Transparency</Link><a className="gmd-button" href="#investment">Invest<Icon name="arrow" size={16} /></a></div>}</div>
+    <nav className="gmd-product-sections" aria-label="Product sections">{!preview && <a href="#overview">Overview</a>}{!preview && <a href="#activity">Activity</a>}{!preview && <Link prefetch={false} href="/borrow">Borrow <Icon name="arrow" size={14} /></Link>}<a href="#holdings">Holdings</a>{!preview && <Link prefetch={false} href="/pools">Pools <Icon name="arrow" size={14} /></Link>}<Link prefetch={false} href={VERIFY}>Transparency <Icon name="external" size={14} /></Link></nav>
+    {!preview && <PageGuide />}{preview && <div className={`gmd-mobile-entry${holding ? " is-holding" : ""}`}><a className="gmd-button" href="#investment">View investment panel<Icon name="arrow" size={16} /></a></div>}<DataState />
+    <div className={`gmd-detail-layout${holding ? " is-holding" : ""}`}><div className="gmd-detail-content"><section className="gmd-price-surface" aria-label="Basket value"><NavValue /><MarketChart points={points} loading={loading} /></section>{!preview && <FundOverview />}{!preview && <MarketActivitySection />}<div id="holdings" className="gmd-composition-surface">{preview ? <Holdings composition={composition} loading={loading} /> : <FundHoldings />}</div>
     </div><div className="gmd-detail-aside" id="investment">{orderPanel ?? <InvestPanel />}</div></div>
   </>;
   return preview ? screen : <ActivityProvider>{screen}</ActivityProvider>;

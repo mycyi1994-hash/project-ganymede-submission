@@ -15,6 +15,7 @@ import { OkxSource } from "./OkxSource";
 import { delayText, useNavDelay } from "./NavDelay";
 import MarketChart from "./MarketChart";
 import { WeightMeter } from "./ConstituentDrawer";
+import { PageGuide } from "./ProductShell";
 
 // The Ganymede funds: a list for Markets, a page for each fund other than USTX (which keeps its own
 // page), and the holdings of those funds on Portfolio. Every figure comes from GET /api/v1/funds,
@@ -153,6 +154,7 @@ export function FundScreen({ id }: { id: string }) {
   return <>
     <Link className="gmd-breadcrumb" prefetch={false} href="/"><Icon name="back" size={16} />All funds</Link>
     <div className="gmd-page-heading"><div><span className="gmd-ticker">{definition.ticker} <span>Equity basket</span></span><h1>{definition.name}</h1><p>{definition.description}</p></div><span className="gmd-badge">Demo fund</span></div>
+    <PageGuide />
     {failed && <p className="gmd-inline-error" role="status">This fund could not be read just now. Reload the page in a moment.</p>}
     <div className="gmd-fund-layout">
       <div className="gmd-fund-main">

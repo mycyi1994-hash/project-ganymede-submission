@@ -1,6 +1,6 @@
 # Build provenance
 
-Production source revision: `24e7ad54e59b8c92568ae76af900037e153a4b09`.
+Production source revision: `8e5505189bd721ea88708b01cee60c9b0356aabc`.
 
 This is a source snapshot, not a claim that the entire project was newly built for this event. The original repository remains private. The entries below were exported from its Git history; reviewers can inspect current implementations and tests, and request original history access from the team if needed. No old secrets, local environment files or full private Git history are published.
 
@@ -813,5 +813,31 @@ Production source: `24e7ad54e59b8c92568ae76af900037e153a4b09`. App Worker versio
 On a wide screen with a wallet connected, Custom's editor sits in the narrow panel; the chart beside it now is the same grid of blocks at chart size, to press or drag across like Meteora's DLMM Pro, and both grids share one shape and one undo history. The chart opens on the narrowest view that holds the position (±3% for a ±2% one): it used to open on ±6% at the least, and a picked ±24% stayed for every later setting, leaving the bins in a sliver in the middle. Also fixed: undo after a stroke could leave the stroke's first column.
 
 Checks: 293 application tests passed. In production, with a wallet connected through an injected read-only provider, a drag across the chart's grid changed both grids and undo restored the exact previous shape in both; at 390 px the chart keeps its bars, and without a wallet Custom opens on ±3% with its bins across 68% of the chart. No horizontal overflow, no console errors and no axe violations on Pools.
+
+These are point-in-time observations, not continuous availability or a security audit.
+
+## Wallet transactions sent through the public RPC — 7 October 2026
+
+Production source: `fbddc68f296d7dd4cd10a845e881482d2c20b751`. App Worker version: `7b160048-170e-427b-b131-105a6f537228`; prior version: `bc1a624d-ceea-47e0-bfd0-d70fd04af98d`. The relayer, the keeper and the contracts are unchanged.
+
+In a rehearsal before the presentation, two OKX Wallet transactions (a new wallet claiming demo dollars, another wallet's approval) returned a hash but never appeared on the public RPC or the explorer, while the relayer, the keeper and the faucet, which send through the public RPC, recorded normally. The app now sets the fee (twice the public RPC's `eth_gasPrice`), the gas (the estimate plus a fifth plus 10,000) and the confirmed nonce, asks the wallet only to sign (`eth_signTransaction`) and sends the signed transaction to the public RPC itself; a wallet that cannot sign without sending gets `eth_sendTransaction` with the same fee. A transaction no node knows 45 seconds after it was sent is reported as not arrived, with the advice to cancel it in the wallet and send again. Checks: 298 application tests passed; on X Layer Testnet a claim signed by an empty key was refused only for its balance (a fee of about 0.000004 OKB). After the deploy the main screens returned 200 and the 03:20 UTC NAV record landed. Whether OKX Wallet supports signing without sending was not confirmed with a real wallet.
+
+## Wallet sends at the confirmed nonce — 7 October 2026
+
+Production source: `483a2c56bd2d9346d1a56cd5354f78457cbf9803`. App Worker version: `0c545b0e-1c58-49ed-af6e-dd0ab8a83fe4`; prior version: `7b160048-170e-427b-b131-105a6f537228`.
+
+After that release the same new OKX Wallet's claim still ended in the 45-second notice, with nonce 0 and nothing pending on every node. OKX Wallet appears not to support signing without sending, so the app fell back to the wallet sending; the transaction vanished even at twice the fee, so the fee was not the cause. A wallet that still counts a transaction the nodes dropped gives its next one the following nonce, behind a gap no node accepts. The app now passes the chain's confirmed nonce to `eth_sendTransaction` too; a wallet that ignores it behaves as before. Checks: 298 application tests passed; after the deploy the main screens returned 200 and the 03:25 UTC NAV record landed.
+
+## The console layout — 7 October 2026
+
+Production source: `03f4f094a463d43762cca15e999ac279c4c24491`. App Worker version: `c78ad283-2b8c-4ba1-afc4-8a5f38c49989`; prior version: `0c545b0e-1c58-49ed-af6e-dd0ab8a83fe4`.
+
+The product UI takes the layout of the OpenAI Platform web console, the reference the team picked: a grey canvas with a slim top bar, a sidebar of grouped pages (Invest, Verify, Build) and the page in one white panel. Each page opens on a title bar across the panel with its pills and tabs, then Ask USTX. The featured fund on Markets, a product beside its order column and Pools beside its liquidity panel are laid across the panel on hairlines; figures sit in hairline strips and passing checks read green. Ask USTX and the delay notice moved from the shell into each page under its title, so the reading order matches the screen. Checks: 298 application tests passed; preview versions and production at 1440 and 390 px showed no horizontal overflow and no console errors, and the 04:30 UTC NAV record ($101.440987) landed after the deploy.
+
+## Borrow on a page of its own — 7 October 2026
+
+Production source: `8e5505189bd721ea88708b01cee60c9b0356aabc`. App Worker version: `d05c6916-1689-44ea-aff8-1e741accacf0`; prior version: `c78ad283-2b8c-4ba1-afc4-8a5f38c49989`. The relayer, the keeper and the contracts are unchanged. Exported development commit: `de4bbeed39a367820362736e2f33816b345f087a`, which adds only the release records and the build-period rows to the production source.
+
+The lending market sat inside the USTX page, where it was hard to find. It is now `/borrow`, in the sidebar beside Pools and in the phone's bottom bar: the market's figures and terms on the left, the wallet's position and its actions in the right column. The USTX page's Borrow tab and the Portfolio's links open it, and Ask USTX has a Borrow screen. Checks: 298 application tests passed, including the navigation and the new page; after the deploy `/borrow` served the market and its terms, the USTX page linked to it, and the 04:45 UTC NAV record ($101.434973) landed.
 
 These are point-in-time observations, not continuous availability or a security audit.

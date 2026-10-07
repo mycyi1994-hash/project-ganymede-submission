@@ -327,17 +327,33 @@ export async function simulateFundCall(from: string, request: TransactionCall, o
 
 export type FundReceipt = { hash: string; block: number; status: "success" | "reverted"; logs: Array<{ address: string; topics: string[]; data: string }> };
 
-/** Polls the public RPC until the transaction is mined. */
-export async function waitForFundReceipt(hash: string, options: { rpc?: Rpc; timeoutMs?: number; intervalMs?: number } = {}): Promise<FundReceipt> {
+export const TRANSACTION_NEVER_ARRIVED = "Your wallet’s transaction never reached X Layer Testnet. If your wallet shows it as pending, cancel it, then try again.";
+
+/**
+ * Polls the public RPC until the transaction is mined. A transaction no node has heard of
+ * `unseenMs` after it was sent was dropped on its way (a wallet's node can drop one without an
+ * error), and is reported as that rather than waited for.
+ */
+export async function waitForFundReceipt(hash: string, options: { rpc?: Rpc; timeoutMs?: number; intervalMs?: number; unseenMs?: number } = {}): Promise<FundReceipt> {
   if (!/^0x[0-9a-f]{64}$/i.test(hash)) throw new Error("The wallet returned an invalid transaction hash.");
   const rpc = options.rpc ?? fundRpc();
-  const deadline = Date.now() + (options.timeoutMs ?? 120_000);
+  const started = Date.now();
+  const deadline = started + (options.timeoutMs ?? 120_000);
+  const unseenUntil = started + (options.unseenMs ?? 45_000);
+  let seen = false;
   for (;;) {
     let receipt: Record<string, unknown> | null = null;
     try { receipt = await rpc("eth_getTransactionReceipt", [hash]) as Record<string, unknown> | null; } catch { /* A lagging node or a timeout: poll again. */ }
     if (receipt) {
       const logs = Array.isArray(receipt.logs) ? receipt.logs as Array<{ address: string; topics: string[]; data: string }> : [];
       return { hash: hash.toLowerCase(), block: Number(quantity(receipt.blockNumber)), status: receipt.status === "0x1" ? "success" : "reverted", logs };
+    }
+    if (!seen) {
+      // Only an answer that the node has no such transaction counts; a failed read proves nothing.
+      let known: unknown;
+      try { known = await rpc("eth_getTransactionByHash", [hash]); } catch { /* Poll again. */ }
+      if (known) seen = true;
+      else if (known === null && Date.now() > unseenUntil) throw new Error(TRANSACTION_NEVER_ARRIVED);
     }
     if (Date.now() > deadline) throw new Error("X Layer Testnet has not confirmed the transaction yet. Check it on the OKX explorer.");
     await new Promise(resolve => setTimeout(resolve, options.intervalMs ?? 1_500));

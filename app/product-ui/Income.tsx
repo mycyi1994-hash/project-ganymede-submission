@@ -17,6 +17,7 @@ import MarketChart from "./MarketChart";
 import { ChartHead, useWidth } from "./ChartParts";
 import { AssetMark, Icon } from "./Icons";
 import { OkxSource } from "./OkxSource";
+import { PageGuide } from "./ProductShell";
 
 // The income products: two covered-call funds and a step-down autocallable note (ELS) on SPYx and
 // QQQx. Each page reads its record and documents from GET /api/v1/funds, checks the record and the
@@ -232,6 +233,7 @@ export function IncomeScreen({ id }: { id: string }) {
   return <>
     <Link className="gmd-breadcrumb" prefetch={false} href="/?category=income"><Icon name="back" size={16} />Income &amp; structured</Link>
     <div className="gmd-page-heading"><div><span className="gmd-ticker">{definition.ticker} <span>{KIND_LABELS[definition.kind ?? "basket"]}</span></span><h1>{definition.name}</h1><p>{definition.description}</p></div><span className="gmd-badge">Demo product · model pricing</span></div>
+    <PageGuide />
     {failed && <p className="gmd-inline-error" role="status">This product could not be read just now. Reload the page in a moment.</p>}
     <div className="gmd-fund-layout">
       <div className="gmd-fund-main">

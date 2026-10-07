@@ -8,7 +8,8 @@ import { Icon } from "./Icons";
 import { usePools } from "./PoolGaps";
 
 // Ask USTX: an AI guide at the top of every product screen, with what is happening now and the next
-// questions and steps for that screen, and the conversation panel it opens. Answers come from
+// questions and steps for that screen, and a chat in the bottom-right corner, opened from its button
+// there or from a question in the guide, that offers the same questions. Answers come from
 // POST /api/assistant, which reads X Layer through the same read-only tools as the MCP server; each
 // answer names the tools it read. The guide's line of figures is read from the public API, not the model.
 
@@ -31,9 +32,11 @@ const AskContext = createContext<AskApi | null>(null);
 /** Asks Ask USTX a question from anywhere on a product screen, opening the conversation; null outside the shell. */
 export function useAsk(): AskApi | null { return useContext(AskContext); }
 
-/** Holds the conversation for the whole page, so the guide on any screen can start or continue it. */
-export function AskProvider({ children }: { children: ReactNode }) {
+/** Holds the conversation for the whole page, so the guide on any screen can start or continue it; `launcher` puts its button in the corner. */
+export function AskProvider({ children, launcher = true }: { children: ReactNode; launcher?: boolean }) {
+  const screen = useGuideScreen();
   const [open, setOpen] = useState(false);
+  const launcherRef = useRef<HTMLButtonElement>(null);
   const [turns, setTurns] = useState<Turn[]>([]);
   const [draft, setDraft] = useState("");
   const [busy, setBusy] = useState(false);
@@ -48,7 +51,7 @@ export function AskProvider({ children }: { children: ReactNode }) {
   // Escape closes the panel wherever focus is, even after a button inside it has gone away.
   useEffect(() => {
     if (!open) return;
-    const close = (event: KeyboardEvent) => { if (event.key === "Escape") setOpen(false); };
+    const close = (event: KeyboardEvent) => { if (event.key === "Escape") { setOpen(false); window.setTimeout(() => launcherRef.current?.focus(), 0); } };
     document.addEventListener("keydown", close);
     return () => document.removeEventListener("keydown", close);
   }, [open]);
@@ -119,10 +122,11 @@ export function AskProvider({ children }: { children: ReactNode }) {
     {children}
     {open && <section className="gmd-ask" role="dialog" aria-label="Ask USTX">
       <header><div><strong><Icon name="spark" size={17} />Ask USTX</strong><span>Prices, holdings and your next step</span></div>
-        <div>{turns.length > 0 && <button type="button" className="gmd-ask-reset" onClick={() => { setTurns([]); setError(null); input.current?.focus(); }}>New chat</button>}<button type="button" aria-label="Close Ask USTX" onClick={() => setOpen(false)}><Icon name="close" size={18} /></button></div>
+        <div>{turns.length > 0 && <button type="button" className="gmd-ask-reset" onClick={() => { setTurns([]); setError(null); input.current?.focus(); }}>New chat</button>}<button type="button" aria-label="Close Ask USTX" onClick={() => { setOpen(false); window.setTimeout(() => launcherRef.current?.focus(), 0); }}><Icon name="close" size={18} /></button></div>
       </header>
       <div className="gmd-ask-log" ref={log} aria-live="polite">
-        {turns.length === 0 && <div className="gmd-ask-intro"><p>Ask about USTX&rsquo;s NAV, what a share holds, quotes at the fund and the pools, or how the record is checked.</p></div>}
+        {turns.length === 0 && <div className="gmd-ask-intro"><p>Ask about USTX&rsquo;s NAV, what a share holds, quotes at the fund and the pools, or how the record is checked.</p>
+          <ul aria-label="Suggested questions">{GUIDE[screen].questions.map(question => <li key={question}><button type="button" onClick={() => void ask(question)}>{question}</button></li>)}</ul></div>}
         {turns.map((turn, index) => <div key={index} className={`gmd-ask-turn is-${turn.role}`}>
           <p>{turn.content}</p>
           {turn.role === "assistant" && turn.tools && turn.tools.length > 0 && <small><Icon name="check" size={13} />Read from {turn.tools.map(tool => TOOL_LABELS[tool] ?? "market data").join(", ")}</small>}
@@ -138,6 +142,7 @@ export function AskProvider({ children }: { children: ReactNode }) {
       </form>
       <p className="gmd-ask-note">Demo dollars and USTX have no value. Answers are not investment advice and can be wrong; check figures on <Link prefetch={false} href="/products/ustx/transparency">Transparency</Link>.</p>
     </section>}
+    {launcher && !open && <button ref={launcherRef} type="button" className="gmd-ask-launcher" aria-haspopup="dialog" onClick={() => setOpen(true)}><Icon name="spark" size={18} /><span>Ask USTX</span><small>AI</small></button>}
   </AskContext.Provider>;
 }
 
@@ -158,6 +163,19 @@ function screenOf(path: string, category: string | null): Screen {
   if (path === "/products/ustx") return "product";
   if (path.startsWith("/funds/")) return "fund";
   return "other";
+}
+
+/** The screen the guide and the chat are on: the path, and on Markets the category it shows. */
+function useGuideScreen(): Screen {
+  const path = usePathname() ?? "/";
+  const [category, setCategory] = useState<string | null>(null);
+  useEffect(() => {
+    const read = () => setCategory(new URLSearchParams(window.location.search).get("category"));
+    const first = window.setTimeout(read, 0);
+    window.addEventListener(CATEGORY_EVENT, read);
+    return () => { window.clearTimeout(first); window.removeEventListener(CATEGORY_EVENT, read); };
+  }, [path]);
+  return screenOf(path, category);
 }
 
 /** For each screen: the questions the guide offers, and the one step it points to. */
@@ -268,21 +286,12 @@ function insight(screen: Screen, facts: Facts | null, now: number): string {
   }
 }
 
-/** The AI guide at the top of a product screen: the figures now, three questions to ask, and a next step. */
+/** The AI guide at the top of a product screen: the figures now, three questions to ask, and a next step. A question of one's own goes to the chat in the corner. */
 export function AskGuide() {
   const context = useContext(AskContext);
-  const path = usePathname() ?? "/";
-  const [category, setCategory] = useState<string | null>(null);
-  useEffect(() => {
-    const read = () => setCategory(new URLSearchParams(window.location.search).get("category"));
-    const first = window.setTimeout(read, 0);
-    window.addEventListener(CATEGORY_EVENT, read);
-    return () => { window.clearTimeout(first); window.removeEventListener(CATEGORY_EVENT, read); };
-  }, [path]);
-  const screen = screenOf(path, category);
+  const screen = useGuideScreen();
   const facts = useFacts();
   const [now, setNow] = useState(0);
-  const [draft, setDraft] = useState("");
   useEffect(() => {
     const first = window.setTimeout(() => setNow(Date.now()), 0);
     const timer = window.setInterval(() => setNow(Date.now()), 30_000);
@@ -311,10 +320,5 @@ export function AskGuide() {
       {guide.questions.map(question => <button type="button" key={question} onClick={() => context.ask(question)}>{question}</button>)}
       {guide.action && <Link prefetch={false} className="gmd-ask-guide-step" href={guide.action.href}>{guide.action.label}<Icon name="arrow" size={15} /></Link>}
     </div>
-    <form className="gmd-ask-guide-form" onSubmit={event => { event.preventDefault(); if (draft.trim()) { context.ask(draft); setDraft(""); } }}>
-      <label className="gmd-sr-only" htmlFor="gmd-ask-guide-input">Ask anything about USTX</label>
-      <input id="gmd-ask-guide-input" value={draft} maxLength={1000} autoComplete="off" placeholder="Ask anything about USTX…" onChange={event => setDraft(event.target.value)} />
-      <button type="submit" disabled={!draft.trim()} aria-label="Ask"><Icon name="send" size={17} /></button>
-    </form>
   </section>;
 }

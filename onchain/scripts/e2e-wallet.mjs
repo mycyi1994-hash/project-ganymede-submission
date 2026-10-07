@@ -106,13 +106,15 @@ const buyAtFund = async dollars => {
   await page.getByText(/Order filled|Added to your basket/).first().waitFor({ timeout: 180000 });
   await page.getByRole("button", { name: /Place another order/ }).click();
 };
+// Each action is a row's button on Borrow, which opens its dialog: the amount, the action, then Done.
 const lendingStep = async (label, amount, useMax = false) => {
-  const section = page.locator("#borrow");
-  await section.getByRole("button", { name: label, exact: true }).click();
-  if (useMax) { await page.waitForFunction(() => document.querySelector("#borrow .gmd-lending-max"), null, { timeout: 60000 }); await section.locator(".gmd-lending-max").click(); }
-  else await section.locator("#lending-amount").fill(String(amount));
-  await section.locator("button.gmd-button").click();
-  await section.locator(".gmd-lending-done").waitFor({ timeout: 180000 });
+  await page.locator("#borrow").getByRole("button", { name: label, exact: true }).first().click();
+  const dialog = page.locator(".gmd-lending-dialog");
+  if (useMax) { await dialog.locator(".gmd-lending-max").waitFor({ timeout: 60000 }); await dialog.locator(".gmd-lending-max").click(); }
+  else await dialog.locator("#lending-amount").fill(String(amount));
+  await dialog.locator("button.gmd-lending-submit").click();
+  await dialog.locator(".gmd-lending-done").waitFor({ timeout: 180000 });
+  await dialog.getByRole("button", { name: "Done" }).click();
 };
 if (process.env.E2E_FLOW === "lending") {
   try {
@@ -126,11 +128,11 @@ if (process.env.E2E_FLOW === "lending") {
       await page.goto(SITE + "/borrow", { waitUntil: "domcontentloaded", timeout: 90000 });
       const connect = page.getByRole("button", { name: "Connect OKX Wallet" }).first();
       if (await connect.isVisible().catch(() => false)) await connect.click();
-      await page.locator("#borrow #lending-amount").waitFor({ timeout: 60000 });
+      await page.locator("#borrow .gmd-lending-summary").getByText(/supplied ·/).waitFor({ timeout: 60000 });
     });
     await step("deposit 0.5 USTX as collateral", () => lendingStep("Deposit USTX", "0.5"));
-    await step("borrow $12", () => lendingStep("Borrow", "12"));
-    await step("repay the loan (max)", () => lendingStep("Repay", null, true));
+    await step("borrow $12", () => lendingStep("Borrow dUSD", "12"));
+    await step("repay the loan (max)", () => lendingStep("Repay dUSD", null, true));
     await step("withdraw collateral (max)", () => lendingStep("Withdraw USTX", null, true));
     await step("lend $20", () => lendingStep("Lend dUSD", "20"));
     await step("withdraw lent dUSD (max)", () => lendingStep("Withdraw dUSD", null, true));

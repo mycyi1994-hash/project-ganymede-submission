@@ -96,6 +96,7 @@ Ganymede was selected as one of 30 finalists from 150 teams. The organizers conf
 | 2026-10-07 02:56 | `24e7ad5` | On a wide screen Custom's grid of blocks is drawn in the chart at full size, sharing its shape and undo history with the panel's, and the chart opens on the narrowest view that holds the position |
 | 2026-10-07 04:26 | `03f4f09` | The product takes the OpenAI Platform console's layout: a grouped sidebar and a white panel, each page opening on a title bar with its pills and tabs and then Ask USTX, and the featured fund, a product's order column and Pools' liquidity panel laid across the panel on hairlines |
 | 2026-10-07 04:43 | `8e55051` | Borrow gets a page of its own in the sidebar beside Pools: the lending market's figures and terms on the left and the wallet's position in the right column, opened from the USTX page's Borrow tab and the Portfolio |
+| 2026-10-07 05:11 | `d57afbd` | Borrow laid out like Aave and Venus (the wallet's position, its supplies and borrows, the assets to supply and borrow, each action in a dialog with a transaction overview), and Ask USTX in its own violet-to-blue colours with its chat in the bottom-right corner |
 
 ## Every commit in the build period (UTC)
 

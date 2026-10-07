@@ -1,6 +1,6 @@
 # Build provenance
 
-Production source revision: `8e5505189bd721ea88708b01cee60c9b0356aabc`.
+Production source revision: `d57afbd58bfd9f2f20a1d8ad143a530f3e503b6a`.
 
 This is a source snapshot, not a claim that the entire project was newly built for this event. The original repository remains private. The entries below were exported from its Git history; reviewers can inspect current implementations and tests, and request original history access from the team if needed. No old secrets, local environment files or full private Git history are published.
 
@@ -839,5 +839,13 @@ The product UI takes the layout of the OpenAI Platform web console, the referenc
 Production source: `8e5505189bd721ea88708b01cee60c9b0356aabc`. App Worker version: `d05c6916-1689-44ea-aff8-1e741accacf0`; prior version: `c78ad283-2b8c-4ba1-afc4-8a5f38c49989`. The relayer, the keeper and the contracts are unchanged. Exported development commit: `de4bbeed39a367820362736e2f33816b345f087a`, which adds only the release records and the build-period rows to the production source.
 
 The lending market sat inside the USTX page, where it was hard to find. It is now `/borrow`, in the sidebar beside Pools and in the phone's bottom bar: the market's figures and terms on the left, the wallet's position and its actions in the right column. The USTX page's Borrow tab and the Portfolio's links open it, and Ask USTX has a Borrow screen. Checks: 298 application tests passed, including the navigation and the new page; after the deploy `/borrow` served the market and its terms, the USTX page linked to it, and the 04:45 UTC NAV record ($101.434973) landed.
+
+These are point-in-time observations, not continuous availability or a security audit.
+
+## Borrow laid out like Aave and Venus, and Ask USTX's corner chat — 7 October 2026
+
+Production source: `d57afbd58bfd9f2f20a1d8ad143a530f3e503b6a`. App Worker version: `b98f7623-d216-4030-a1df-c6bfdbeaa487`; prior version: `d05c6916-1689-44ea-aff8-1e741accacf0`. The relayer, the keeper and the contracts are unchanged. Exported development commit: `813d85bd1f695361a381186dc893323a1bed0a37`, which adds only the release record and the build-period row to the production source.
+
+Borrow reads as Aave's and Venus's dashboards do: the wallet's position (net worth, borrow limit used, loan to value with the NAV that would liquidate it, both rates), its supplies and borrows, the assets it can supply and borrow, then the market's terms. Each row's action opens a dialog with its pair as tabs, the amount against the wallet's balance or limit, a transaction overview before and after, and the steps; the lending logic is unchanged. Ask USTX alone takes violet-to-blue AI colours: the guide under each title keeps its figures and questions, and its question box moved to a chat button in the bottom-right corner. Checks: 298 application tests passed; in production, with an injected read-only wallet at 1440 and 390 px, the position band, the tables, the Deposit and Lend dialogs and the corner chat worked, with no horizontal overflow and no console errors, and the 05:15 UTC NAV record ($101.447276) landed after the deploy.
 
 These are point-in-time observations, not continuous availability or a security audit.
